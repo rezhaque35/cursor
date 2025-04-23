@@ -1,0 +1,311 @@
+package com.wifi.positioning.algorithm.impl;
+
+import com.wifi.positioning.dto.Position;
+import com.wifi.positioning.dto.WifiScanResult;
+import com.wifi.positioning.model.WifiAccessPoint;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Test suite for the Proximity Detection positioning algorithm.
+ * These tests verify the algorithm's ability to determine position based on
+ * the strongest signal approach. The test suite covers basic functionality,
+ * edge cases, and signal strength-based confidence calculations.
+ * 
+ * Key Test Areas:
+ * 1. Basic Functionality - Core algorithm behavior
+ * 2. Input Validation - Error handling
+ * 3. Position Calculation - Strongest signal selection
+ * 4. Confidence Calculation - Signal strength correlation
+ */
+@DisplayName("Proximity Detection Algorithm Tests")
+class ProximityDetectionAlgorithmTest {
+    private ProximityDetectionAlgorithm algorithm;
+
+    @BeforeEach
+    void setUp() {
+        algorithm = new ProximityDetectionAlgorithm();
+    }
+
+    private WifiAccessPoint createAP(String mac, double lat, double lon, double alt, double accuracy) {
+        return WifiAccessPoint.builder()
+            .macAddress(mac)
+            .latitude(lat)
+            .longitude(lon)
+            .altitude(alt)
+            .horizontalAccuracy(accuracy)
+            .confidence(0.8)
+            .signalStrengthAvg(-65.0)
+            .build();
+    }
+
+    private WifiScanResult createScan(String mac, double signalStrength) {
+        return new WifiScanResult(mac, signalStrength, 2400, 6, "test-ssid");
+    }
+
+    /**
+     * Tests for core algorithm functionality and basic behaviors.
+     * These tests verify that the algorithm provides consistent and reliable results
+     * under normal operating conditions.
+     */
+    @Nested
+    @DisplayName("Basic Functionality Tests")
+    class BasicFunctionalityTests {
+        /**
+         * Verifies that the algorithm correctly identifies itself.
+         * Important for algorithm selection in the hybrid positioning system.
+         */
+        @Test
+        @DisplayName("should return correct algorithm name")
+        void shouldReturnCorrectAlgorithmName() {
+            assertEquals("proximity", algorithm.getName());
+        }
+
+        /**
+         * Validates that confidence values are within valid range (0-1).
+         * The proximity detection algorithm uses a base confidence of 0.6,
+         * which is lower than other algorithms due to its simplistic approach.
+         */
+        @Test
+        @DisplayName("should return valid confidence level")
+        void shouldReturnValidConfidence() {
+            assertTrue(algorithm.getConfidence() > 0.0);
+            assertTrue(algorithm.getConfidence() <= 1.0);
+        }
+    }
+
+    /**
+     * Tests for proper handling of invalid or edge case inputs.
+     * These tests ensure the algorithm fails gracefully and provides
+     * appropriate error handling when given problematic input data.
+     */
+    @Nested
+    @DisplayName("Input Validation Tests")
+    class InputValidationTests {
+        /**
+         * Verifies handling of null WiFi scan data.
+         * Expected: Return null to indicate invalid input
+         */
+        @Test
+        @DisplayName("should return null for null WiFi scan")
+        void shouldReturnNullForNullWifiScan() {
+            assertNull(algorithm.calculatePosition(null, Collections.emptyList()));
+        }
+
+        /**
+         * Verifies handling of empty WiFi scan data.
+         * Expected: Return null as no signals to process
+         */
+        @Test
+        @DisplayName("should return null for empty WiFi scan")
+        void shouldReturnNullForEmptyWifiScan() {
+            assertNull(algorithm.calculatePosition(Collections.emptyList(), Collections.emptyList()));
+        }
+
+        /**
+         * Verifies handling of null known AP list.
+         * Expected: Return null as reference points are missing
+         */
+        @Test
+        @DisplayName("should return null for null known APs")
+        void shouldReturnNullForNullKnownAPs() {
+            List<WifiScanResult> scans = Collections.singletonList(
+                createScan("AP1", -65.0)
+            );
+            assertNull(algorithm.calculatePosition(scans, null));
+        }
+
+        /**
+         * Verifies handling of empty known AP list.
+         * Expected: Return null as no reference points available
+         */
+        @Test
+        @DisplayName("should return null for empty known APs")
+        void shouldReturnNullForEmptyKnownAPs() {
+            List<WifiScanResult> scans = Collections.singletonList(
+                createScan("AP1", -65.0)
+            );
+            assertNull(algorithm.calculatePosition(scans, Collections.emptyList()));
+        }
+    }
+
+    /**
+     * Tests for the core position calculation functionality.
+     * These tests verify the algorithm's ability to:
+     * 1. Identify strongest signal correctly
+     * 2. Return corresponding AP position
+     * 3. Handle unknown APs appropriately
+     */
+    @Nested
+    @DisplayName("Position Calculation Tests")
+    class PositionCalculationTests {
+        /**
+         * Tests the core strongest signal selection.
+         * Verifies that:
+         * 1. Strongest signal is correctly identified
+         * 2. Position matches the AP with strongest signal
+         * 3. All coordinates (lat, lon, alt) are correctly copied
+         * Expected: Position should exactly match AP2's location
+         */
+        @Test
+        @DisplayName("should find the AP with the strongest signal")
+        void shouldFindAPWithStrongestSignal() {
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                createAP("AP1", 1.0, 1.0, 10.0, 5.0),
+                createAP("AP2", 2.0, 2.0, 20.0, 5.0),
+                createAP("AP3", 3.0, 3.0, 30.0, 5.0)
+            );
+
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -70.0),
+                createScan("AP2", -60.0),  // Strongest signal
+                createScan("AP3", -80.0)
+            );
+
+            Position position = algorithm.calculatePosition(scans, knownAPs);
+            assertNotNull(position);
+            
+            // Position should match AP2 coordinates since it has the strongest signal
+            assertEquals(2.0, position.latitude());
+            assertEquals(2.0, position.longitude());
+            assertEquals(20.0, position.altitude());
+        }
+
+        /**
+         * Tests handling of unknown APs with strong signals.
+         * Verifies that:
+         * 1. Unknown APs are properly identified
+         * 2. Algorithm returns null when strongest signal is from unknown AP
+         * Expected: Return null when strongest signal is from unknown AP
+         */
+        @Test
+        @DisplayName("should return null when strongest signal is from unknown AP")
+        void shouldHandleUnknownAPs() {
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                createAP("AP1", 1.0, 1.0, 10.0, 5.0),
+                createAP("AP2", 2.0, 2.0, 20.0, 5.0)
+            );
+
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -70.0),
+                createScan("UNKNOWN", -60.0),  // Unknown AP with strongest signal
+                createScan("AP2", -80.0)
+            );
+
+            // The algorithm returns null when the strongest signal AP is not in the known list
+            assertNull(algorithm.calculatePosition(scans, knownAPs));
+        }
+
+        /**
+         * Tests behavior when all detected APs are unknown.
+         * Expected: Return null as no valid reference points
+         */
+        @Test
+        @DisplayName("should handle only unknown APs")
+        void shouldHandleOnlyUnknownAPs() {
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                createAP("AP1", 1.0, 1.0, 10.0, 5.0),
+                createAP("AP2", 2.0, 2.0, 20.0, 5.0)
+            );
+
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("UNKNOWN1", -70.0),
+                createScan("UNKNOWN2", -60.0)
+            );
+
+            assertNull(algorithm.calculatePosition(scans, knownAPs));
+        }
+    }
+
+    /**
+     * Tests for confidence calculation based on signal strength.
+     * These tests verify that confidence values correctly reflect
+     * signal quality and follow the normalization formula.
+     */
+    @Nested
+    @DisplayName("Confidence Calculation Tests")
+    class ConfidenceCalculationTests {
+        /**
+         * Tests confidence calculation across signal strength range.
+         * Verifies that:
+         * 1. Stronger signals produce higher confidence
+         * 2. Confidence values are properly normalized
+         * 3. Relative confidence ordering is maintained
+         * Expected: Strong signal (-40dBm) should have higher confidence
+         * than weak signal (-80dBm)
+         */
+        @Test
+        @DisplayName("should calculate higher confidence for stronger signals")
+        void shouldCalculateHigherConfidenceForStrongerSignals() {
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                createAP("AP1", 1.0, 1.0, 10.0, 5.0),
+                createAP("AP2", 2.0, 2.0, 20.0, 5.0)
+            );
+
+            // Strong signal
+            List<WifiScanResult> strongSignal = Collections.singletonList(
+                createScan("AP1", -40.0)
+            );
+            Position strongPosition = algorithm.calculatePosition(strongSignal, knownAPs);
+            
+            // Weak signal
+            List<WifiScanResult> weakSignal = Collections.singletonList(
+                createScan("AP2", -80.0)
+            );
+            Position weakPosition = algorithm.calculatePosition(weakSignal, knownAPs);
+            
+            assertNotNull(strongPosition);
+            assertNotNull(weakPosition);
+            assertTrue(strongPosition.confidence() > weakPosition.confidence());
+        }
+
+        /**
+         * Tests confidence calculation for very weak signals.
+         * Verifies that:
+         * 1. Very weak signals produce low but non-zero confidence
+         * 2. Confidence calculation handles edge cases gracefully
+         * Expected: Very weak signal (-89dBm) should have confidence < 0.2
+         */
+        @Test
+        @DisplayName("should handle very weak signals with minimal confidence")
+        void shouldHandleVeryWeakSignalsWithMinimalConfidence() {
+            List<WifiAccessPoint> knownAPs = Collections.singletonList(
+                createAP("AP1", 1.0, 1.0, 10.0, 5.0)
+            );
+
+            // Very weak signal
+            List<WifiScanResult> veryWeakSignal = Collections.singletonList(
+                createScan("AP1", -89.0)
+            );
+            
+            Position position = algorithm.calculatePosition(veryWeakSignal, knownAPs);
+            assertNotNull(position);
+            assertTrue(position.confidence() > 0 && position.confidence() < 0.2);
+        }
+
+        @Test
+        @DisplayName("should handle very strong signals with high confidence")
+        void shouldHandleVeryStrongSignalsWithHighConfidence() {
+            List<WifiAccessPoint> knownAPs = Collections.singletonList(
+                createAP("AP1", 1.0, 1.0, 10.0, 5.0)
+            );
+
+            // Very strong signal
+            List<WifiScanResult> veryStrongSignal = Collections.singletonList(
+                createScan("AP1", -35.0)
+            );
+            
+            Position position = algorithm.calculatePosition(veryStrongSignal, knownAPs);
+            assertNotNull(position);
+            assertTrue(position.confidence() > 0.8 && position.confidence() <= 0.85);
+        }
+    }
+} 

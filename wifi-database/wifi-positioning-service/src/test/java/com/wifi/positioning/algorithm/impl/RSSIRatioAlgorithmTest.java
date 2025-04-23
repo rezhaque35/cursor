@@ -1,0 +1,260 @@
+package com.wifi.positioning.algorithm.impl;
+
+import com.wifi.positioning.dto.Position;
+import com.wifi.positioning.model.WifiAccessPoint;
+import com.wifi.positioning.dto.WifiScanResult;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Test suite for the RSSI Ratio positioning algorithm.
+ * These tests verify the algorithm's ability to calculate positions using signal strength ratios
+ * and validate its behavior under various real-world conditions.
+ * 
+ * Test Categories:
+ * 1. Basic Functionality - Core algorithm behavior
+ * 2. Input Validation - Error handling and edge cases
+ * 3. Position Calculation - Accuracy and precision
+ * 4. Accuracy Tests - Performance under different conditions
+ */
+@DisplayName("RSSI Ratio Algorithm Tests")
+class RSSIRatioAlgorithmTest {
+    private RSSIRatioAlgorithm algorithm;
+
+    @BeforeEach
+    void setUp() {
+        algorithm = new RSSIRatioAlgorithm();
+    }
+
+    private WifiAccessPoint createAP(String mac, String vendor, double lat, double lon, double signalStrength) {
+        return WifiAccessPoint.builder()
+            .macAddress(mac)
+            .vendor(vendor)
+            .latitude(lat)
+            .longitude(lon)
+            .altitude(0.0)
+            .horizontalAccuracy(5.0)
+            .confidence(0.8)
+            .signalStrengthAvg(signalStrength)
+            .build();
+    }
+
+    private WifiScanResult createScan(String mac, double signalStrength) {
+        return new WifiScanResult(mac, signalStrength, 2400, 6, "test-ssid");
+    }
+
+    /**
+     * Tests for core algorithm functionality and basic behaviors.
+     * These tests verify that the algorithm provides consistent and reliable results
+     * under normal operating conditions.
+     */
+    @Nested
+    @DisplayName("Basic Functionality Tests")
+    class BasicFunctionalityTests {
+        /**
+         * Verifies that the algorithm correctly identifies itself.
+         * Important for algorithm selection in the hybrid positioning system.
+         */
+        @Test
+        @DisplayName("should return correct algorithm name")
+        void shouldReturnCorrectName() {
+            assertEquals("RSSI Ratio", algorithm.getName());
+        }
+
+        /**
+         * Validates that confidence values are within valid range (0-1).
+         * Tests with a simple two-AP scenario to verify basic confidence calculation.
+         * Expected: Confidence should be:
+         * - Greater than 0 (some level of certainty)
+         * - Less than or equal to 1 (no over-confidence)
+         * - Reflective of signal quality and AP geometry
+         */
+        @Test
+        @DisplayName("should return valid confidence level")
+        void shouldReturnValidConfidence() {
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                createAP("AP1", "Cisco", 1.0, 1.0, -65.0),
+                createAP("AP2", "Cisco", 1.0, 2.0, -70.0)
+            );
+
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -65.0),
+                createScan("AP2", -70.0)
+            );
+
+            Position position = algorithm.calculatePosition(scans, knownAPs);
+            assertNotNull(position);
+            assertTrue(position.confidence() > 0 && position.confidence() <= 1.0);
+        }
+    }
+
+    /**
+     * Tests for proper handling of invalid or edge case inputs.
+     * These tests ensure the algorithm fails gracefully and provides
+     * appropriate error messages when given problematic input data.
+     */
+    @Nested
+    @DisplayName("Input Validation Tests")
+    class InputValidationTests {
+        /**
+         * Verifies proper exception handling for null inputs.
+         * Both WiFi scan results and known AP lists must be non-null.
+         * Expected: IllegalArgumentException with descriptive message
+         */
+        @Test
+        @DisplayName("should handle null inputs")
+        void shouldHandleNullInputs() {
+            assertThrows(IllegalArgumentException.class, () -> 
+                algorithm.calculatePosition(null, Collections.emptyList()));
+            assertThrows(IllegalArgumentException.class, () -> 
+                algorithm.calculatePosition(Collections.emptyList(), null));
+        }
+
+        /**
+         * Verifies proper exception handling for empty input collections.
+         * Position calculation requires non-empty data sets.
+         * Expected: IllegalArgumentException with descriptive message
+         */
+        @Test
+        @DisplayName("should handle empty inputs")
+        void shouldHandleEmptyInputs() {
+            assertThrows(IllegalArgumentException.class, () -> 
+                algorithm.calculatePosition(Collections.emptyList(), Collections.emptyList()));
+        }
+
+        /**
+         * Validates the minimum AP requirement (2 APs) for ratio calculation.
+         * RSSI ratio method requires at least two APs to compute ratios.
+         * Expected: IllegalArgumentException when fewer than 2 APs provided
+         */
+        @Test
+        @DisplayName("should require minimum number of access points")
+        void shouldRequireMinimumAPs() {
+            List<WifiAccessPoint> knownAPs = Collections.singletonList(
+                createAP("AP1", "Cisco", 1.0, 1.0, -65.0)
+            );
+
+            List<WifiScanResult> scans = Collections.singletonList(
+                createScan("AP1", -65.0)
+            );
+
+            assertThrows(IllegalArgumentException.class, () -> 
+                algorithm.calculatePosition(scans, knownAPs));
+        }
+    }
+
+    /**
+     * Tests for the core position calculation functionality.
+     * These tests verify the algorithm's ability to:
+     * 1. Calculate positions from RSSI ratios
+     * 2. Handle varying signal strengths
+     * 3. Provide reasonable position estimates
+     */
+    @Nested
+    @DisplayName("Position Calculation Tests")
+    class PositionCalculationTests {
+        /**
+         * Tests basic position calculation with two APs.
+         * Verifies that:
+         * 1. Position is between the two APs
+         * 2. Calculated position has reasonable accuracy
+         * 3. Result includes valid confidence value
+         * Expected: Position should lie on a curve between the two APs,
+         * weighted by their relative signal strengths
+         */
+        @Test
+        @DisplayName("should calculate position with two access points")
+        void shouldCalculatePositionWithTwoAPs() {
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                createAP("AP1", "Cisco", 1.0, 1.0, -65.0),
+                createAP("AP2", "Cisco", 1.0, 2.0, -70.0)
+            );
+
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -65.0),
+                createScan("AP2", -70.0)
+            );
+
+            Position position = algorithm.calculatePosition(scans, knownAPs);
+            assertNotNull(position);
+            assertTrue(position.latitude() >= 1.0 && position.latitude() <= 2.0);
+            assertTrue(position.longitude() >= 1.0 && position.longitude() <= 2.0);
+            assertTrue(position.accuracy() > 0);
+        }
+
+        /**
+         * Tests position calculation with significantly different signal strengths.
+         * Verifies that:
+         * 1. Position is biased toward stronger signal
+         * 2. Weighting properly accounts for signal strength differences
+         * Expected: Position should be closer to the AP with stronger signal (-50dBm)
+         * than the AP with weaker signal (-80dBm)
+         */
+        @Test
+        @DisplayName("should handle signal strength variations")
+        void shouldHandleSignalStrengthVariations() {
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                createAP("AP1", "Cisco", 1.0, 1.0, -50.0),
+                createAP("AP2", "Cisco", 1.0, 2.0, -80.0)
+            );
+
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -50.0),
+                createScan("AP2", -80.0)
+            );
+
+            Position position = algorithm.calculatePosition(scans, knownAPs);
+            assertNotNull(position);
+            // Position should be closer to AP1 due to stronger signal
+            assertTrue(Math.abs(position.latitude() - 1.0) < Math.abs(position.latitude() - 2.0));
+        }
+    }
+
+    /**
+     * Tests focusing on the accuracy and precision of position estimates.
+     * These tests verify that the algorithm provides results within
+     * acceptable error margins under various conditions.
+     */
+    @Nested
+    @DisplayName("Accuracy Tests")
+    class AccuracyTests {
+        /**
+         * Tests position accuracy with three APs in a triangle configuration.
+         * Verifies that:
+         * 1. Position falls within the triangle formed by APs
+         * 2. Accuracy estimate is reasonable (≤ 50m)
+         * 3. Position reflects relative signal strengths
+         * Expected: Position should be within the bounds of known APs
+         * and have an accuracy appropriate for the signal strengths
+         */
+        @Test
+        @DisplayName("should provide position within expected range")
+        void shouldProvidePositionWithinRange() {
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                createAP("AP1", "Cisco", 1.0, 1.0, -65.0),
+                createAP("AP2", "Cisco", 1.0, 2.0, -70.0),
+                createAP("AP3", "Cisco", 2.0, 1.5, -75.0)
+            );
+
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -65.0),
+                createScan("AP2", -70.0),
+                createScan("AP3", -75.0)
+            );
+
+            Position position = algorithm.calculatePosition(scans, knownAPs);
+            assertNotNull(position);
+            assertTrue(position.latitude() >= 1.0 && position.latitude() <= 2.0);
+            assertTrue(position.longitude() >= 1.0 && position.longitude() <= 2.0);
+            assertTrue(position.accuracy() <= 50.0); // Assuming 50m is maximum acceptable accuracy
+        }
+    }
+} 

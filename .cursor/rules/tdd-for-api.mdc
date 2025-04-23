@@ -1,0 +1,53 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Create a Test-Driven Development workflow for my API by following these steps:
+
+1. ANALYZE REQUIREMENTS:
+   - Review the API endpoint specifications, including:
+     * HTTP method (GET, POST, PUT, DELETE, etc.)
+     * Path parameters and query parameters
+     * Request body structure
+     * Expected response format and status codes
+     * Error handling requirements
+
+2. CREATE UNIT TESTS FIRST:
+   - Write JUnit test cases that cover:
+     * Happy path scenarios with valid inputs
+     * Edge cases (empty values, boundary values)
+     * Error scenarios with invalid inputs
+     * Response validation (status codes, headers, body)
+   - Use descriptive test names following the pattern: should_ExpectedBehavior_When_StateUnderTest
+   - Use mock objects for dependencies using Mockito
+   - Include assertions for all expected outcomes
+
+3. CREATE INTEGRATION TESTS:
+   - Write tests that verify the entire request-response cycle
+   - Test database interactions if applicable
+   - Verify proper interaction with external dependencies
+   - Include test data setup and teardown
+   - Use tools like RestAssured or TestRestTemplate for API testing
+
+4. IMPLEMENT CODE TO PASS TESTS:
+   - Write the minimum code necessary to make the tests pass
+   - Follow a layered architecture:
+     * Controller layer for request/response handling
+     * Service layer for business logic
+     * Repository layer for data access
+   - Add proper validation and error handling
+   - Add logging at appropriate levels
+
+5. REFACTOR THE CODE:
+   - Improve the code structure while keeping tests passing
+   - Extract common functionality to reusable methods
+   - Ensure proper exception handling
+   - Add meaningful comments and documentation
+
+6. ADD API DOCUMENTATION:
+   - Create Swagger/OpenAPI annotations
+   - Document request/response examples
+   - Document possible error responses
+
+IMPORTANT: Always create tests BEFORE implementing the actual code. Ensure tests fail initially (RED), then make them pass (GREEN), then refactor as needed.

@@ -1,0 +1,83 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -----------< com.wifi.positioning:wifi-positioning-service >------------
+[INFO] Building wifi-positioning-service 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.2.3:run (default-cli) > test-compile @ wifi-positioning-service >>>
+[INFO] 
+[INFO] --- toolchains:3.1.0:toolchain (default) @ wifi-positioning-service ---
+[INFO] Required toolchain: jdk [ vendor='amazon' version='21' ]
+[INFO] Found matching toolchain for type jdk: JDK[/Library/Java/JavaVirtualMachines/amazon-corretto-21.jdk/Contents/Home]
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ wifi-positioning-service ---
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] Copying 0 resource from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ wifi-positioning-service ---
+[INFO] Toolchain in maven-compiler-plugin: JDK[/Library/Java/JavaVirtualMachines/amazon-corretto-21.jdk/Contents/Home]
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ wifi-positioning-service ---
+[INFO] Copying 1 resource from src/test/resources to target/test-classes
+[INFO] 
+[INFO] --- compiler:3.11.0:testCompile (default-testCompile) @ wifi-positioning-service ---
+[INFO] Toolchain in maven-compiler-plugin: JDK[/Library/Java/JavaVirtualMachines/amazon-corretto-21.jdk/Contents/Home]
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] <<< spring-boot:3.2.3:run (default-cli) < test-compile @ wifi-positioning-service <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.2.3:run (default-cli) @ wifi-positioning-service ---
+[INFO] Attaching agents: []
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v3.2.3)
+
+2025-04-16T14:27:27.204-04:00  INFO 31128 --- [wifi-positioning-service] [           main] c.w.p.WifiPositioningServiceApplication  : Starting WifiPositioningServiceApplication using Java 21.0.6 with PID 31128 (/Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/target/classes started by rezwanulhaque in /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service)
+2025-04-16T14:27:27.206-04:00  INFO 31128 --- [wifi-positioning-service] [           main] c.w.p.WifiPositioningServiceApplication  : The following 1 profile is active: "local"
+2025-04-16T14:27:28.232-04:00  INFO 31128 --- [wifi-positioning-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8081 (http)
+2025-04-16T14:27:28.240-04:00  INFO 31128 --- [wifi-positioning-service] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2025-04-16T14:27:28.240-04:00  INFO 31128 --- [wifi-positioning-service] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.19]
+2025-04-16T14:27:28.274-04:00  INFO 31128 --- [wifi-positioning-service] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2025-04-16T14:27:28.274-04:00  INFO 31128 --- [wifi-positioning-service] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1032 ms
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+2025-04-16T14:27:28.695-04:00  INFO 31128 --- [wifi-positioning-service] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint(s) beneath base path '/actuator'
+2025-04-16T14:27:28.728-04:00  WARN 31128 --- [wifi-positioning-service] [           main] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.context.ApplicationContextException: Failed to start bean 'webServerStartStop'
+2025-04-16T14:27:28.751-04:00  INFO 31128 --- [wifi-positioning-service] [           main] .s.b.a.l.ConditionEvaluationReportLogger : 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2025-04-16T14:27:28.758-04:00 ERROR 31128 --- [wifi-positioning-service] [           main] o.s.b.d.LoggingFailureAnalysisReporter   : 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Web server failed to start. Port 8081 was already in use.
+
+Action:
+
+Identify and stop the process that's listening on port 8081 or configure this application to listen on another port.
+
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  4.314 s
+[INFO] Finished at: 2025-04-16T14:27:28-04:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.springframework.boot:spring-boot-maven-plugin:3.2.3:run (default-cli) on project wifi-positioning-service: Process terminated with exit code: 1 -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException

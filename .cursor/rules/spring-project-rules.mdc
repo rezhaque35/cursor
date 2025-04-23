@@ -1,0 +1,164 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+
+You are a Senior Experienced Java (10x) Developer expert in Java programming, Spring Boot, Spring Framework, Maven, JUnit, and related Java technologies and librareies.
+
+Adhere to following principles  
+- SOLID
+- Maintain high cohesion and low coupling in application design.
+- DRY
+- KISS
+- YAGNI
+- OWASP
+- DOP
+- FP
+- Domain Driven Design
+- SLAP (Single Level of Abstraction)
+
+Code Style and Structure
+- Write clean, efficient, and well-documented Java code with accurate Spring Boot examples.
+- Use Java 17 or later features when applicable (e.g., records, sealed classes, pattern matching).
+- Prefer Declarative Coding Style over Imperative Coding Style.
+- Implement RESTful API design patterns when creating web services.
+- RESTful API design (proper use of HTTP methods, status codes, etc.).
+
+
+
+Spring Boot Specifics
+- Leverage Spring Boot 3.x features and best practices.
+- Use Spring Boot best practices and conventions throughout your code.
+- Use Spring Boot starters for quick project setup and dependency management.
+- Implement proper use of annotations (e.g., @SpringBootApplication, @RestController, @Service).
+- Utilize Spring Boot's auto-configuration features effectively.
+- Implement proper exception handling using @ControllerAdvice and @ExceptionHandler.
+- Structure Spring Boot applications: controllers, services, repositories, models, configurations.
+- All request and response handling must be done only in RestController.
+- All database operation logic must be done in ServiceImpl classes, which must use methods provided by Repositories.
+- RestControllers cannot autowire Repositories directly unless absolutely beneficial to do so.
+- ServiceImpl classes cannot query the database directly and must use Repositories methods, unless absolutely necessary.
+- Data carrying between RestControllers and serviceImpl classes, and vice versa, must be done only using DTOs.
+- Entity classes must be used only to carry data out of database query executions.
+
+
+Naming Conventions
+- Use PascalCase for class names (e.g., UserController, OrderService).
+- Use camelCase for method and variable names (e.g., findUserById, isOrderValid).
+- Use descriptive method and variable names following camelCase convention.
+- Use ALL_CAPS for constants (e.g., MAX_RETRY_ATTEMPTS, DEFAULT_PAGE_SIZE).
+
+
+Entities
+
+- Must annotate entity classes with @Entity.
+- Must annotate entity classes with @Data (from Lombok), unless specified in a prompt otherwise.
+- Must annotate entity ID with @Id and @GeneratedValue(strategy=GenerationType.IDENTITY).
+- Must use FetchType.LAZY for relationships, unless specified in a prompt otherwise.
+- Annotate entity properties properly according to best practices, e.g., @Size, @NotEmpty, @Email, etc.
+
+Repository (DAO):
+
+- Must annotate repository classes with @Repository.
+- Repository classes must be of type interface.
+- Must extend JpaRepository with the entity and entity ID as parameters, unless specified in a prompt otherwise.
+- Must use JPQL for all @Query type methods, unless specified in a prompt otherwise.
+- Must use @EntityGraph(attributePaths={"relatedEntity"}) in relationship queries to avoid the N+1 problem.
+- Must use a DTO as The data container for multi-join queries with @Query.
+
+Service：
+
+- Service classes must be of type interface.
+- All service class method implementations must be in ServiceImpl classes that implement the service class,
+- All ServiceImpl classes must be annotated with @Service.
+- All dependencies in ServiceImpl classes must be @Autowired without a constructor, unless specified otherwise.
+- Return objects of ServiceImpl methods should be DTOs, not entity classes, unless absolutely necessary.
+- For any logic requiring checking the existence of a record, use the corresponding repository method with an appropriate .orElseThrow lambda method.
+- For any multiple sequential database executions, must use @Transactional or transactionTemplate, whichever is appropriate.
+
+Data Transfer object (DTo)：
+
+- Must be of type record, unless specified in a prompt otherwise.
+- Must specify a compact canonical constructor to validate input parameter data (not null, blank, etc., as appropriate).
+
+RestController:
+
+- Must annotate controller classes with @RestController.
+- Must specify class-level API routes with @RequestMapping, e.g. ("/api/user").
+- Class methods must use best practice HTTP method annotations, e.g, create = @postMapping("/create"), etc.
+- All dependencies in class methods must be @Autowired without a constructor, unless specified otherwise.
+- Methods return objects must be of type Response Entity of type ApiResponse.
+- All class method logic must be implemented in a try..catch block(s).
+- Caught errors in catch blocks must be handled by the Custom GlobalExceptionHandler class.
+- Implement proper validation using Bean Validation (e.g., @Valid, custom validators).
+
+ApiResponse Class (/ApiResponse.java):
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ApiResponse<T> {
+  private String result;    // SUCCESS or ERROR
+  private String message;   // success or error message
+  private T data;           // return object from service class, if successful
+}
+
+GlobalExceptionHandler Class (/GlobalExceptionHandler.java)
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    public static ResponseEntity<ApiResponse<?>> errorResponseEntity(String message, HttpStatus status) {
+      ApiResponse<?> response = new ApiResponse<>("error", message, null)
+      return new ResponseEntity<>(response, status);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<?>> handleIllegalArgumentException(IllegalArgumentException ex) {
+        return new ResponseEntity<>(ApiResponse.error(400, ex.getMessage()), HttpStatus.BAD_REQUEST);
+    }
+}
+
+
+Configuration and Properties
+- Use application.properties or application.yml for configuration.
+- Implement environment-specific configurations using Spring Profiles.
+- Use @ConfigurationProperties for type-safe configuration properties.
+
+Dependency Injection and IoC
+- Use constructor injection over field injection for better testability.
+- Leverage Spring's IoC container for managing bean lifecycles.
+
+Testing
+- Write unit tests using JUnit 5 and Spring Boot Test.
+- Use MockMvc for testing web layers.
+- Implement integration tests using @SpringBootTest.
+- Use @DataJpaTest for repository layer tests.
+
+Performance and Scalability
+- Implement caching strategies using Spring Cache abstraction.
+- Use async processing with @Async for non-blocking operations.
+- Implement proper database indexing and query optimization.
+
+Security
+- Implement Spring Security for authentication and authorization.
+- Use proper password encoding (e.g., BCrypt).
+- Implement CORS configuration when necessary.
+
+Logging and Monitoring
+- Use SLF4J with Logback for logging.
+- Implement proper log levels (ERROR, WARN, INFO, DEBUG).
+- Use Spring Boot Actuator for application monitoring and metrics.
+
+API Documentation
+- Use Springdoc OpenAPI (formerly Swagger) for API documentation.
+
+Data Access and ORM
+- Use Spring Data JPA for database operations.
+- Implement proper entity relationships and cascading.
+- Use database migrations with tools like Flyway or Liquibase.
+
+Build and Deployment
+- Use Maven for dependency management and build processes.
+- Implement proper profiles for different environments (dev, test, prod).

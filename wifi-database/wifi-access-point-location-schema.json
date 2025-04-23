@@ -1,0 +1,117 @@
+// DynamoDB Table: wifi_access_points
+
+// Primary Key Structure
+{
+  "mac_address": "00:11:22:33:44:55",   // Partition Key (MAC address of the AP)
+  "version": "20240319-145530",        
+  
+  // Location Information
+  "latitude": 37.7749,
+  "longitude": -122.4194,
+  "altitude": 12.5,                     // Optional, in meters
+  "horizontal_accuracy": 23.4,          // Estimated accuracy radius in meters
+  "vertical_accuracy": 5.2,             // Optional, altitude accuracy in meters
+  
+  // Calculation Metadata
+  "confidence": 0.87,                   // Overall confidence score (0-1)
+  "best_method": "optimization",        // Which method provided best result
+  "methods_used": ["weighted_centroid", "propagation_model", "optimization"],
+  "sample_count": 47,                   // Number of readings used in calculation
+  "first_seen": "2024-01-15T08:23:17Z", // Earliest reading timestamp
+  "last_seen": "2024-03-18T22:14:05Z",  // Latest reading timestamp
+  
+  // Additional AP Information
+  "ssid": "CoffeeShopWiFi",             // Most common SSID (if available)
+  "frequency": 2437,                    // Most common frequency (MHz)
+  "channel": 6,                         // WiFi channel
+  "country_code": "US",                 // Country code (if available)
+  "vendor": "Cisco",                    // Vendor based on MAC prefix
+  
+  // Statistical Information
+  "signal_strength_avg": -68.3,         // Average signal strength (dBm)
+  "signal_strength_std": 3.7,           // Standard deviation of signal strength
+  "readings_by_hour": {                 // Distribution of readings
+    "0-6": 5,
+    "6-12": 12,
+    "12-18": 23,
+    "18-24": 7
+  },
+  
+  // System Metadata
+  "calculation_time": "2024-03-19T14:55:30Z",  // When this calculation ran
+  "ttl": 1731647730,                    // TTL for automatic expiration (epoch)
+  "status": "active",                   // Status of this AP record
+  "calculation_duration_ms": 234,       // How long the calculation took
+  "calculation_version": "1.3.0"        // Algorithm version
+}
+
+// GSI 1: Location-based lookup (for geographical queries)
+{
+  "geohash": "9q8yykv",                 // Partition Key (6-char geohash)
+  "mac_address": "00:11:22:33:44:55"    // Sort Key
+}
+
+// GSI 2: SSID-based lookup (for lookup by network name)
+{
+  "ssid": "CoffeeShopWiFi",            // Partition Key
+  "mac_address": "00:11:22:33:44:55"   // Sort Key
+}
+
+{
+  "TableName": "wifi_access_points",
+  "AttributeDefinitions": [
+    {
+      "AttributeName": "mac_address",
+      "AttributeType": "S"
+    },
+    {
+      "AttributeName": "geohash",
+      "AttributeType": "S"
+    },
+    {
+      "AttributeName": "ssid",
+      "AttributeType": "S"
+    }
+  ],
+  "KeySchema": [
+    {
+      "AttributeName": "mac_address",
+      "KeyType": "HASH"
+    }
+  ],
+  "GlobalSecondaryIndexes": [
+    {
+      "IndexName": "GeohashIndex",
+      "KeySchema": [
+        {
+          "AttributeName": "geohash",
+          "KeyType": "HASH"
+        },
+        {
+          "AttributeName": "mac_address",
+          "KeyType": "RANGE"
+        }
+      ],
+      "Projection": {
+        "ProjectionType": "ALL"
+      }
+    },
+    {
+      "IndexName": "SSIDIndex",
+      "KeySchema": [
+        {
+          "AttributeName": "ssid",
+          "KeyType": "HASH"
+        },
+        {
+          "AttributeName": "mac_address",
+          "KeyType": "RANGE"
+        }
+      ],
+      "Projection": {
+        "ProjectionType": "ALL"
+      }
+    }
+  ],
+  "BillingMode": "PAY_PER_REQUEST"
+}
