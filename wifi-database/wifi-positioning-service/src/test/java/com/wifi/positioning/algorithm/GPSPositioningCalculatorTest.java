@@ -1,7 +1,7 @@
 package com.wifi.positioning.algorithm;
 
 import com.wifi.positioning.algorithm.impl.*;
-import com.wifi.positioning.algorithm.selection.AlgorithmRuleManager;
+import com.wifi.positioning.algorithm.selection.AlgorithmSelector;
 import com.wifi.positioning.algorithm.selection.ContextBuilder;
 import com.wifi.positioning.algorithm.selection.PositionCombiner;
 import com.wifi.positioning.algorithm.selection.SelectionContext;
@@ -27,8 +27,11 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -62,7 +65,7 @@ class GPSPositioningCalculatorTest {
     private TrilaterationAlgorithm trilaterationAlgorithm;
     
     @Mock
-    private AlgorithmRuleManager ruleManager;
+    private AlgorithmSelector algorithmSelector;
     
     @Mock
     private ContextBuilder contextBuilder;
@@ -131,6 +134,35 @@ class GPSPositioningCalculatorTest {
             }
             return result.position();
         });
+        
+        // Mock the AlgorithmSelector.selectAlgorithmsWithReasons method
+        lenient().when(algorithmSelector.selectAlgorithmsWithReasons(any(), any(), any())).thenAnswer(invocation -> {
+            // The first parameter (algorithms) has been removed, so we don't need to extract it
+            // Get scan results and apMap from the remaining parameters
+            List<WifiScanResult> scanResults = invocation.getArgument(0);
+            
+            // Create default selection that includes all algorithms
+            Map<PositioningAlgorithm, Double> algorithmWeights = new HashMap<>();
+            Map<PositioningAlgorithm, List<String>> selectionReasons = new HashMap<>();
+            
+            // Add all algorithms with default weights
+            algorithmWeights.put(proximityAlgorithm, 1.0);
+            algorithmWeights.put(rssiRatioAlgorithm, 1.0);
+            algorithmWeights.put(weightedCentroidAlgorithm, 1.0);
+            algorithmWeights.put(logDistanceAlgorithm, 1.0);
+            algorithmWeights.put(maximumLikelihoodAlgorithm, 1.0);
+            algorithmWeights.put(trilaterationAlgorithm, 1.0);
+            
+            // Add default reasons
+            selectionReasons.put(proximityAlgorithm, List.of("Default selection for testing"));
+            selectionReasons.put(rssiRatioAlgorithm, List.of("Default selection for testing"));
+            selectionReasons.put(weightedCentroidAlgorithm, List.of("Default selection for testing"));
+            selectionReasons.put(logDistanceAlgorithm, List.of("Default selection for testing"));
+            selectionReasons.put(maximumLikelihoodAlgorithm, List.of("Default selection for testing"));
+            selectionReasons.put(trilaterationAlgorithm, List.of("Default selection for testing"));
+            
+            return new AlgorithmSelector.AlgorithmSelectionInfo(algorithmWeights, selectionReasons);
+        });
     }
 
     @Nested
@@ -145,21 +177,27 @@ class GPSPositioningCalculatorTest {
             List<WifiAccessPoint> aps = testData.getAccessPoints("SingleAP_Test");
             Position expectedPosition = new Position(37.7749, -122.4194, 10.5, 50.0, 0.65);
             
-            // Mock the rule manager to return only the proximity algorithm
+            // Mock the algorithm selector to return only the proximity algorithm for this specific test
             Map<PositioningAlgorithm, Double> selectedAlgorithms = new HashMap<>();
             selectedAlgorithms.put(proximityAlgorithm, 1.0);
-            lenient().when(ruleManager.selectAlgorithms(any(), any(), any(), any())).thenReturn(selectedAlgorithms);
             
-            lenient().when(proximityAlgorithm.calculatePosition(any(), any())).thenReturn(expectedPosition);
+            Map<PositioningAlgorithm, List<String>> selectionReasons = new HashMap<>();
+            selectionReasons.put(proximityAlgorithm, List.of("Single AP scenario requires proximity detection"));
+            
+            // Override the default mock for this specific test
+            when(algorithmSelector.selectAlgorithmsWithReasons(any(), any(), any())).thenReturn(new AlgorithmSelector.AlgorithmSelectionInfo(selectedAlgorithms, selectionReasons));
+            
+            when(proximityAlgorithm.calculatePosition(any(), any())).thenReturn(expectedPosition);
 
             // Act
-            Position result = gpsPositioningCalculator.calculatePosition(scans, aps);
+            GPSPositioningCalculator.PositioningResult result = gpsPositioningCalculator.calculatePosition(scans, aps);
 
             // Assert
             assertNotNull(result);
-            assertEquals(expectedPosition.latitude(), result.latitude(), 0.0001);
-            assertEquals(expectedPosition.longitude(), result.longitude(), 0.0001);
-            assertEquals(expectedPosition.confidence(), result.confidence(), 0.0001);
+            assertEquals(expectedPosition.latitude(), result.position().latitude(), 0.0001);
+            assertEquals(expectedPosition.longitude(), result.position().longitude(), 0.0001);
+            assertEquals(expectedPosition.confidence(), result.position().confidence(), 0.0001);
+            assertEquals(proximityAlgorithm, result.bestAlgorithm());
         }
 
         @Test
@@ -170,48 +208,60 @@ class GPSPositioningCalculatorTest {
             List<WifiAccessPoint> aps = testData.getAccessPoints("DualAP_Test");
             Position expectedPosition = new Position(37.7750, -122.4195, 12.5, 25.0, 0.78);
             
-            // Mock the rule manager to return only the RSSI ratio algorithm
+            // Mock the algorithm selector to return only the RSSI ratio algorithm for this specific test
             Map<PositioningAlgorithm, Double> selectedAlgorithms = new HashMap<>();
             selectedAlgorithms.put(rssiRatioAlgorithm, 1.0);
-            lenient().when(ruleManager.selectAlgorithms(any(), any(), any(), any())).thenReturn(selectedAlgorithms);
             
-            lenient().when(rssiRatioAlgorithm.calculatePosition(any(), any())).thenReturn(expectedPosition);
+            Map<PositioningAlgorithm, List<String>> selectionReasons = new HashMap<>();
+            selectionReasons.put(rssiRatioAlgorithm, List.of("Dual AP scenario is best for RSSI ratio"));
+            
+            // Override the default mock for this specific test
+            when(algorithmSelector.selectAlgorithmsWithReasons(any(), any(), any())).thenReturn(new AlgorithmSelector.AlgorithmSelectionInfo(selectedAlgorithms, selectionReasons));
+            
+            when(rssiRatioAlgorithm.calculatePosition(any(), any())).thenReturn(expectedPosition);
 
             // Act
-            Position result = gpsPositioningCalculator.calculatePosition(scans, aps);
+            GPSPositioningCalculator.PositioningResult result = gpsPositioningCalculator.calculatePosition(scans, aps);
 
             // Assert
             assertNotNull(result);
-            assertEquals(expectedPosition.latitude(), result.latitude(), 0.0001);
-            assertEquals(expectedPosition.confidence(), result.confidence(), 0.0001);
+            assertEquals(expectedPosition.latitude(), result.position().latitude(), 0.0001);
+            assertEquals(expectedPosition.confidence(), result.position().confidence(), 0.0001);
+            assertEquals(rssiRatioAlgorithm, result.bestAlgorithm());
         }
 
         @Test
-        @DisplayName("Case 3: Three APs - Should use Multiple Methods")
+        @DisplayName("Case 3: Three APs - Should use Algorithm Selection")
         void threeAPScenario() {
             // Arrange
             List<WifiScanResult> scans = testData.getWifiScans("TriAP_Test");
             List<WifiAccessPoint> aps = testData.getAccessPoints("TriAP_Test");
             
             Position position1 = new Position(37.7751, -122.4196, 15.0, 8.5, 0.85);
-            Position position2 = new Position(37.7751, -122.4196, 15.0, 8.5, 0.80);
             
-            // Mock the rule manager to return multiple algorithms
+            // Mock the algorithm selector to return selected algorithm
             Map<PositioningAlgorithm, Double> selectedAlgorithms = new HashMap<>();
-            selectedAlgorithms.put(logDistanceAlgorithm, 1.0);
             selectedAlgorithms.put(weightedCentroidAlgorithm, 1.0);
-            lenient().when(ruleManager.selectAlgorithms(any(), any(), any(), any())).thenReturn(selectedAlgorithms);
             
-            lenient().when(logDistanceAlgorithm.calculatePosition(any(), any())).thenReturn(position1);
-            lenient().when(weightedCentroidAlgorithm.calculatePosition(any(), any())).thenReturn(position2);
+            Map<PositioningAlgorithm, List<String>> selectionReasons = new HashMap<>();
+            selectionReasons.put(weightedCentroidAlgorithm, List.of("Three APs work well with weighted centroid"));
+            
+            // Override the default mock for this specific test
+            when(algorithmSelector.selectAlgorithmsWithReasons(any(), any(), any())).thenReturn(new AlgorithmSelector.AlgorithmSelectionInfo(selectedAlgorithms, selectionReasons));
+            
+            when(weightedCentroidAlgorithm.calculatePosition(any(), any())).thenReturn(position1);
 
             // Act
-            Position result = gpsPositioningCalculator.calculatePosition(scans, aps);
+            GPSPositioningCalculator.PositioningResult result = gpsPositioningCalculator.calculatePosition(scans, aps);
 
             // Assert
             assertNotNull(result);
-            assertTrue(result.confidence() >= 0.80);
-            assertTrue(result.accuracy() <= 8.5);
+            assertNotNull(result.position());
+            assertEquals(weightedCentroidAlgorithm, result.bestAlgorithm());
+            
+            // Check that at least one algorithm was used
+            assertNotNull(result.algorithmWeights());
+            assertTrue(result.algorithmWeights().size() >= 1);
         }
 
         @Test
@@ -222,20 +272,26 @@ class GPSPositioningCalculatorTest {
             List<WifiAccessPoint> aps = testData.getAccessPoints("MultiAP_Test");
             Position expectedPosition = new Position(37.7752, -122.4197, 18.0, 15.5, 0.85);
             
-            // Mock the rule manager to return only maximum likelihood algorithm
+            // Mock the algorithm selector to return only maximum likelihood algorithm
             Map<PositioningAlgorithm, Double> selectedAlgorithms = new HashMap<>();
             selectedAlgorithms.put(maximumLikelihoodAlgorithm, 1.0);
-            lenient().when(ruleManager.selectAlgorithms(any(), any(), any(), any())).thenReturn(selectedAlgorithms);
             
-            lenient().when(maximumLikelihoodAlgorithm.calculatePosition(any(), any())).thenReturn(expectedPosition);
+            Map<PositioningAlgorithm, List<String>> selectionReasons = new HashMap<>();
+            selectionReasons.put(maximumLikelihoodAlgorithm, List.of("Multiple APs work best with maximum likelihood"));
+            
+            // Override the default mock for this specific test
+            when(algorithmSelector.selectAlgorithmsWithReasons(any(), any(), any())).thenReturn(new AlgorithmSelector.AlgorithmSelectionInfo(selectedAlgorithms, selectionReasons));
+            
+            when(maximumLikelihoodAlgorithm.calculatePosition(any(), any())).thenReturn(expectedPosition);
 
             // Act
-            Position result = gpsPositioningCalculator.calculatePosition(scans, aps);
+            GPSPositioningCalculator.PositioningResult result = gpsPositioningCalculator.calculatePosition(scans, aps);
 
             // Assert
             assertNotNull(result);
-            assertEquals(expectedPosition.latitude(), result.latitude(), 0.0001);
-            assertTrue(result.confidence() >= 0.85);
+            assertEquals(expectedPosition.latitude(), result.position().latitude(), 0.0001);
+            assertTrue(result.position().confidence() >= 0.85);
+            assertEquals(maximumLikelihoodAlgorithm, result.bestAlgorithm());
         }
 
         @Test
@@ -246,23 +302,26 @@ class GPSPositioningCalculatorTest {
             List<WifiAccessPoint> aps = testData.getAccessPoints("WeakSignal_Test");
             Position expectedPosition = new Position(37.7753, -122.4198, 20.0, 35.0, 0.45);
             
-            // Mock the rule manager to return multiple algorithms for weak signals
+            // Mock the algorithm selector to return only proximity algorithm for weak signals
             Map<PositioningAlgorithm, Double> selectedAlgorithms = new HashMap<>();
-            selectedAlgorithms.put(maximumLikelihoodAlgorithm, 1.0);
-            selectedAlgorithms.put(weightedCentroidAlgorithm, 1.0);
-            lenient().when(ruleManager.selectAlgorithms(any(), any(), any(), any())).thenReturn(selectedAlgorithms);
+            selectedAlgorithms.put(proximityAlgorithm, 0.9);  // Lower weight due to weak signal
             
-            // We need to make sure at least one algorithm responds to weak signals
-            lenient().when(maximumLikelihoodAlgorithm.calculatePosition(any(), any())).thenReturn(expectedPosition);
-            lenient().when(weightedCentroidAlgorithm.calculatePosition(any(), any())).thenReturn(expectedPosition);
+            Map<PositioningAlgorithm, List<String>> selectionReasons = new HashMap<>();
+            selectionReasons.put(proximityAlgorithm, List.of("Weak signals favor proximity algorithm"));
             
+            // Override the default mock for this specific test
+            when(algorithmSelector.selectAlgorithmsWithReasons(any(), any(), any())).thenReturn(new AlgorithmSelector.AlgorithmSelectionInfo(selectedAlgorithms, selectionReasons));
+            
+            when(proximityAlgorithm.calculatePosition(any(), any())).thenReturn(expectedPosition);
+
             // Act
-            Position result = gpsPositioningCalculator.calculatePosition(scans, aps);
+            GPSPositioningCalculator.PositioningResult result = gpsPositioningCalculator.calculatePosition(scans, aps);
 
             // Assert
             assertNotNull(result);
-            assertTrue(result.confidence() <= 0.5);
-            assertTrue(result.accuracy() >= 30.0);
+            assertEquals(expectedPosition.latitude(), result.position().latitude(), 0.0001);
+            assertEquals(expectedPosition.confidence(), result.position().confidence(), 0.0001);
+            assertEquals(proximityAlgorithm, result.bestAlgorithm());
         }
     }
 
@@ -276,22 +335,30 @@ class GPSPositioningCalculatorTest {
             // Arrange
             List<WifiScanResult> scans = testData.getWifiScans("Collinear_Test");
             List<WifiAccessPoint> aps = testData.getAccessPoints("Collinear_Test");
-            Position expectedPosition = new Position(37.7754, -122.4194, 15.0, 18.5, 0.72);
+            Position expectedPosition = new Position(37.7755, -122.4200, 25.0, 40.0, 0.55);
             
-            // Mock the rule manager to return only weighted centroid for collinear APs
+            // Mock the algorithm selector to return multiple algorithms
             Map<PositioningAlgorithm, Double> selectedAlgorithms = new HashMap<>();
             selectedAlgorithms.put(weightedCentroidAlgorithm, 1.0);
-            lenient().when(ruleManager.selectAlgorithms(any(), any(), any(), any())).thenReturn(selectedAlgorithms);
+            selectedAlgorithms.put(logDistanceAlgorithm, 0.8);  // Lower weight due to collinearity
             
-            lenient().when(weightedCentroidAlgorithm.calculatePosition(any(), any())).thenReturn(expectedPosition);
+            Map<PositioningAlgorithm, List<String>> selectionReasons = new HashMap<>();
+            selectionReasons.put(weightedCentroidAlgorithm, List.of("Collinear geometry works better with weighted centroid"));
+            selectionReasons.put(logDistanceAlgorithm, List.of("Secondary algorithm for collinear points"));
+            
+            // Override the default mock for this specific test
+            when(algorithmSelector.selectAlgorithmsWithReasons(any(), any(), any())).thenReturn(new AlgorithmSelector.AlgorithmSelectionInfo(selectedAlgorithms, selectionReasons));
+            
+            when(weightedCentroidAlgorithm.calculatePosition(any(), any())).thenReturn(expectedPosition);
 
             // Act
-            Position result = gpsPositioningCalculator.calculatePosition(scans, aps);
+            GPSPositioningCalculator.PositioningResult result = gpsPositioningCalculator.calculatePosition(scans, aps);
 
             // Assert
             assertNotNull(result);
-            assertTrue(result.confidence() <= 0.8); // Lower confidence due to poor geometry
-            assertTrue(result.accuracy() >= 15.0);  // Higher accuracy value (less accurate)
+            assertEquals(expectedPosition.latitude(), result.position().latitude(), 0.0001);
+            assertEquals(expectedPosition.confidence(), result.position().confidence(), 0.0001);
+            assertEquals(weightedCentroidAlgorithm, result.bestAlgorithm());
         }
     }
 
@@ -305,22 +372,29 @@ class GPSPositioningCalculatorTest {
             // Arrange
             List<WifiScanResult> scans = testData.getWifiScans("HighDensity_Test");
             List<WifiAccessPoint> aps = testData.getAccessPoints("HighDensity_Test");
-            Position expectedPosition = new Position(37.7760, -122.4200, 25.0, 12.0, 0.88);
+            Position expectedPosition = new Position(37.7760, -122.4200, 25.0, 15.0, 0.85);
             
-            // Mock the rule manager to return only maximum likelihood for high density cluster
+            // Mock the algorithm selector to return only maximum likelihood for density
             Map<PositioningAlgorithm, Double> selectedAlgorithms = new HashMap<>();
             selectedAlgorithms.put(maximumLikelihoodAlgorithm, 1.0);
-            lenient().when(ruleManager.selectAlgorithms(any(), any(), any(), any())).thenReturn(selectedAlgorithms);
             
-            lenient().when(maximumLikelihoodAlgorithm.calculatePosition(any(), any())).thenReturn(expectedPosition);
+            Map<PositioningAlgorithm, List<String>> selectionReasons = new HashMap<>();
+            selectionReasons.put(maximumLikelihoodAlgorithm, List.of("High density clusters work best with maximum likelihood"));
+            
+            // Override the default mock for this specific test
+            when(algorithmSelector.selectAlgorithmsWithReasons(any(), any(), any())).thenReturn(new AlgorithmSelector.AlgorithmSelectionInfo(selectedAlgorithms, selectionReasons));
+            
+            when(maximumLikelihoodAlgorithm.calculatePosition(any(), any())).thenReturn(expectedPosition);
 
             // Act
-            Position result = gpsPositioningCalculator.calculatePosition(scans, aps);
+            GPSPositioningCalculator.PositioningResult result = gpsPositioningCalculator.calculatePosition(scans, aps);
 
             // Assert
             assertNotNull(result);
-            assertTrue(result.confidence() >= 0.85);
-            assertTrue(result.accuracy() <= 15.0);
+            assertNotNull(result.position());
+            assertTrue(result.position().confidence() >= 0.85);
+            assertTrue(result.position().accuracy() <= 15.0);
+            assertEquals(maximumLikelihoodAlgorithm, result.bestAlgorithm());
         }
     }
 
@@ -339,50 +413,66 @@ class GPSPositioningCalculatorTest {
             Position position1 = new Position(37.7770, -122.4210, 30.0, 15.0, 0.90);
             Position position2 = new Position(37.7770, -122.4210, 30.0, 15.0, 0.85);
             
-            // Mock the rule manager to return multiple algorithms for mixed signals
+            // Mock the algorithm selector to return multiple algorithms for mixed signals
             Map<PositioningAlgorithm, Double> selectedAlgorithms = new HashMap<>();
             selectedAlgorithms.put(maximumLikelihoodAlgorithm, 1.0);
-            selectedAlgorithms.put(logDistanceAlgorithm, 1.0);
-            lenient().when(ruleManager.selectAlgorithms(any(), any(), any(), any())).thenReturn(selectedAlgorithms);
+            selectedAlgorithms.put(logDistanceAlgorithm, 0.9);
             
-            lenient().when(maximumLikelihoodAlgorithm.calculatePosition(any(), any())).thenReturn(position1);
-            lenient().when(logDistanceAlgorithm.calculatePosition(any(), any())).thenReturn(position2);
+            Map<PositioningAlgorithm, List<String>> selectionReasons = new HashMap<>();
+            selectionReasons.put(maximumLikelihoodAlgorithm, List.of("Mixed signals - high confidence"));
+            selectionReasons.put(logDistanceAlgorithm, List.of("Mixed signals - good distance modeling"));
+            
+            // Override the default mock for this specific test
+            when(algorithmSelector.selectAlgorithmsWithReasons(any(), any(), any())).thenReturn(new AlgorithmSelector.AlgorithmSelectionInfo(selectedAlgorithms, selectionReasons));
+            
+            when(maximumLikelihoodAlgorithm.calculatePosition(any(), any())).thenReturn(position1);
+            when(logDistanceAlgorithm.calculatePosition(any(), any())).thenReturn(position2);
 
             // Act
-            Position result = gpsPositioningCalculator.calculatePosition(scans, aps);
+            GPSPositioningCalculator.PositioningResult result = gpsPositioningCalculator.calculatePosition(scans, aps);
 
             // Assert
             assertNotNull(result);
+            assertNotNull(result.position());
             // Confidence should reflect signal quality variation
-            assertTrue(result.confidence() >= 0.5 && result.confidence() <= 0.9);
+            assertTrue(result.position().confidence() >= 0.5 && result.position().confidence() <= 0.9);
+            
+            // Verify that an algorithm was selected as the best algorithm
+            assertNotNull(result.bestAlgorithm());
+            // Verify that the selected algorithm is one of the expected algorithms
+            assertTrue(
+                result.bestAlgorithm().equals(logDistanceAlgorithm) || 
+                result.bestAlgorithm().equals(maximumLikelihoodAlgorithm),
+                "Best algorithm should be either logDistanceAlgorithm or maximumLikelihoodAlgorithm"
+            );
         }
     }
 
     @Nested
     @DisplayName("Time Series Data (Cases 21-25)")
     class TimeSeriesScenarios {
-        
         @Test
         @DisplayName("Case 21-25: Temporal Variations - Should Maintain Stability")
         void timeSeriesScenario() {
             // Arrange
-            List<Position> results = new ArrayList<>();
+            List<GPSPositioningCalculator.PositioningResult> positioningResults = new ArrayList<>();
+            List<Position> positions = new ArrayList<>();
             
             // Simulate 5 positions over time with the same APs but varying signal strengths
             List<WifiScanResult> scans1 = Arrays.asList(
-                new WifiScanResult("00:11:22:33:44:24", -65.0, 2437, 1, "test"),
-                new WifiScanResult("00:11:22:33:44:25", -75.0, 5180, 1, "test"),
-                new WifiScanResult("00:11:22:33:44:26", -85.0, 2437, 1, "test")
+                new WifiScanResult("00:11:22:33:44:24", -65.0, 2437, "test"),
+                new WifiScanResult("00:11:22:33:44:25", -75.0, 5180, "test"),
+                new WifiScanResult("00:11:22:33:44:26", -85.0, 2437, "test")
             );
             List<WifiScanResult> scans2 = Arrays.asList(
-                new WifiScanResult("00:11:22:33:44:24", -64.0, 2437, 1, "test"),
-                new WifiScanResult("00:11:22:33:44:25", -76.0, 5180, 1, "test"),
-                new WifiScanResult("00:11:22:33:44:26", -84.0, 2437, 1, "test")
+                new WifiScanResult("00:11:22:33:44:24", -64.0, 2437, "test"),
+                new WifiScanResult("00:11:22:33:44:25", -76.0, 5180, "test"),
+                new WifiScanResult("00:11:22:33:44:26", -84.0, 2437, "test")
             );
             List<WifiScanResult> scans3 = Arrays.asList(
-                new WifiScanResult("00:11:22:33:44:24", -66.0, 2437, 1, "test"),
-                new WifiScanResult("00:11:22:33:44:25", -74.0, 5180, 1, "test"),
-                new WifiScanResult("00:11:22:33:44:26", -86.0, 2437, 1, "test")
+                new WifiScanResult("00:11:22:33:44:24", -66.0, 2437, "test"),
+                new WifiScanResult("00:11:22:33:44:25", -74.0, 5180, "test"),
+                new WifiScanResult("00:11:22:33:44:26", -86.0, 2437, "test")
             );
             
             List<WifiAccessPoint> aps = testData.getAccessPoints("MixedSignal_Test");
@@ -392,35 +482,48 @@ class GPSPositioningCalculatorTest {
             Position position2 = new Position(37.7771, -122.4211, 30.5, 8.2, 0.84);
             Position position3 = new Position(37.7769, -122.4209, 29.5, 8.5, 0.83);
             
-            // Mock the rule manager for time series data
+            // Mock the algorithm selector for time series data
             Map<PositioningAlgorithm, Double> selectedAlgorithms = new HashMap<>();
             selectedAlgorithms.put(logDistanceAlgorithm, 1.0);
-            selectedAlgorithms.put(weightedCentroidAlgorithm, 1.0);
-            lenient().when(ruleManager.selectAlgorithms(any(), any(), any(), any())).thenReturn(selectedAlgorithms);
+            selectedAlgorithms.put(weightedCentroidAlgorithm, 0.8);
             
-            // Use lenient() for all stubs to avoid unnecessary stubbing errors
+            Map<PositioningAlgorithm, List<String>> selectionReasons = new HashMap<>();
+            selectionReasons.put(logDistanceAlgorithm, List.of("Time series data favors log distance"));
+            selectionReasons.put(weightedCentroidAlgorithm, List.of("Alternative algorithm for time series"));
+            
+            // Use lenient() to avoid UnnecessaryStubbingException
+            lenient().when(algorithmSelector.selectAlgorithmsWithReasons(any(), any(), any())).thenReturn(new AlgorithmSelector.AlgorithmSelectionInfo(selectedAlgorithms, selectionReasons));
+            
+            // Use lenient() for mock stubs that may not be used
             lenient().when(logDistanceAlgorithm.calculatePosition(any(), any())).thenReturn(position1);
             lenient().when(weightedCentroidAlgorithm.calculatePosition(any(), any())).thenReturn(position1);
             lenient().when(trilaterationAlgorithm.calculatePosition(any(), any())).thenReturn(position1);
             
             // Act - get positions at 3 different time points
-            results.add(gpsPositioningCalculator.calculatePosition(scans1, aps));
-            results.add(gpsPositioningCalculator.calculatePosition(scans2, aps));
-            results.add(gpsPositioningCalculator.calculatePosition(scans3, aps));
+            positioningResults.add(gpsPositioningCalculator.calculatePosition(scans1, aps));
+            positioningResults.add(gpsPositioningCalculator.calculatePosition(scans2, aps));
+            positioningResults.add(gpsPositioningCalculator.calculatePosition(scans3, aps));
+            
+            // Extract positions from positioning results
+            for (GPSPositioningCalculator.PositioningResult result : positioningResults) {
+                assertNotNull(result);
+                assertNotNull(result.position());
+                positions.add(result.position());
+            }
             
             // Assert
-            // All results should be non-null
-            for (Position result : results) {
-                assertNotNull(result);
+            // All positions should be non-null
+            for (Position position : positions) {
+                assertNotNull(position);
             }
             
             // Calculate position stability metrics
             double maxLatDiff = 0;
             double maxLonDiff = 0;
             
-            for (int i = 0; i < results.size() - 1; i++) {
-                Position p1 = results.get(i);
-                Position p2 = results.get(i + 1);
+            for (int i = 0; i < positions.size() - 1; i++) {
+                Position p1 = positions.get(i);
+                Position p2 = positions.get(i + 1);
                 maxLatDiff = Math.max(maxLatDiff, Math.abs(p1.latitude() - p2.latitude()));
                 maxLonDiff = Math.max(maxLonDiff, Math.abs(p1.longitude() - p2.longitude()));
             }
@@ -446,47 +549,47 @@ class GPSPositioningCalculatorTest {
         private Map<String, List<WifiScanResult>> loadWifiScans() {
             return Map.of(
                 "SingleAP_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:01", -65.0, 2437, 1, "test")
+                    new WifiScanResult("00:11:22:33:44:01", -65.0, 2437, "test")
                 ),
                 "DualAP_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:02", -68.5, 5180, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:03", -70.0, 5180, 1, "test")
+                    new WifiScanResult("00:11:22:33:44:02", -68.5, 5180, "test"),
+                    new WifiScanResult("00:11:22:33:44:03", -70.0, 5180, "test")
                 ),
                 "TriAP_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:04", -72.0, 2437, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:05", -74.0, 2437, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:06", -76.0, 2437, 1, "test")
+                    new WifiScanResult("00:11:22:33:44:04", -72.0, 2437, "test"),
+                    new WifiScanResult("00:11:22:33:44:05", -74.0, 2437, "test"),
+                    new WifiScanResult("00:11:22:33:44:06", -76.0, 2437, "test")
                 ),
                 "MultiAP_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:07", -65.0, 5180, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:08", -67.0, 5180, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:09", -69.0, 5180, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:10", -71.0, 5180, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:11", -73.0, 5180, 1, "test")
+                    new WifiScanResult("00:11:22:33:44:07", -65.0, 5180, "test"),
+                    new WifiScanResult("00:11:22:33:44:08", -67.0, 5180, "test"),
+                    new WifiScanResult("00:11:22:33:44:09", -69.0, 5180, "test"),
+                    new WifiScanResult("00:11:22:33:44:10", -71.0, 5180, "test"),
+                    new WifiScanResult("00:11:22:33:44:11", -73.0, 5180, "test")
                 ),
                 "WeakSignal_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:12", -85.0, 2437, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:13", -87.0, 2437, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:14", -89.0, 2437, 1, "test")
+                    new WifiScanResult("00:11:22:33:44:12", -85.0, 2437, "test"),
+                    new WifiScanResult("00:11:22:33:44:13", -87.0, 2437, "test"),
+                    new WifiScanResult("00:11:22:33:44:14", -89.0, 2437, "test")
                 ),
                 "Collinear_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:15", -75.0, 5180, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:16", -77.0, 5180, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:17", -79.0, 5180, 1, "test")
+                    new WifiScanResult("00:11:22:33:44:15", -75.0, 5180, "test"),
+                    new WifiScanResult("00:11:22:33:44:16", -77.0, 5180, "test"),
+                    new WifiScanResult("00:11:22:33:44:17", -79.0, 5180, "test")
                 ),
                 "HighDensity_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:18", -62.0, 5180, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:19", -63.0, 5180, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:20", -64.0, 5180, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:21", -65.0, 5180, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:22", -66.0, 5180, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:23", -67.0, 5180, 1, "test")
+                    new WifiScanResult("00:11:22:33:44:18", -62.0, 5180, "test"),
+                    new WifiScanResult("00:11:22:33:44:19", -63.0, 5180, "test"),
+                    new WifiScanResult("00:11:22:33:44:20", -64.0, 5180, "test"),
+                    new WifiScanResult("00:11:22:33:44:21", -65.0, 5180, "test"),
+                    new WifiScanResult("00:11:22:33:44:22", -66.0, 5180, "test"),
+                    new WifiScanResult("00:11:22:33:44:23", -67.0, 5180, "test")
                 ),
                 "MixedSignal_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:24", -65.0, 2437, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:25", -75.0, 5180, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:26", -85.0, 2437, 1, "test"),
-                    new WifiScanResult("00:11:22:33:44:27", -70.0, 5180, 1, "test")
+                    new WifiScanResult("00:11:22:33:44:24", -65.0, 2437, "test"),
+                    new WifiScanResult("00:11:22:33:44:25", -75.0, 5180, "test"),
+                    new WifiScanResult("00:11:22:33:44:26", -85.0, 2437, "test"),
+                    new WifiScanResult("00:11:22:33:44:27", -70.0, 5180, "test")
                 )
             );
         }

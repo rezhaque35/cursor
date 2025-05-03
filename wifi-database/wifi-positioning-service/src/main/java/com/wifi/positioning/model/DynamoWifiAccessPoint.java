@@ -28,7 +28,6 @@ public class DynamoWifiAccessPoint {
     private String lastSeen;
     private String ssid;
     private Integer frequency;
-    private Integer channel;
     private String countryCode;
     private String vendor;
     private Double signalStrengthAvg;
@@ -43,7 +42,7 @@ public class DynamoWifiAccessPoint {
     private String errorType;
 
     @DynamoDbPartitionKey
-    @DynamoDbAttribute("mac_address")
+    @DynamoDbAttribute("mac_addr")
     public String getMacAddress() {
         return macAddress;
     }
@@ -133,11 +132,6 @@ public class DynamoWifiAccessPoint {
         return frequency;
     }
 
-    @DynamoDbAttribute("channel")
-    public Integer getChannel() {
-        return channel;
-    }
-
     @DynamoDbAttribute("country_code")
     public String getCountryCode() {
         return countryCode;
@@ -203,7 +197,6 @@ public class DynamoWifiAccessPoint {
         this.geohash = ap.getGeohash();
         this.ssid = ap.getSsid();
         this.frequency = ap.getFrequency();
-        this.channel = ap.getChannel();
         this.countryCode = ap.getCountryCode();
         this.vendor = ap.getVendor();
         return this;
@@ -227,7 +220,6 @@ public class DynamoWifiAccessPoint {
                 .geohash(this.geohash)
                 .ssid(this.ssid)
                 .frequency(this.frequency)
-                .channel(this.channel)
                 .countryCode(this.countryCode)
                 .vendor(this.vendor)
                 .build();

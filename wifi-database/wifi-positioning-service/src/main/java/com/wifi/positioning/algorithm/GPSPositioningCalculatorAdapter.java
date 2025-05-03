@@ -19,11 +19,37 @@ import java.util.stream.Collectors;
 
 /**
  * Adapter for the GPSPositioningCalculator to handle Map input instead of List<WifiScanResult>
+ * and provide detailed positioning results.
+ * 
+ * This adapter:
+ * 1. Converts the input map format to domain objects
+ * 2. Performs validation on input data
+ * 3. Looks up known access points from the repository
+ * 4. Delegates positioning calculation to GPSPositioningCalculator
+ * 5. Processes the PositioningResult to extract algorithm information
+ * 6. Formats the response with algorithm names and positioning data
+ * 
+ * The adapter ensures that the algorithm names in the response directly correspond
+ * to the algorithms that were actually used in the calculation, rather than
+ * using hardcoded or independently determined values.
  */
 @Component
 public class GPSPositioningCalculatorAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(GPSPositioningCalculatorAdapter.class);
+    
+    /**
+     * Fallback algorithm name used when no specific algorithm is selected.
+     * This indicates that a hybrid approach combining multiple algorithms was used.
+     */
+    private static final String FALLBACK_ALGORITHM_NAME = "hybrid";
+    
+    /**
+     * Default value for vertical accuracy when not provided by the positioning algorithms.
+     * Set to 0.0 as most algorithms in this system only calculate horizontal accuracy.
+     */
+    private static final double DEFAULT_VERTICAL_ACCURACY = 0.0;
+    
     private final GPSPositioningCalculator calculator;
     private final WifiAccessPointRepository accessPointRepository;
     private final SignalPhysicsValidator signalPhysicsValidator;
@@ -84,21 +110,59 @@ public class GPSPositioningCalculatorAdapter {
             
             // Calculate position
             long startTime = System.currentTimeMillis();
-            Position position = calculator.calculatePosition(scanResults, knownAPs);
+            GPSPositioningCalculator.PositioningResult positioningResult = calculator.calculatePosition(scanResults, knownAPs);
             long calculationTime = System.currentTimeMillis() - startTime;
             
-            if (position == null) {
+            if (positioningResult == null || positioningResult.position() == null) {
                 logger.warn("Position calculation failed");
                 return createPositionNotFoundResponse(scanResults.size(), options);
             }
             
+            // Get the best method and methods used from the positioning result
+            String bestMethod = getBestMethodName(positioningResult);
+            List<String> methodsUsed = getMethodsUsedNames(positioningResult);
+            
             // Convert position to result map
-            Map<String, Object> result = positionToResultMap(position, scanResults.size(), calculationTime, options);
+            Map<String, Object> result = positionToResultMap(
+                positioningResult.position(), 
+                scanResults.size(), 
+                calculationTime, 
+                options, 
+                bestMethod, 
+                methodsUsed
+            );
             return result;
         } catch (Exception e) {
             logger.error("Error calculating position", e);
             return createErrorResponse(e.getMessage(), options);
         }
+    }
+    
+    /**
+     * Get the name of the best method from the positioning result
+     * 
+     * @param positioningResult The positioning result containing the best algorithm
+     * @return The name of the best method
+     */
+    private String getBestMethodName(GPSPositioningCalculator.PositioningResult positioningResult) {
+        if (positioningResult.bestAlgorithm() == null) {
+            // Fallback to hybrid if no best algorithm is available
+            return FALLBACK_ALGORITHM_NAME;
+        }
+        return positioningResult.bestAlgorithm().getName().toLowerCase();
+    }
+    
+    /**
+     * Get the names of all methods used in the positioning calculation
+     * 
+     * @param positioningResult The positioning result containing the algorithm weights
+     * @return List of method names used
+     */
+    private List<String> getMethodsUsedNames(GPSPositioningCalculator.PositioningResult positioningResult) {
+        return positioningResult.algorithmWeights().keySet().stream()
+            .filter(algorithm -> algorithm != null)
+            .map(algorithm -> algorithm.getName().toLowerCase())
+            .collect(Collectors.toList());
     }
     
     /**
@@ -201,7 +265,8 @@ public class GPSPositioningCalculatorAdapter {
     /**
      * Convert a Position object to a map containing all position data
      */
-    private Map<String, Object> positionToResultMap(Position position, int apCount, long calculationTime, Map<String, Object> options) {
+    private Map<String, Object> positionToResultMap(Position position, int apCount, long calculationTime, 
+                                                   Map<String, Object> options, String bestMethod, List<String> methodsUsed) {
         Map<String, Object> result = new HashMap<>();
         
         if (position != null) {
@@ -211,10 +276,10 @@ public class GPSPositioningCalculatorAdapter {
             result.put("longitude", position.longitude());
             result.put("altitude", position.altitude());
             result.put("horizontalAccuracy", position.accuracy());
-            result.put("verticalAccuracy", 0.0); // Default value
+            result.put("verticalAccuracy", DEFAULT_VERTICAL_ACCURACY);
             result.put("confidence", position.confidence());
-            result.put("bestMethod", "wifi");
-            result.put("methodsUsed", List.of("wifi"));
+            result.put("bestMethod", bestMethod);
+            result.put("methodsUsed", methodsUsed);
             result.put("apCount", apCount);
             result.put("calculationTimeMs", calculationTime);
             

@@ -1,6 +1,6 @@
 package com.wifi.positioning.algorithm;
 
-import com.wifi.positioning.algorithm.selection.AlgorithmRuleManager;
+import com.wifi.positioning.algorithm.selection.AlgorithmSelector;
 import com.wifi.positioning.algorithm.selection.ContextBuilder;
 import com.wifi.positioning.algorithm.selection.PositionCombiner;
 import com.wifi.positioning.algorithm.selection.SelectionContext;
@@ -20,24 +20,47 @@ import java.util.stream.Collectors;
  * algorithms based on the available data and scenario characteristics.
  * 
  * Uses a flexible rule-based approach to select algorithms and calculate weights.
+ * Includes detailed information about algorithm selection reasoning for better explainability.
  */
 @Component
 public class GPSPositioningCalculator {
     private final List<PositioningAlgorithm> algorithms;
-    private final AlgorithmRuleManager ruleManager;
+    private final AlgorithmSelector algorithmSelector;
     private final ContextBuilder contextBuilder;
     private final PositionCombiner positionCombiner;
     private final SignalPhysicsValidator signalPhysicsValidator;
     private final ExecutorService executorService;
 
+    /**
+     * Result of positioning calculation containing the calculated position,
+     * information about algorithms used, and reasons for algorithm selection.
+     */
+    public record PositioningResult(
+        Position position,
+        PositioningAlgorithm bestAlgorithm,
+        Map<PositioningAlgorithm, Double> algorithmWeights,
+        Map<PositioningAlgorithm, List<String>> selectionReasons
+    ) {
+        /**
+         * Constructor that doesn't require selection reasons for backward compatibility.
+         */
+        public PositioningResult(
+            Position position,
+            PositioningAlgorithm bestAlgorithm,
+            Map<PositioningAlgorithm, Double> algorithmWeights
+        ) {
+            this(position, bestAlgorithm, algorithmWeights, Map.of());
+        }
+    }
+
     public GPSPositioningCalculator(
             List<PositioningAlgorithm> algorithms, 
-            AlgorithmRuleManager ruleManager,
+            AlgorithmSelector algorithmSelector,
             ContextBuilder contextBuilder,
             PositionCombiner positionCombiner,
             SignalPhysicsValidator signalPhysicsValidator) {
         this.algorithms = algorithms;
-        this.ruleManager = ruleManager;
+        this.algorithmSelector = algorithmSelector;
         this.contextBuilder = contextBuilder;
         this.positionCombiner = positionCombiner;
         this.signalPhysicsValidator = signalPhysicsValidator;
@@ -46,7 +69,15 @@ public class GPSPositioningCalculator {
         );
     }
 
-    public Position calculatePosition(List<WifiScanResult> wifiScan, List<WifiAccessPoint> knownAPs) {
+    /**
+     * Calculate position using the best available algorithms for the given scenario.
+     * 
+     * @param wifiScan List of WiFi scan results
+     * @param knownAPs List of known access points
+     * @return PositioningResult containing the calculated position and information about algorithms used,
+     *         or null if position calculation fails
+     */
+    public PositioningResult calculatePosition(List<WifiScanResult> wifiScan, List<WifiAccessPoint> knownAPs) {
         if (wifiScan == null || wifiScan.isEmpty() || knownAPs == null || knownAPs.isEmpty()) {
             return null;
         }
@@ -69,8 +100,11 @@ public class GPSPositioningCalculator {
         SelectionContext context = contextBuilder.buildContext(validScans, apMap);
         
         // 2. Apply algorithm selection rules
-        Map<PositioningAlgorithm, Double> weightedAlgorithms = 
-                ruleManager.selectAlgorithms(algorithms, validScans, apMap, context);
+        AlgorithmSelector.AlgorithmSelectionInfo selectionInfo = 
+                algorithmSelector.selectAlgorithmsWithReasons(validScans, apMap, context);
+        
+        Map<PositioningAlgorithm, Double> weightedAlgorithms = selectionInfo.algorithmWeights();
+        Map<PositioningAlgorithm, List<String>> selectionReasons = selectionInfo.selectionReasons();
         
         if (weightedAlgorithms.isEmpty()) {
             return null;
@@ -114,7 +148,19 @@ public class GPSPositioningCalculator {
         }
 
         // 4. Combine results using configured position combiner
-        return positionCombiner.combinePositions(positions);
+        Position combinedPosition = positionCombiner.combinePositions(positions);
+        
+        if (combinedPosition == null) {
+            return null;
+        }
+        
+        // 5. Determine the best algorithm (highest weight)
+        PositioningAlgorithm bestAlgorithm = weightedAlgorithms.entrySet().stream()
+            .max(Map.Entry.comparingByValue())
+            .map(Map.Entry::getKey)
+            .orElse(null);
+            
+        return new PositioningResult(combinedPosition, bestAlgorithm, weightedAlgorithms, selectionReasons);
     }
 
     private Map<String, WifiAccessPoint> createAPMap(List<WifiAccessPoint> knownAPs) {

@@ -34,7 +34,6 @@ public class RepositoryVerification {
                 .signalStrengthStd(3.0)
                 .ssid("test-ssid")
                 .frequency(2437)
-                .channel(6)
                 .countryCode("US")
                 .vendor("test-vendor")
                 .build();

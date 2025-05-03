@@ -1,10 +1,16 @@
 package com.wifi.positioning.algorithm.impl;
 
 import com.wifi.positioning.algorithm.PositioningAlgorithm;
+import com.wifi.positioning.algorithm.factor.APCountFactor;
+import com.wifi.positioning.algorithm.factor.GeometricQualityFactor;
+import com.wifi.positioning.algorithm.factor.SignalDistributionFactor;
+import com.wifi.positioning.algorithm.factor.SignalQualityFactor;
+import com.wifi.positioning.algorithm.util.GDOPCalculator;
 import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.model.WifiAccessPoint;
 import org.springframework.stereotype.Component;
+import org.apache.commons.math3.linear.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.DoubleAdder;
@@ -24,6 +30,7 @@ import java.util.stream.Collectors;
  * - Handles noisy measurements robustly
  * - Incorporates historical signal patterns
  * - Provides realistic confidence estimates
+ * - Accounts for AP geometry quality via GDOP
  * 
  * WEAKNESSES:
  * - Computationally intensive
@@ -37,6 +44,10 @@ import java.util.stream.Collectors;
  * - MAX_ITERATIONS: Maximum gradient descent steps
  * - CONVERGENCE_THRESHOLD: Stop condition (meters)
  * - PATH_LOSS_EXPONENT: Signal propagation model
+ * - MIN_CONFIDENCE: Lower bound for confidence values
+ * - MAX_CONFIDENCE: Upper bound for confidence values
+ * - GDOP_CONFIDENCE_WEIGHT: How much AP geometry affects confidence
+ * - GDOP_ACCURACY_MULTIPLIER: How much AP geometry affects accuracy
  * 
  * MATHEMATICAL MODEL:
  * The algorithm maximizes P(position | measurements) using:
@@ -56,11 +67,37 @@ import java.util.stream.Collectors;
  *    pos_new = pos + α * ∇LL(pos)
  *    where α is adaptive learning rate
  * 
- * 4. Confidence Calculation:
- *    Based on:
- *    - Likelihood surface curvature
- *    - Number of measurements
- *    - Signal quality metrics
+ * 4. Geometric Dilution of Precision (GDOP):
+ *    GDOP = sqrt(trace((H^T * H)^-1))
+ *    where:
+ *    - H is the geometry matrix containing unit vectors from position to APs
+ *    - H^T is the transpose of H
+ *    - Lower GDOP values indicate better geometric AP distribution
+ *    - Higher GDOP values indicate poorer AP distribution, reducing accuracy
+ * 
+ * 5. Accuracy Calculation:
+ *    For strong signals:
+ *    accuracy = baseAccuracy * (1.0 + (gdopFactor - 1.0) * GDOP_ACCURACY_MULTIPLIER)
+ *    
+ *    For weaker signals:
+ *    accuracy = baseAccuracy * gdopFactor
+ *    
+ *    where:
+ *    - baseAccuracy is either fixed (3.0m for strong signals) or distance-based
+ *    - gdopFactor is a scaling value derived from GDOP
+ * 
+ * 6. Confidence Calculation:
+ *    Base confidence is calculated as:
+ *    confidence = MIN_CONF + (MAX_CONF - MIN_CONF) * 
+ *                (0.7 * signalFactor + 0.3 * apCountFactor)
+ *    
+ *    Then adjusted for geometric quality:
+ *    confidence = confidence * (1.0 - GDOP_WEIGHT * (1.0 - 1.0/gdopFactor))
+ *    
+ *    where:
+ *    - signalFactor is based on average signal strength
+ *    - apCountFactor is based on number of APs (3-8 scale)
+ *    - gdopFactor reflects geometric quality of AP distribution
  */
 @Component
 public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
@@ -73,7 +110,30 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
     private static final double REFERENCE_RSSI = -40.0;
     private static final double PATH_LOSS_EXPONENT = 3.0;
     private static final double EARTH_RADIUS = 6371000; // Earth radius in meters
+    
+    // Constants for signal strength thresholds
+    private static final double STRONG_SIGNAL_THRESHOLD = -65.0; // dBm, signals stronger than this are considered "strong"
+    private static final double WEAK_SIGNAL_THRESHOLD = -80.0; // dBm, signals weaker than this are considered "weak"
+    private static final double MIN_ACCURACY = 1.0; // meters, minimum accuracy value for strong signals
+    private static final double MAX_ACCURACY = 5.0; // meters, maximum accuracy value for strong signals
+    private static final double MIN_CONFIDENCE = 0.6;
+    private static final double MAX_CONFIDENCE = 0.95;
+    private static final double HIGH_CONFIDENCE = 0.8; // Minimum confidence for strong signals
+    private static final double WEAK_CONFIDENCE_CAP = 0.65; // maximum confidence for weak signals
 
+    /**
+     * Weight constants from the algorithm selection framework.
+     * These reflect the strengths and weaknesses of the Maximum Likelihood algorithm:
+     * - Works best with 4+ APs (optimal with many APs)
+     * - Highly dependent on signal quality (works best with strong signals)
+     * - Moderately sensitive to geometric quality
+     * - Extremely effective with mixed signals and outliers
+     */
+    // Signal distribution adjustments from framework document
+    private static final double MAXIMUM_LIKELIHOOD_UNIFORM_SIGNALS_ADJUSTMENT = 0.9;  // Slight reduction for uniform signals
+    private static final double MAXIMUM_LIKELIHOOD_MIXED_SIGNALS_ADJUSTMENT = 1.3;    // Significant improvement with mixed signals
+    private static final double MAXIMUM_LIKELIHOOD_SIGNAL_OUTLIERS_ADJUSTMENT = 1.2;  // Significant improvement with outliers
+    
     /**
      * Calculates position using Maximum Likelihood Estimation.
      * Process:
@@ -81,6 +141,7 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
      * 2. Build measurement models incorporating historical data
      * 3. Iteratively refine position using gradient descent
      * 4. Calculate confidence based on likelihood surface and convergence
+     * 5. Apply GDOP analysis to refine accuracy and confidence
      *
      * @param wifiScan List of WiFi scan results containing signal strengths
      * @param knownAPs List of known access points with their locations
@@ -149,14 +210,44 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
             }
         }
 
-        // Calculate final confidence based on likelihood surface
-        double confidence = calculateConfidence(bestPosition, measurements, bestLikelihood);
+        // Prepare coordinates for GDOP calculation
+        double[][] coordinates = new double[measurements.size()][3];
+        for (int i = 0; i < measurements.size(); i++) {
+            MeasurementModel ap = measurements.get(i);
+            coordinates[i][0] = ap.lat;
+            coordinates[i][1] = ap.lon;
+            coordinates[i][2] = ap.alt;
+        }
+        
+        // Calculate position as a double array for GDOP calculation
+        double[] position = new double[] {
+            bestPosition.latitude(),
+            bestPosition.longitude(),
+            bestPosition.altitude()
+        };
+        
+        // Calculate GDOP using the GDOPCalculator utility
+        double gdop = GDOPCalculator.calculateGDOP(coordinates, position, true);
+        double gdopFactor = GDOPCalculator.calculateGDOPFactor(gdop);
+        
+        // Calculate average signal strength for accuracy and confidence calculations
+        double avgSignalStrength = wifiScan.stream()
+            .mapToDouble(WifiScanResult::signalStrength)
+            .average()
+            .orElse(-85.0);
+        
+        // Calculate accuracy using GDOP
+        double refinedAccuracy = calculateAccuracy(bestPosition.accuracy(), gdopFactor, avgSignalStrength);
+        
+        // Calculate final confidence based on likelihood surface and GDOP
+        double confidence = calculateConfidence(bestPosition, measurements, bestLikelihood, 
+                                               gdopFactor, avgSignalStrength, wifiScan.size());
 
         return new Position(
             bestPosition.latitude(),
             bestPosition.longitude(),
             bestPosition.altitude(),
-            bestPosition.accuracy(),
+            refinedAccuracy,
             confidence
         );
     }
@@ -165,6 +256,11 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
      * Calculates initial position estimate using weighted centroid method.
      * This provides a reasonable starting point for gradient descent.
      * Uses signal strength as weights, with stronger signals having more influence.
+     * 
+     * The initial accuracy estimate is based on:
+     * 1. Average signal strength - stronger signals provide better accuracy
+     * 2. Number of access points - more APs generally provide better accuracy
+     * 3. Geometric distribution - better AP distribution improves accuracy
      * 
      * @param wifiScan List of WiFi scan results
      * @param apMap Map of known AP locations
@@ -176,6 +272,7 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
         DoubleAdder weightedLat = new DoubleAdder();
         DoubleAdder weightedLon = new DoubleAdder();
         DoubleAdder weightedAlt = new DoubleAdder();
+        DoubleAdder totalSignal = new DoubleAdder();
 
         // Process scans in parallel
         wifiScan.parallelStream().forEach(scan -> {
@@ -187,19 +284,72 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
             weightedLon.add(ap.getLongitude() * weight);
             weightedAlt.add(ap.getAltitude() * weight);
             totalWeight.add(weight);
+            totalSignal.add(scan.signalStrength());
         });
 
         if (totalWeight.doubleValue() == 0) {
             return null;
         }
-
-        return new Position(
-            weightedLat.doubleValue() / totalWeight.doubleValue(),
-            weightedLon.doubleValue() / totalWeight.doubleValue(),
-            weightedAlt.doubleValue() / totalWeight.doubleValue(),
-            15.0, // Initial accuracy estimate
-            0.5   // Initial confidence
-        );
+        
+        // Calculate position
+        double latitude = weightedLat.doubleValue() / totalWeight.doubleValue();
+        double longitude = weightedLon.doubleValue() / totalWeight.doubleValue();
+        double altitude = weightedAlt.doubleValue() / totalWeight.doubleValue();
+        
+        // Calculate average signal strength
+        double avgSignalStrength = totalSignal.doubleValue() / wifiScan.size();
+        
+        // Create measurement models for GDOP calculation
+        List<MeasurementModel> measurements = createMeasurementModels(wifiScan, apMap);
+        Position initialPosition = new Position(latitude, longitude, altitude, 0.0, 0.0);
+        
+        // Prepare coordinates for GDOP calculation
+        double[][] coordinates = new double[measurements.size()][3];
+        for (int i = 0; i < measurements.size(); i++) {
+            MeasurementModel ap = measurements.get(i);
+            coordinates[i][0] = ap.lat;
+            coordinates[i][1] = ap.lon;
+            coordinates[i][2] = ap.alt;
+        }
+        
+        // Calculate position as a double array for GDOP calculation
+        double[] position = new double[] {
+            initialPosition.latitude(),
+            initialPosition.longitude(),
+            initialPosition.altitude()
+        };
+        
+        // Calculate GDOP using the GDOPCalculator utility
+        double gdop = GDOPCalculator.calculateGDOP(coordinates, position, true);
+        double gdopFactor = GDOPCalculator.calculateGDOPFactor(gdop);
+        
+        // Calculate initial accuracy
+        double baseAccuracy;
+        if (avgSignalStrength >= STRONG_SIGNAL_THRESHOLD) {
+            // For strong signals, use a fixed base accuracy
+            baseAccuracy = 3.0; // Middle of expected range for strong signals (1-5m)
+        } else {
+            // For weaker signals, use a signal-strength based accuracy
+            baseAccuracy = 6.0 + Math.abs(avgSignalStrength + 70.0) * 0.2;
+        }
+        
+        // Apply GDOP factor to accuracy
+        double initialAccuracy;
+        if (avgSignalStrength >= STRONG_SIGNAL_THRESHOLD) {
+            // For strong signals, apply a controlled GDOP adjustment
+            initialAccuracy = baseAccuracy * (1.0 + (gdopFactor - 1.0) * GDOPCalculator.GDOP_ACCURACY_MULTIPLIER);
+        } else {
+            // For weaker signals, apply full GDOP adjustment
+            initialAccuracy = baseAccuracy * gdopFactor;
+        }
+        
+        // Ensure accuracy is within reasonable bounds
+        initialAccuracy = Math.max(MIN_ACCURACY, Math.min(25.0, initialAccuracy));
+        
+        // Initial confidence will be refined later
+        double initialConfidence = 0.5;
+        
+        return new Position(latitude, longitude, altitude, initialAccuracy, initialConfidence);
     }
 
     /**
@@ -310,26 +460,89 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
     }
 
     /**
-     * Calculates confidence based on the shape of the likelihood surface.
-     * Considers:
-     * 1. Convergence quality of gradient descent
-     * 2. Number and quality of measurements
-     * 3. Geometric distribution of APs
+     * Calculates confidence based on multiple factors:
+     * 1. Signal strength quality
+     * 2. Number of access points 
+     * 3. Likelihood convergence quality
+     * 4. Geometric distribution of APs (GDOP)
+     * 
+     * The base confidence is calculated from signal strength and AP count:
+     * confidence = MIN_CONF + (MAX_CONF - MIN_CONF) * (0.7 * signalFactor + 0.3 * apCountFactor)
+     * 
+     * Then adjusted for geometric quality:
+     * confidence = confidence * (1.0 - GDOP_WEIGHT * (1.0 - 1.0/gdopFactor))
      * 
      * @param position Final position estimate
      * @param measurements List of measurement models
      * @param maxLikelihood Best achieved likelihood value
+     * @param gdopFactor GDOP factor indicating geometric quality
+     * @param avgSignalStrength Average signal strength (dBm)
+     * @param apCount Number of APs used in calculation
      * @return Confidence value between 0 and 1
      */
-    private double calculateConfidence(Position position, List<MeasurementModel> measurements, double maxLikelihood) {
-        // Calculate Hessian matrix to estimate uncertainty
-        double baseConfidence = getConfidence();
+    private double calculateConfidence(Position position, List<MeasurementModel> measurements, 
+                                     double maxLikelihood, double gdopFactor, 
+                                     double avgSignalStrength, int apCount) {
+        double confidence;
         
-        // Adjust confidence based on number of measurements and their quality
-        double measurementFactor = Math.min(1.0, measurements.size() / 5.0);
-        double likelihoodFactor = Math.exp(maxLikelihood / measurements.size());
+        // Calculate signal quality factor (0-1)
+        double signalFactor;
+        if (avgSignalStrength >= STRONG_SIGNAL_THRESHOLD) {
+            // Strong signals provide high confidence
+            signalFactor = Math.min(1.0, Math.max(0.0, 
+                           (avgSignalStrength - WEAK_SIGNAL_THRESHOLD) / 
+                           (STRONG_SIGNAL_THRESHOLD - WEAK_SIGNAL_THRESHOLD)));
+        } else {
+            // Weaker signals provide lower confidence
+            signalFactor = Math.min(1.0, Math.max(0.0, 
+                           (avgSignalStrength - (-100.0)) / 
+                           (WEAK_SIGNAL_THRESHOLD - (-100.0))));
+        }
         
-        return Math.min(0.95, baseConfidence * measurementFactor * likelihoodFactor);
+        // Calculate AP count factor (0-1)
+        double apCountFactor = Math.min(1.0, (apCount - 2) / 6.0); // 3-8 APs scale
+        
+        // Calculate convergence quality from likelihood
+        double likelihoodFactor = 0.7;
+        if (!Double.isInfinite(maxLikelihood) && !Double.isNaN(maxLikelihood)) {
+            likelihoodFactor = Math.min(1.0, Math.max(0.0, 
+                               (Math.exp(maxLikelihood / measurements.size()) - 0.1) / 0.9));
+        }
+        
+        // Combine factors with appropriate weights
+        if (avgSignalStrength >= STRONG_SIGNAL_THRESHOLD) {
+            // For strong signals, ensure confidence is high
+            double baseConfidence = HIGH_CONFIDENCE + 
+                                  (MAX_CONFIDENCE - HIGH_CONFIDENCE) * 
+                                  (0.6 * signalFactor + 0.3 * apCountFactor + 0.1 * likelihoodFactor);
+            
+            // Apply GDOP adjustment - only minor for strong signals
+            confidence = baseConfidence * (1.0 - GDOPCalculator.GDOP_CONFIDENCE_WEIGHT * (1.0 - 1.0/Math.max(1.0, gdopFactor)));
+            
+            // Ensure confidence remains high for strong signals
+            confidence = Math.max(HIGH_CONFIDENCE, Math.min(MAX_CONFIDENCE, confidence));
+        } else if (avgSignalStrength < WEAK_SIGNAL_THRESHOLD) {
+            // For weak signals, ensure confidence is lower
+            double baseConfidence = MIN_CONFIDENCE + 
+                                  (WEAK_CONFIDENCE_CAP - MIN_CONFIDENCE) * 
+                                  (0.7 * signalFactor + 0.2 * apCountFactor + 0.1 * likelihoodFactor);
+            
+            // Apply stronger GDOP adjustment for weak signals
+            confidence = baseConfidence * (1.0 - GDOPCalculator.GDOP_CONFIDENCE_WEIGHT * (1.0 - 1.0/Math.max(1.0, gdopFactor)));
+            
+            // Ensure confidence is capped for weak signals
+            confidence = Math.min(WEAK_CONFIDENCE_CAP, confidence);
+        } else {
+            // For medium signals
+            double baseConfidence = WEAK_CONFIDENCE_CAP + 
+                                  (HIGH_CONFIDENCE - WEAK_CONFIDENCE_CAP) * 
+                                  (0.6 * signalFactor + 0.25 * apCountFactor + 0.15 * likelihoodFactor);
+            
+            // Apply balanced GDOP adjustment
+            confidence = baseConfidence * (1.0 - GDOPCalculator.GDOP_CONFIDENCE_WEIGHT * (1.0 - 1.0/Math.max(1.0, gdopFactor)));
+        }
+        
+        return confidence;
     }
 
     /**
@@ -370,12 +583,89 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
 
     @Override
     public double getConfidence() {
-        return 0.8; // Base confidence for maximum likelihood method
+        return HIGH_CONFIDENCE; // Base confidence for maximum likelihood method
     }
 
     @Override
     public String getName() {
         return "maximum_likelihood";
+    }
+
+    @Override
+    public double getSignalDistributionAdjustment(SignalDistributionFactor factor) {
+        switch (factor) {
+            case UNIFORM_SIGNALS:
+                return MAXIMUM_LIKELIHOOD_UNIFORM_SIGNALS_ADJUSTMENT;
+            case MIXED_SIGNALS:
+                return MAXIMUM_LIKELIHOOD_MIXED_SIGNALS_ADJUSTMENT;
+            case SIGNAL_OUTLIERS:
+                return MAXIMUM_LIKELIHOOD_SIGNAL_OUTLIERS_ADJUSTMENT;
+            default:
+                return MAXIMUM_LIKELIHOOD_MIXED_SIGNALS_ADJUSTMENT;
+        }
+    }
+
+    // AP Count weights from framework document
+    private static final double MAXIMUM_LIKELIHOOD_SINGLE_AP_WEIGHT = 0.0;    // Not applicable for single AP
+    private static final double MAXIMUM_LIKELIHOOD_TWO_APS_WEIGHT = 0.0;      // Not applicable for two APs
+    private static final double MAXIMUM_LIKELIHOOD_THREE_APS_WEIGHT = 0.0;    // Not applicable for three APs (needs more APs)
+    private static final double MAXIMUM_LIKELIHOOD_FOUR_PLUS_APS_WEIGHT = 1.0;// Optimal for four+ APs
+    
+    @Override
+    public double getBaseWeight(APCountFactor factor) {
+        switch (factor) {
+            case SINGLE_AP:
+                return MAXIMUM_LIKELIHOOD_SINGLE_AP_WEIGHT;      // Not applicable for single AP
+            case TWO_APS:
+                return MAXIMUM_LIKELIHOOD_TWO_APS_WEIGHT;        // Not applicable for two APs
+            case THREE_APS:
+                return MAXIMUM_LIKELIHOOD_THREE_APS_WEIGHT;      // Not applicable for three APs
+            case FOUR_PLUS_APS:
+                return MAXIMUM_LIKELIHOOD_FOUR_PLUS_APS_WEIGHT;  // Optimal for four+ APs
+            default:
+                return 0.0;
+        }
+    }
+    
+    // Signal quality adjustments from framework document
+    private static final double MAXIMUM_LIKELIHOOD_STRONG_SIGNAL_ADJUSTMENT = 1.2;  // Significant improvement with strong signals
+    private static final double MAXIMUM_LIKELIHOOD_MEDIUM_SIGNAL_ADJUSTMENT = 0.9;  // Reduced for medium signals
+    private static final double MAXIMUM_LIKELIHOOD_WEAK_SIGNAL_ADJUSTMENT = 0.5;    // Major reduction for weak signals
+    
+    @Override
+    public double getSignalQualityAdjustment(SignalQualityFactor factor) {
+        switch (factor) {
+            case STRONG_SIGNAL:
+                return MAXIMUM_LIKELIHOOD_STRONG_SIGNAL_ADJUSTMENT;
+            case MEDIUM_SIGNAL:
+                return MAXIMUM_LIKELIHOOD_MEDIUM_SIGNAL_ADJUSTMENT;
+            case WEAK_SIGNAL:
+                return MAXIMUM_LIKELIHOOD_WEAK_SIGNAL_ADJUSTMENT;
+            default:
+                return MAXIMUM_LIKELIHOOD_MEDIUM_SIGNAL_ADJUSTMENT;
+        }
+    }
+    
+    // Geometric quality adjustments from framework document
+    private static final double MAXIMUM_LIKELIHOOD_EXCELLENT_GDOP_ADJUSTMENT = 1.2; // Significant boost for excellent geometry
+    private static final double MAXIMUM_LIKELIHOOD_GOOD_GDOP_ADJUSTMENT = 1.1;      // Good boost for good geometry
+    private static final double MAXIMUM_LIKELIHOOD_FAIR_GDOP_ADJUSTMENT = 0.9;      // Some reduction for fair geometry
+    private static final double MAXIMUM_LIKELIHOOD_POOR_GDOP_ADJUSTMENT = 0.7;      // Significant reduction for poor geometry
+    
+    @Override
+    public double getGeometricQualityAdjustment(GeometricQualityFactor factor) {
+        switch (factor) {
+            case EXCELLENT_GDOP:
+                return MAXIMUM_LIKELIHOOD_EXCELLENT_GDOP_ADJUSTMENT;
+            case GOOD_GDOP:
+                return MAXIMUM_LIKELIHOOD_GOOD_GDOP_ADJUSTMENT;
+            case FAIR_GDOP:
+                return MAXIMUM_LIKELIHOOD_FAIR_GDOP_ADJUSTMENT;
+            case POOR_GDOP:
+                return MAXIMUM_LIKELIHOOD_POOR_GDOP_ADJUSTMENT;
+            default:
+                return MAXIMUM_LIKELIHOOD_GOOD_GDOP_ADJUSTMENT;
+        }
     }
 
     /**
@@ -403,5 +693,43 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
             this.stdDev = stdDev;
             this.confidence = confidence;
         }
+    }
+
+    /**
+     * Calculates accuracy based on base accuracy value, GDOP factor, and signal strength.
+     * The calculation differs for strong vs. weak signals:
+     * 
+     * For strong signals:
+     *   accuracy = baseAccuracy * (1.0 + (gdopFactor - 1.0) * GDOP_ACCURACY_MULTIPLIER)
+     * 
+     * For weaker signals:
+     *   accuracy = baseAccuracy * gdopFactor
+     * 
+     * This ensures that GDOP has a controlled effect on strong signals (maintaining high accuracy)
+     * while having a stronger impact on weak signals (where geometry is more critical).
+     * 
+     * @param baseAccuracy The initial accuracy estimate
+     * @param gdopFactor The GDOP factor (1.0-4.0)
+     * @param avgSignalStrength Average signal strength (dBm)
+     * @return Refined accuracy value (meters)
+     */
+    private double calculateAccuracy(double baseAccuracy, double gdopFactor, double avgSignalStrength) {
+        double refinedAccuracy;
+        
+        if (avgSignalStrength >= STRONG_SIGNAL_THRESHOLD) {
+            // For strong signals, apply a controlled GDOP adjustment
+            refinedAccuracy = baseAccuracy * (1.0 + (gdopFactor - 1.0) * GDOPCalculator.GDOP_ACCURACY_MULTIPLIER);
+            
+            // Ensure accuracy is within expected range for strong signals
+            refinedAccuracy = Math.max(MIN_ACCURACY, Math.min(MAX_ACCURACY, refinedAccuracy));
+        } else {
+            // For weaker signals, apply full GDOP adjustment
+            refinedAccuracy = baseAccuracy * gdopFactor;
+            
+            // Cap maximum accuracy value
+            refinedAccuracy = Math.min(25.0, refinedAccuracy);
+        }
+        
+        return refinedAccuracy;
     }
 } 

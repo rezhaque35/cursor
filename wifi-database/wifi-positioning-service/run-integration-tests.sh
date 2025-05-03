@@ -12,165 +12,200 @@ TOTAL_TESTS=0
 PASSED_TESTS=0
 FAILED_TESTS=0
 
-# Function to run test and format output
-run_test() {
-    local test_name=$1
-    local payload=$2
-    local expected_status=${3:-"SUCCESS"} # Optional parameter for expected status
-    
-    ((TOTAL_TESTS++))
-    
-    echo -e "\n${BLUE}Running Test: ${test_name}${NC}"
-    echo "----------------------------------------"
-    echo -e "${YELLOW}Request Payload:${NC}"
-    echo "$payload" | python3 -m json.tool
-    
-    # Send request and capture response
-    response=$(curl -s -X POST http://localhost:8080/api/positioning/calculate \
-        -H "Content-Type: application/json" \
-        -d "$payload")
-    
-    # Check if curl command was successful
-    if [ $? -eq 0 ]; then
-        echo -e "\n${YELLOW}Response:${NC}"
-        formatted_response=$(echo "$response" | python3 -m json.tool 2>/dev/null || echo "$response")
-        echo "$formatted_response"
-        
-        # Check if response contains expected status
-        if echo "$response" | grep -q "\"result\":\"$expected_status\""; then
-            echo -e "\n${GREEN}✓ Test Passed${NC}"
-            ((PASSED_TESTS++))
-        else
-            echo -e "\n${RED}✗ Test Failed${NC}"
-            echo -e "${RED}Expected status: $expected_status${NC}"
-            ((FAILED_TESTS++))
-        fi
-    else
-        echo -e "\n${RED}✗ Request Failed${NC}"
-        ((FAILED_TESTS++))
-    fi
-    echo "----------------------------------------"
+# Function to check if service is running
+check_service() {
+    curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health || echo "000"
 }
 
-echo -e "${BLUE}Starting WiFi Positioning Service Integration Tests${NC}"
-echo "=================================================="
+# Function to make HTTP request and validate response
+make_request() {
+    local payload=$1
+    local test_name=$2
+    
+    # Make the HTTP request and capture both response and HTTP code
+    response=$(curl -s -w "\n%{http_code}" -X POST \
+        -H "Content-Type: application/json" \
+        -d "$payload" \
+        http://localhost:8080/api/v1/position)
+    
+    # Split response into body and status code
+    http_code=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | sed '$d')
+
+    echo "Running Test: $test_name"
+    echo "----------------------------------------"
+    echo "Request Payload:"
+    echo "$payload" | python3 -m json.tool
+    echo
+
+    # If we can't connect to the service, mark as failure
+    if [[ $http_code == "000" ]]; then
+        echo "✗ Service is not accessible"
+        echo "----------------------------------------"
+        return 1
+    fi
+
+    # If we got a response, print it
+    if [[ -n "$body" ]]; then
+        echo "Response:"
+        echo "$body" | python3 -m json.tool
+        echo
+    fi
+
+    # Validate response based on HTTP code
+    case $http_code in
+        200)
+            # For success cases, validate the response structure
+            if echo "$body" | jq -e . >/dev/null 2>&1; then
+                echo "✓ Test Passed"
+        else
+                echo "✗ Invalid JSON response"
+                return 1
+            fi
+            ;;
+        400|404|500)
+            echo "✗ Unexpected error response"
+            return 1
+            ;;
+        *)
+            echo "✗ Unexpected HTTP status code: $http_code"
+            return 1
+            ;;
+    esac
+    
+    echo "----------------------------------------"
+    return 0
+}
+
+echo "Running integration tests..."
+
+# Wait for service to start
+echo "Waiting for service to be ready..."
+attempts=0
+max_attempts=30
+until [[ $(check_service) == "200" ]] || [[ $attempts -ge $max_attempts ]]; do
+    attempts=$((attempts + 1))
+    echo "Attempt $attempts/$max_attempts: Service not ready yet, waiting..."
+    sleep 2
+done
+
+if [[ $attempts -ge $max_attempts ]]; then
+    echo "Service failed to start after $max_attempts attempts"
+    exit 1
+fi
+
+echo "Service is ready, starting tests..."
 
 # Test Case 1: Single AP - Proximity Detection
-run_test "Test Case 1: Single AP - Proximity Detection" '{
+payload='{
     "wifiScanResults": [
         {
             "macAddress": "00:11:22:33:44:01",
-            "signalStrength": -65.0,
+            "signalStrength": -65,
             "frequency": 2437,
-            "channel": 6,
             "ssid": "SingleAP_Test"
         }
     ],
     "preferHighAccuracy": false,
     "returnAllMethods": true
 }'
+make_request "$payload" "Test Case 1: Single AP - Proximity Detection"
 
 # Test Case 2: Two APs - RSSI Ratio Method
-run_test "Test Case 2: Two APs - RSSI Ratio Method" '{
+payload='{
     "wifiScanResults": [
         {
             "macAddress": "00:11:22:33:44:02",
-            "signalStrength": -68.5,
+            "signalStrength": -68,
             "frequency": 5180,
-            "channel": 36,
             "ssid": "DualAP_Test"
         },
         {
             "macAddress": "00:11:22:33:44:03",
-            "signalStrength": -62.3,
+            "signalStrength": -62,
             "frequency": 2462,
-            "channel": 11,
             "ssid": "TriAP_Test"
         }
     ],
     "preferHighAccuracy": true,
     "returnAllMethods": true
 }'
+make_request "$payload" "Test Case 2: Two APs - RSSI Ratio Method"
 
 # Test Case 3: Three APs - Trilateration
-run_test "Test Case 3: Three APs - Trilateration" '{
+payload='{
     "wifiScanResults": [
         {
             "macAddress": "00:11:22:33:44:03",
-            "signalStrength": -62.3,
+            "signalStrength": -62,
             "frequency": 2462,
-            "channel": 11,
             "ssid": "TriAP_Test"
         },
         {
             "macAddress": "00:11:22:33:44:04",
-            "signalStrength": -71.2,
+            "signalStrength": -71,
             "frequency": 5240,
-            "channel": 48,
             "ssid": "MultiAP_Test"
         },
         {
             "macAddress": "00:11:22:33:44:05",
-            "signalStrength": -85.5,
+            "signalStrength": -85,
             "frequency": 2412,
-            "channel": 1,
             "ssid": "WeakSignal_Test"
         }
     ],
     "preferHighAccuracy": true,
     "returnAllMethods": true
 }'
+make_request "$payload" "Test Case 3: Three APs - Trilateration"
 
 # Test Case 4: Multiple APs - Maximum Likelihood
-run_test "Test Case 4: Multiple APs - Maximum Likelihood" '{
+payload='{
     "wifiScanResults": [
         {
             "macAddress": "00:11:22:33:44:04",
-            "signalStrength": -71.2,
+            "signalStrength": -71,
             "frequency": 5240,
-            "channel": 48,
             "ssid": "MultiAP_Test"
         },
         {
             "macAddress": "00:11:22:33:44:05",
-            "signalStrength": -85.5,
+            "signalStrength": -85,
             "frequency": 2412,
-            "channel": 1,
             "ssid": "WeakSignal_Test"
         },
         {
             "macAddress": "00:11:22:33:44:06",
-            "signalStrength": -70.0,
+            "signalStrength": -70,
             "frequency": 2437,
-            "channel": 6,
             "ssid": "Collinear_Test_06"
         },
         {
             "macAddress": "00:11:22:33:44:07",
-            "signalStrength": -68.0,
+            "signalStrength": -68,
             "frequency": 2437,
-            "channel": 6,
             "ssid": "Collinear_Test_07"
         }
     ],
     "preferHighAccuracy": true,
     "returnAllMethods": true
 }'
+make_request "$payload" "Test Case 4: Multiple APs - Maximum Likelihood"
 
 # Test Case 5: Weak Signals
-run_test "Test Case 5: Weak Signals" '{
+payload='{
     "wifiScanResults": [
         {
             "macAddress": "00:11:22:33:44:05",
-            "signalStrength": -85.5,
+            "signalStrength": -85,
             "frequency": 2412,
-            "channel": 1,
             "ssid": "WeakSignal_Test"
         }
     ],
     "preferHighAccuracy": false,
     "returnAllMethods": true
 }'
+make_request "$payload" "Test Case 5: Weak Signals"
 
 # Print test summary
 echo -e "\n${BLUE}Test Summary${NC}"

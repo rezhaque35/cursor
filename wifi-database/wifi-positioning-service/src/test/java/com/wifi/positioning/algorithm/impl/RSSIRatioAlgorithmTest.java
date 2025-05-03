@@ -48,7 +48,7 @@ class RSSIRatioAlgorithmTest {
     }
 
     private WifiScanResult createScan(String mac, double signalStrength) {
-        return new WifiScanResult(mac, signalStrength, 2400, 6, "test-ssid");
+        return new WifiScanResult(mac, signalStrength, 2400, "test-ssid");
     }
 
     /**
@@ -255,6 +255,62 @@ class RSSIRatioAlgorithmTest {
             assertTrue(position.latitude() >= 1.0 && position.latitude() <= 2.0);
             assertTrue(position.longitude() >= 1.0 && position.longitude() <= 2.0);
             assertTrue(position.accuracy() <= 50.0); // Assuming 50m is maximum acceptable accuracy
+        }
+    }
+
+    @Nested
+    @DisplayName("Accuracy and Confidence Range Tests")
+    class AccuracyAndConfidenceRangeTests {
+        @Test
+        @DisplayName("should return expected accuracy and confidence for strong signals")
+        void shouldReturnExpectedAccuracyAndConfidenceForStrongSignals() {
+            List<WifiAccessPoint> aps = Arrays.asList(
+                createAP("AP1", "Cisco", 1.0, 1.0, -65.0),
+                createAP("AP2", "Cisco", 1.0, 2.0, -62.0)
+            );
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -65.0),
+                createScan("AP2", -62.0)
+            );
+            Position result = algorithm.calculatePosition(scans, aps);
+            assertNotNull(result);
+            // Accuracy: Should be within 5-8m for strong signals, RSSI ratio
+            assertTrue(result.accuracy() >= 5.0 && result.accuracy() <= 8.0,
+                "Expected accuracy between 5 and 8, got " + result.accuracy());
+            // Confidence: Should be high for strong signals
+            assertTrue(result.confidence() >= 0.7 && result.confidence() <= 0.85,
+                "Expected confidence between 0.7 and 0.85, got " + result.confidence());
+            // Latitude/Longitude: Should be between APs, with margin
+            assertTrue(result.latitude() >= 0.9 && result.latitude() <= 2.1,
+                "Expected latitude between 0.9 and 2.1, got " + result.latitude());
+            assertTrue(result.longitude() >= 0.9 && result.longitude() <= 2.1,
+                "Expected longitude between 0.9 and 2.1, got " + result.longitude());
+        }
+
+        @Test
+        @DisplayName("should return worse accuracy and lower confidence for weak/mismatched signals")
+        void shouldReturnWorseAccuracyAndLowerConfidenceForWeakSignals() {
+            List<WifiAccessPoint> aps = Arrays.asList(
+                createAP("AP1", "Cisco", 1.0, 1.0, -85.0),
+                createAP("AP2", "Cisco", 1.0, 2.0, -90.0)
+            );
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -85.0),
+                createScan("AP2", -90.0)
+            );
+            Position result = algorithm.calculatePosition(scans, aps);
+            assertNotNull(result);
+            // Accuracy: Should be worse (>8m) for weak signals
+            assertTrue(result.accuracy() > 8.0,
+                "Expected accuracy > 8 for weak signals, got " + result.accuracy());
+            // Confidence: Should be lower for weak signals
+            assertTrue(result.confidence() < 0.7,
+                "Expected confidence < 0.7 for weak signals, got " + result.confidence());
+            // Latitude/Longitude: Should be between or near APs, allow wider margin for weak signals
+            assertTrue(result.latitude() >= 0.7 && result.latitude() <= 2.3,
+                "Expected latitude between 0.7 and 2.3, got " + result.latitude());
+            assertTrue(result.longitude() >= 0.7 && result.longitude() <= 2.3,
+                "Expected longitude between 0.7 and 2.3, got " + result.longitude());
         }
     }
 } 

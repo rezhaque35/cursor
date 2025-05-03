@@ -45,7 +45,6 @@ class PositioningControllerTest {
                 "00:11:22:33:44:55",
                 -65,
                 2437,
-                6,
                 "test-ssid",
                 54,
                 40);

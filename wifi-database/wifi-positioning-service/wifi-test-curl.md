@@ -12,9 +12,8 @@ curl -X POST http://localhost:8080/api/positioning/calculate \
     "wifiScanResults": [
       {
         "macAddress": "00:11:22:33:44:01",
-        "signalStrength": -65.0,
+        "signalStrength": -65,
         "frequency": 2437,
-        "channel": 6,
         "ssid": "SingleAP_Test"
       }
     ],
@@ -33,14 +32,12 @@ curl -X POST http://localhost:8080/api/positioning/calculate \
         "macAddress": "00:11:22:33:44:02",
         "signalStrength": -68.5,
         "frequency": 5180,
-        "channel": 36,
         "ssid": "DualAP_Test"
       },
       {
         "macAddress": "00:11:22:33:44:03",
         "signalStrength": -62.3,
         "frequency": 2462,
-        "channel": 11,
         "ssid": "TriAP_Test"
       }
     ],
@@ -59,21 +56,18 @@ curl -X POST http://localhost:8080/api/positioning/calculate \
         "macAddress": "00:11:22:33:44:03",
         "signalStrength": -62.3,
         "frequency": 2462,
-        "channel": 11,
         "ssid": "TriAP_Test"
       },
       {
         "macAddress": "00:11:22:33:44:04",
         "signalStrength": -71.2,
         "frequency": 5240,
-        "channel": 48,
         "ssid": "MultiAP_Test"
       },
       {
         "macAddress": "00:11:22:33:44:05",
         "signalStrength": -85.5,
         "frequency": 2412,
-        "channel": 1,
         "ssid": "WeakSignal_Test"
       }
     ],
@@ -92,28 +86,24 @@ curl -X POST http://localhost:8080/api/positioning/calculate \
         "macAddress": "00:11:22:33:44:04",
         "signalStrength": -71.2,
         "frequency": 5240,
-        "channel": 48,
         "ssid": "MultiAP_Test"
       },
       {
         "macAddress": "00:11:22:33:44:05",
         "signalStrength": -85.5,
         "frequency": 2412,
-        "channel": 1,
         "ssid": "WeakSignal_Test"
       },
       {
         "macAddress": "00:11:22:33:44:06",
         "signalStrength": -70.0,
         "frequency": 2437,
-        "channel": 6,
         "ssid": "Collinear_Test_06"
       },
       {
         "macAddress": "00:11:22:33:44:07",
         "signalStrength": -68.0,
         "frequency": 2437,
-        "channel": 6,
         "ssid": "Collinear_Test_07"
       }
     ],
@@ -132,7 +122,6 @@ curl -X POST http://localhost:8080/api/positioning/calculate \
         "macAddress": "00:11:22:33:44:05",
         "signalStrength": -85.5,
         "frequency": 2412,
-        "channel": 1,
         "ssid": "WeakSignal_Test"
       }
     ],
@@ -153,21 +142,18 @@ curl -X POST http://localhost:8080/api/positioning/calculate \
         "macAddress": "00:11:22:33:44:06",
         "signalStrength": -70.0,
         "frequency": 2437,
-        "channel": 6,
         "ssid": "Collinear_Test_06"
       },
       {
         "macAddress": "00:11:22:33:44:07",
         "signalStrength": -68.0,
         "frequency": 2437,
-        "channel": 6,
         "ssid": "Collinear_Test_07"
       },
       {
         "macAddress": "00:11:22:33:44:08",
         "signalStrength": -66.0,
         "frequency": 2437,
-        "channel": 6,
         "ssid": "Collinear_Test_08"
       }
     ],
@@ -186,28 +172,24 @@ curl -X POST http://localhost:8080/api/positioning/calculate \
         "macAddress": "00:11:22:33:44:11",
         "signalStrength": -65.0,
         "frequency": 5320,
-        "channel": 64,
         "ssid": "HighDensity_Test_11"
       },
       {
         "macAddress": "00:11:22:33:44:12",
         "signalStrength": -63.5,
         "frequency": 5320,
-        "channel": 64,
         "ssid": "HighDensity_Test_12"
       },
       {
         "macAddress": "00:11:22:33:44:13",
         "signalStrength": -62.0,
         "frequency": 5320,
-        "channel": 64,
         "ssid": "HighDensity_Test_13"
       },
       {
         "macAddress": "00:11:22:33:44:14",
         "signalStrength": -60.5,
         "frequency": 5320,
-        "channel": 64,
         "ssid": "HighDensity_Test_14"
       }
     ],
@@ -226,21 +208,18 @@ curl -X POST http://localhost:8080/api/positioning/calculate \
         "macAddress": "00:11:22:33:44:16",
         "signalStrength": -60.0,
         "frequency": 2412,
-        "channel": 1,
         "ssid": "MixedSignal_Test_16"
       },
       {
         "macAddress": "00:11:22:33:44:17",
         "signalStrength": -65.0,
         "frequency": 2417,
-        "channel": 2,
         "ssid": "MixedSignal_Test_17"
       },
       {
         "macAddress": "00:11:22:33:44:18",
         "signalStrength": -70.0,
         "frequency": 2422,
-        "channel": 3,
         "ssid": "MixedSignal_Test_18"
       }
     ],
@@ -261,14 +240,12 @@ curl -X POST http://localhost:8080/api/positioning/calculate \
         "macAddress": "00:11:22:33:44:21",
         "signalStrength": -70.0,
         "frequency": 5500,
-        "channel": 100,
         "ssid": "TimeSeries_Test"
       },
       {
         "macAddress": "00:11:22:33:44:22",
         "signalStrength": -72.0,
         "frequency": 5500,
-        "channel": 100,
         "ssid": "TimeSeries_Test"
       }
     ],
@@ -287,14 +264,12 @@ curl -X POST http://localhost:8080/api/positioning/calculate \
         "macAddress": "00:11:22:33:44:26",
         "signalStrength": -50.0,
         "frequency": 2462,
-        "channel": 11,
         "ssid": "PathLoss_Test_26"
       },
       {
         "macAddress": "00:11:22:33:44:27",
         "signalStrength": -53.0,
         "frequency": 2462,
-        "channel": 11,
         "ssid": "PathLoss_Test_27"
       }
     ],
@@ -316,7 +291,6 @@ curl -X POST http://localhost:8080/api/positioning/calculate \
         "macAddress": "00:11:22:33:44:36",
         "signalStrength": -99.9,
         "frequency": 2412,
-        "channel": 1,
         "ssid": "ErrorCase_invalid_coordinates"
       }
     ],
@@ -333,7 +307,6 @@ curl -X POST http://localhost:8080/api/positioning/calculate \
         "macAddress": "00:11:22:33:44:38",
         "signalStrength": -99.9,
         "frequency": 2412,
-        "channel": 1,
         "ssid": "ErrorCase_insufficient_data"
       }
     ],

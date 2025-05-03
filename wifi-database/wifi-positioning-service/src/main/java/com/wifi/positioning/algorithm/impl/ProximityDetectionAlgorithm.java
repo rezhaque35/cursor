@@ -1,6 +1,10 @@
 package com.wifi.positioning.algorithm.impl;
 
 import com.wifi.positioning.algorithm.PositioningAlgorithm;
+import com.wifi.positioning.algorithm.factor.APCountFactor;
+import com.wifi.positioning.algorithm.factor.GeometricQualityFactor;
+import com.wifi.positioning.algorithm.factor.SignalDistributionFactor;
+import com.wifi.positioning.algorithm.factor.SignalQualityFactor;
 import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.model.WifiAccessPoint;
@@ -62,6 +66,30 @@ public class ProximityDetectionAlgorithm implements PositioningAlgorithm {
     private static final double MIN_SIGNAL_STRENGTH = -90.0; // Unusable signal strength
     private static final double SIGNAL_RANGE = 60.0;         // Range from -90 to -30 dBm
 
+    /**
+     * Weight constants for Proximity Detection Algorithm
+     * These values are based on the algorithm's characteristics:
+     * - Works best with single AP (high weight for SINGLE_AP)
+     * - Less valuable as AP count increases
+     * - Highly dependent on signal strength
+     * - No dependence on geometric distribution
+     */
+    private static final double PROXIMITY_SINGLE_AP_WEIGHT = 0.90;
+    private static final double PROXIMITY_TWO_APS_WEIGHT = 0.70;
+    private static final double PROXIMITY_THREE_APS_WEIGHT = 0.50;
+    private static final double PROXIMITY_FOUR_PLUS_APS_WEIGHT = 0.40;
+    
+    private static final double PROXIMITY_STRONG_SIGNAL_ADJUSTMENT = 0.15;
+    private static final double PROXIMITY_MEDIUM_SIGNAL_ADJUSTMENT = 0.0;
+    private static final double PROXIMITY_WEAK_SIGNAL_ADJUSTMENT = -0.25;
+    
+    // Proximity algorithm doesn't depend on geometric factors
+    private static final double PROXIMITY_GDOP_ADJUSTMENT = 0.0;
+    
+    private static final double PROXIMITY_UNIFORM_SIGNALS_ADJUSTMENT = 0.05;
+    private static final double PROXIMITY_MIXED_SIGNALS_ADJUSTMENT = 0.0;
+    private static final double PROXIMITY_SIGNAL_OUTLIERS_ADJUSTMENT = 0.10; // Good for outlier detection
+
     @Override
     public Position calculatePosition(List<WifiScanResult> wifiScan, List<WifiAccessPoint> knownAPs) {
         if (wifiScan == null || wifiScan.isEmpty() || knownAPs == null || knownAPs.isEmpty()) {
@@ -114,5 +142,55 @@ public class ProximityDetectionAlgorithm implements PositioningAlgorithm {
     @Override
     public String getName() {
         return "proximity";
+    }
+    
+    @Override
+    public double getBaseWeight(APCountFactor factor) {
+        switch (factor) {
+            case SINGLE_AP:
+                return PROXIMITY_SINGLE_AP_WEIGHT;
+            case TWO_APS:
+                return PROXIMITY_TWO_APS_WEIGHT;
+            case THREE_APS:
+                return PROXIMITY_THREE_APS_WEIGHT;
+            case FOUR_PLUS_APS:
+                return PROXIMITY_FOUR_PLUS_APS_WEIGHT;
+            default:
+                return PROXIMITY_SINGLE_AP_WEIGHT;
+        }
+    }
+    
+    @Override
+    public double getSignalQualityAdjustment(SignalQualityFactor factor) {
+        switch (factor) {
+            case STRONG_SIGNAL:
+                return PROXIMITY_STRONG_SIGNAL_ADJUSTMENT;
+            case MEDIUM_SIGNAL:
+                return PROXIMITY_MEDIUM_SIGNAL_ADJUSTMENT;
+            case WEAK_SIGNAL:
+                return PROXIMITY_WEAK_SIGNAL_ADJUSTMENT;
+            default:
+                return PROXIMITY_MEDIUM_SIGNAL_ADJUSTMENT;
+        }
+    }
+    
+    @Override
+    public double getGeometricQualityAdjustment(GeometricQualityFactor factor) {
+        // Proximity algorithm doesn't depend on geometric factors
+        return PROXIMITY_GDOP_ADJUSTMENT;
+    }
+    
+    @Override
+    public double getSignalDistributionAdjustment(SignalDistributionFactor factor) {
+        switch (factor) {
+            case UNIFORM_SIGNALS:
+                return PROXIMITY_UNIFORM_SIGNALS_ADJUSTMENT;
+            case MIXED_SIGNALS:
+                return PROXIMITY_MIXED_SIGNALS_ADJUSTMENT;
+            case SIGNAL_OUTLIERS:
+                return PROXIMITY_SIGNAL_OUTLIERS_ADJUSTMENT;
+            default:
+                return PROXIMITY_MIXED_SIGNALS_ADJUSTMENT;
+        }
     }
 } 

@@ -53,7 +53,7 @@ class WeightedCentroidAlgorithmTest {
     }
 
     private WifiScanResult createScan(String mac, double signalStrength) {
-        return new WifiScanResult(mac, signalStrength, 2400, 6, "test-ssid");
+        return new WifiScanResult(mac, signalStrength, 2400, "test-ssid");
     }
 
     /**
@@ -399,5 +399,33 @@ class WeightedCentroidAlgorithmTest {
             assertTrue(fullPosition.confidence() > halfPosition.confidence());
             assertTrue(halfPosition.confidence() > lowPosition.confidence());
         }
+    }
+
+    @Test
+    @DisplayName("should calculate position with correct accuracy and confidence")
+    void shouldCalculatePositionWithCorrectAccuracyAndConfidence() {
+        List<WifiAccessPoint> aps = Arrays.asList(
+            createAP("AP1", 1.0, 1.0, 10.0, 5.0),
+            createAP("AP2", 3.0, 3.0, 20.0, 5.0)
+        );
+
+        List<WifiScanResult> scans = Arrays.asList(
+            createScan("AP1", -60.0),
+            createScan("AP2", -70.0)
+        );
+
+        Position result = algorithm.calculatePosition(scans, aps);
+        assertNotNull(result);
+        // Accuracy: Should be within 5-7m for strong signals, weighted centroid
+        assertTrue(result.accuracy() >= 5.0 && result.accuracy() <= 7.0,
+            "Expected accuracy between 5 and 7, got " + result.accuracy());
+        // Confidence: Should be high for strong signals
+        assertTrue(result.confidence() >= 0.7 && result.confidence() <= 0.8,
+            "Expected confidence between 0.7 and 0.8, got " + result.confidence());
+        // Latitude/Longitude: Should be between APs, with margin
+        assertTrue(result.latitude() >= 0.9 && result.latitude() <= 3.1,
+            "Expected latitude between 0.9 and 3.1, got " + result.latitude());
+        assertTrue(result.longitude() >= 0.9 && result.longitude() <= 3.1,
+            "Expected longitude between 0.9 and 3.1, got " + result.longitude());
     }
 } 

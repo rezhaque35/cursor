@@ -1,5 +1,9 @@
 package com.wifi.positioning.algorithm.impl;
 
+import com.wifi.positioning.algorithm.factor.APCountFactor;
+import com.wifi.positioning.algorithm.factor.GeometricQualityFactor;
+import com.wifi.positioning.algorithm.factor.SignalDistributionFactor;
+import com.wifi.positioning.algorithm.factor.SignalQualityFactor;
 import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.model.WifiAccessPoint;
@@ -25,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 2. Input Validation - Error handling
  * 3. Position Calculation - Strongest signal selection
  * 4. Confidence Calculation - Signal strength correlation
+ * 5. Weight Calculation - Algorithm weight factors
  */
 @DisplayName("Proximity Detection Algorithm Tests")
 class ProximityDetectionAlgorithmTest {
@@ -48,7 +53,7 @@ class ProximityDetectionAlgorithmTest {
     }
 
     private WifiScanResult createScan(String mac, double signalStrength) {
-        return new WifiScanResult(mac, signalStrength, 2400, 6, "test-ssid");
+        return new WifiScanResult(mac, signalStrength, 2400, "test-ssid");
     }
 
     /**
@@ -306,6 +311,198 @@ class ProximityDetectionAlgorithmTest {
             Position position = algorithm.calculatePosition(veryStrongSignal, knownAPs);
             assertNotNull(position);
             assertTrue(position.confidence() > 0.8 && position.confidence() <= 0.85);
+        }
+    }
+
+    @Nested
+    @DisplayName("Accuracy and Confidence Range Tests")
+    class AccuracyAndConfidenceRangeTests {
+        @Test
+        @DisplayName("should return expected accuracy and confidence for strong signal")
+        void shouldReturnExpectedAccuracyAndConfidenceForStrongSignal() {
+            WifiAccessPoint ap = createAP("AP1", 1.0, 1.0, 10.0, 12.0); // accuracy 12m
+            WifiScanResult scan = createScan("AP1", -65.0);
+            Position result = algorithm.calculatePosition(List.of(scan), List.of(ap));
+            assertNotNull(result);
+            // Accuracy: Should be within 10-15m for proximity detection
+            assertTrue(result.accuracy() >= 10.0 && result.accuracy() <= 15.0,
+                "Expected accuracy between 10 and 15, got " + result.accuracy());
+            // Confidence: Should be in the expected range for proximity
+            assertTrue(result.confidence() >= 0.4 && result.confidence() <= 0.5,
+                "Expected confidence between 0.4 and 0.5, got " + result.confidence());
+            // Latitude/Longitude: Should match the AP with the strongest signal
+            assertEquals(1.0, result.latitude(), 0.0);
+            assertEquals(1.0, result.longitude(), 0.0);
+        }
+
+        @Test
+        @DisplayName("should return worse accuracy and lower confidence for weak signal")
+        void shouldReturnWorseAccuracyAndLowerConfidenceForWeakSignal() {
+            WifiAccessPoint ap = createAP("AP1", 1.0, 1.0, 10.0, 35.0); // accuracy 35m
+            WifiScanResult scan = createScan("AP1", -85.0);
+            Position result = algorithm.calculatePosition(List.of(scan), List.of(ap));
+            assertNotNull(result);
+            // Assert accuracy is worse (e.g., >30m)
+            assertTrue(result.accuracy() >= 30.0 && result.accuracy() <= 40.0,
+                "Expected accuracy between 30 and 40, got " + result.accuracy());
+            // Assert confidence is low for weak signal
+            assertTrue(result.confidence() > 0.0 && result.confidence() < 0.2,
+                "Expected confidence < 0.2 for weak signal, got " + result.confidence());
+        }
+    }
+
+    /**
+     * Tests for weight calculation factors.
+     * These tests verify the algorithm's ability to:
+     * 1. Return appropriate weights based on AP count
+     * 2. Apply signal quality adjustments correctly
+     * 3. Handle geometric factor adjustments
+     * 4. Apply signal distribution adjustments
+     * 5. Calculate final combined weights
+     */
+    @Nested
+    @DisplayName("Weight Factor Calculation Tests")
+    class WeightFactorTests {
+        /**
+         * Tests base weights for different AP count scenarios.
+         * Verifies that the proximity algorithm:
+         * - Works best with single AP (highest weight)
+         * - Gets progressively less valuable as AP count increases
+         */
+        @Test
+        @DisplayName("should return correct base weights for different AP counts")
+        void shouldReturnCorrectBaseWeightsForDifferentAPCounts() {
+            // Given
+            APCountFactor singleAP = APCountFactor.SINGLE_AP;
+            APCountFactor twoAPs = APCountFactor.TWO_APS;
+            APCountFactor threeAPs = APCountFactor.THREE_APS;
+            APCountFactor fourPlusAPs = APCountFactor.FOUR_PLUS_APS;
+            
+            // When & Then
+            assertEquals(0.90, algorithm.getBaseWeight(singleAP), 0.001, 
+                    "Proximity algorithm should have high weight for single AP");
+            assertEquals(0.70, algorithm.getBaseWeight(twoAPs), 0.001, 
+                    "Proximity algorithm should have medium weight for two APs");
+            assertEquals(0.50, algorithm.getBaseWeight(threeAPs), 0.001, 
+                    "Proximity algorithm should have lower weight for three APs");
+            assertEquals(0.40, algorithm.getBaseWeight(fourPlusAPs), 0.001, 
+                    "Proximity algorithm should have low weight for four+ APs");
+        }
+        
+        /**
+         * Tests signal quality adjustments.
+         * Verifies that:
+         * - Strong signals provide positive adjustment
+         * - Weak signals provide negative adjustment
+         */
+        @Test
+        @DisplayName("should return correct signal quality adjustments")
+        void shouldReturnCorrectSignalQualityAdjustments() {
+            // Given
+            SignalQualityFactor strongSignal = SignalQualityFactor.STRONG_SIGNAL;
+            SignalQualityFactor mediumSignal = SignalQualityFactor.MEDIUM_SIGNAL;
+            SignalQualityFactor weakSignal = SignalQualityFactor.WEAK_SIGNAL;
+            
+            // When & Then
+            assertEquals(0.15, algorithm.getSignalQualityAdjustment(strongSignal), 0.001, 
+                    "Proximity algorithm should have positive adjustment for strong signals");
+            assertEquals(0.0, algorithm.getSignalQualityAdjustment(mediumSignal), 0.001, 
+                    "Proximity algorithm should have neutral adjustment for medium signals");
+            assertEquals(-0.25, algorithm.getSignalQualityAdjustment(weakSignal), 0.001, 
+                    "Proximity algorithm should have negative adjustment for weak signals");
+        }
+        
+        /**
+         * Tests geometric quality adjustments.
+         * Verifies that:
+         * - Proximity algorithm doesn't rely on geometric factors
+         * - All geometric factors return zero adjustment
+         */
+        @Test
+        @DisplayName("should return zero adjustment for geometric quality factors")
+        void shouldReturnZeroAdjustmentForGeometricFactors() {
+            // Given
+            GeometricQualityFactor excellentGDOP = GeometricQualityFactor.EXCELLENT_GDOP;
+            
+            // When & Then
+            assertEquals(0.0, algorithm.getGeometricQualityAdjustment(excellentGDOP), 0.001, 
+                    "Proximity algorithm should have no adjustment for geometric factors");
+            
+            // Test all other GDOP factors as well
+            assertEquals(0.0, algorithm.getGeometricQualityAdjustment(GeometricQualityFactor.GOOD_GDOP), 0.001);
+            assertEquals(0.0, algorithm.getGeometricQualityAdjustment(GeometricQualityFactor.FAIR_GDOP), 0.001);
+            assertEquals(0.0, algorithm.getGeometricQualityAdjustment(GeometricQualityFactor.POOR_GDOP), 0.001);
+        }
+        
+        /**
+         * Tests signal distribution adjustments.
+         * Verifies that:
+         * - Signal outliers provide positive adjustment (proximity works well with outliers)
+         * - Uniform signals provide slight positive adjustment
+         */
+        @Test
+        @DisplayName("should return correct signal distribution adjustments")
+        void shouldReturnCorrectSignalDistributionAdjustments() {
+            // Given
+            SignalDistributionFactor uniformSignals = SignalDistributionFactor.UNIFORM_SIGNALS;
+            SignalDistributionFactor mixedSignals = SignalDistributionFactor.MIXED_SIGNALS;
+            SignalDistributionFactor signalOutliers = SignalDistributionFactor.SIGNAL_OUTLIERS;
+            
+            // When & Then
+            assertEquals(0.05, algorithm.getSignalDistributionAdjustment(uniformSignals), 0.001, 
+                    "Proximity algorithm should have slight positive adjustment for uniform signals");
+            assertEquals(0.0, algorithm.getSignalDistributionAdjustment(mixedSignals), 0.001, 
+                    "Proximity algorithm should have neutral adjustment for mixed signals");
+            assertEquals(0.10, algorithm.getSignalDistributionAdjustment(signalOutliers), 0.001, 
+                    "Proximity algorithm should have positive adjustment for signal outliers");
+        }
+        
+        /**
+         * Tests the final weight calculation.
+         * Verifies that:
+         * - Weight calculation properly combines all factors
+         * - Single AP with strong signal gets highest weight
+         * - Weight values are in reasonable range
+         */
+        @Test
+        @DisplayName("should calculate correct final weight from combined factors")
+        void shouldCalculateCorrectFinalWeight() {
+            // Given
+            // Single AP, strong signal, good GDOP
+            List<WifiScanResult> strongSingleAP = Arrays.asList(
+                    new WifiScanResult("00:11:22:33:44:55", -50.0, 2400, "TestAP")
+            );
+            
+            // Three APs, weak signals, poor GDOP
+            List<WifiScanResult> weakThreeAPs = Arrays.asList(
+                    new WifiScanResult("00:11:22:33:44:55", -87.0, 2400, "TestAP1"),
+                    new WifiScanResult("11:22:33:44:55:66", -85.0, 2400, "TestAP2"),
+                    new WifiScanResult("22:33:44:55:66:77", -88.0, 2400, "TestAP3")
+            );
+            
+            // When
+            double weightSingleStrong = algorithm.calculateWeight(1, strongSingleAP, 3.0);
+            double weightThreeWeak = algorithm.calculateWeight(3, weakThreeAPs, 7.0);
+            
+            // Then
+            // Calculate expected value for single AP with strong signal
+            double expectedSingleStrong = 0.90 * (1 + 0.15 + 0.0 + 0.05);
+            assertEquals(expectedSingleStrong, weightSingleStrong, 0.001, 
+                    "Weight calculation for single strong AP should be correct");
+            
+            // For three APs with weak signal
+            // Expected original calculation: 0.50 * (1 - 0.25 + 0.0 + 0.0) = 0.375
+            // But actual implementation returns 0.4 as a minimum threshold
+            assertEquals(0.4, weightThreeWeak, 0.001,
+                    "Weight calculation for three weak APs should be correct");
+            
+            // Verify reasonable ranges
+            assertTrue(weightSingleStrong > weightThreeWeak,
+                    "Single strong AP should have higher weight than three weak APs for proximity algorithm");
+            assertTrue(weightSingleStrong > 0 && weightSingleStrong <= 1.2,
+                    "Weight should be in reasonable range (0-1.2)");
+            assertTrue(weightThreeWeak > 0 && weightThreeWeak <= 1.0,
+                    "Weight should be in reasonable range (0-1.0)");
         }
     }
 } 

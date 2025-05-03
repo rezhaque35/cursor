@@ -199,7 +199,6 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                 .signalStrengthStd(0.0)
                 .ssid("SingleAP_Test")
                 .frequency(2437)
-                .channel(6)
                 .countryCode("US")
                 .vendor("Cisco")
                 .geohash("9q8yyk")
@@ -228,7 +227,6 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                 .signalStrengthStd(2.1)
                 .ssid("DualAP_Test")
                 .frequency(5180)
-                .channel(36)
                 .countryCode("US")
                 .vendor("Aruba")
                 .geohash("9q8yyk")
@@ -257,7 +255,6 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                 .signalStrengthStd(1.8)
                 .ssid("TriAP_Test")
                 .frequency(2462)
-                .channel(11)
                 .countryCode("US")
                 .vendor("Ubiquiti")
                 .geohash("9q8yyk")
@@ -267,7 +264,7 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
     }
     
     /**
-     * Loads test data for the "Weak Signals Scenario"
+     * Loads test data for the "Weak Signals" scenario
      */
     public void loadWeakSignalsScenario() {
         WifiAccessPoint ap = WifiAccessPoint.builder()
@@ -286,7 +283,6 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                 .signalStrengthStd(5.2)
                 .ssid("WeakSignal_Test")
                 .frequency(2412)
-                .channel(1)
                 .countryCode("US")
                 .vendor("HPE-Aruba")
                 .geohash("9q8yyk")
@@ -330,7 +326,6 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                     .signalStrengthStd(2.8)
                     .ssid("Collinear_Test_" + i)
                     .frequency(2437)
-                    .channel(6)
                     .countryCode("US")
                     .vendor("Ruckus")
                     .geohash("9q8yyk")

@@ -2,13 +2,13 @@
   "TableName": "wifi_access_points",
   "AttributeDefinitions": [
     {
-      "AttributeName": "mac_address",
+      "AttributeName": "mac_addr",
       "AttributeType": "S"
     }
   ],
   "KeySchema": [
     {
-      "AttributeName": "mac_address",
+      "AttributeName": "mac_addr",
       "KeyType": "HASH"
     }
   ],

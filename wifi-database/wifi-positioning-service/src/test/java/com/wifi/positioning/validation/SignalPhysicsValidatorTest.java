@@ -41,7 +41,7 @@ class SignalPhysicsValidatorTest {
         @DisplayName("should validate single valid signal")
         void shouldValidateSingleValidSignal() {
             List<WifiScanResult> scanResults = Collections.singletonList(
-                new WifiScanResult("00:11:22:33:44:55", -65.0, 2412, 1, "Test")
+                new WifiScanResult("00:11:22:33:44:55", -65.0, 2412, "Test")
             );
             assertTrue(validator.isPhysicallyPossible(scanResults));
         }
@@ -55,13 +55,13 @@ class SignalPhysicsValidatorTest {
         void shouldRejectSignalsOutsideValidRange() {
             // Test signal too strong
             List<WifiScanResult> tooStrong = Collections.singletonList(
-                new WifiScanResult("00:11:22:33:44:55", -29.9, 2412, 1, "Test")
+                new WifiScanResult("00:11:22:33:44:55", -29.9, 2412, "Test")
             );
             assertFalse(validator.isPhysicallyPossible(tooStrong));
 
             // Test signal too weak
             List<WifiScanResult> tooWeak = Collections.singletonList(
-                new WifiScanResult("00:11:22:33:44:55", -100.1, 2412, 1, "Test")
+                new WifiScanResult("00:11:22:33:44:55", -100.1, 2412, "Test")
             );
             assertFalse(validator.isPhysicallyPossible(tooWeak));
         }
@@ -70,8 +70,8 @@ class SignalPhysicsValidatorTest {
         @DisplayName("should accept signals at boundary values")
         void shouldAcceptSignalsAtBoundaryValues() {
             List<WifiScanResult> scanResults = Arrays.asList(
-                new WifiScanResult("00:11:22:33:44:55", -30.0, 2412, 1, "Test"),
-                new WifiScanResult("00:11:22:33:44:56", -100.0, 2412, 1, "Test")
+                new WifiScanResult("00:11:22:33:44:55", -30.0, 2412, "Test"),
+                new WifiScanResult("00:11:22:33:44:56", -100.0, 2412, "Test")
             );
             assertTrue(validator.isPhysicallyPossible(scanResults));
         }
@@ -85,9 +85,9 @@ class SignalPhysicsValidatorTest {
         void shouldDetectPhysicallyImpossibleSignalRelationships() {
             // Test Case 39 scenario: Strong signal mixed with very weak signals on same frequency
             List<WifiScanResult> impossibleScenario = Arrays.asList(
-                new WifiScanResult("00:11:22:33:44:39", -90.0, 2412, 1, "Test1"),
-                new WifiScanResult("00:11:22:33:44:40", -40.0, 2412, 1, "Test2"),
-                new WifiScanResult("00:11:22:33:44:41", -95.0, 2412, 1, "Test3")
+                new WifiScanResult("00:11:22:33:44:39", -90.0, 2412, "Test1"),
+                new WifiScanResult("00:11:22:33:44:40", -40.0, 2412, "Test2"),
+                new WifiScanResult("00:11:22:33:44:41", -95.0, 2412, "Test3")
             );
             assertFalse(validator.isPhysicallyPossible(impossibleScenario));
         }
@@ -97,9 +97,9 @@ class SignalPhysicsValidatorTest {
         void shouldAcceptReasonableSignalVariations() {
             // Test reasonable signal variations on same frequency
             List<WifiScanResult> reasonableScenario = Arrays.asList(
-                new WifiScanResult("00:11:22:33:44:55", -65.0, 2412, 1, "Test1"),
-                new WifiScanResult("00:11:22:33:44:56", -75.0, 2412, 1, "Test2"),
-                new WifiScanResult("00:11:22:33:44:57", -85.0, 2412, 1, "Test3")
+                new WifiScanResult("00:11:22:33:44:55", -65.0, 2412, "Test1"),
+                new WifiScanResult("00:11:22:33:44:56", -75.0, 2412, "Test2"),
+                new WifiScanResult("00:11:22:33:44:57", -85.0, 2412, "Test3")
             );
             assertTrue(validator.isPhysicallyPossible(reasonableScenario));
         }
@@ -112,8 +112,8 @@ class SignalPhysicsValidatorTest {
         @DisplayName("should allow larger variations across different frequencies")
         void shouldAllowLargerVariationsAcrossDifferentFrequencies() {
             List<WifiScanResult> mixedFrequencyScenario = Arrays.asList(
-                new WifiScanResult("00:11:22:33:44:55", -45.0, 2412, 1, "Test1"),
-                new WifiScanResult("00:11:22:33:44:56", -90.0, 5180, 36, "Test2")
+                new WifiScanResult("00:11:22:33:44:55", -45.0, 2412, "Test1"),
+                new WifiScanResult("00:11:22:33:44:56", -90.0, 5180, "Test2")
             );
             assertTrue(validator.isPhysicallyPossible(mixedFrequencyScenario));
         }
@@ -127,15 +127,15 @@ class SignalPhysicsValidatorTest {
         void shouldEnforceStricterRulesForStrongSignals() {
             // Test strong signal with inconsistent nearby signals
             List<WifiScanResult> inconsistentStrong = Arrays.asList(
-                new WifiScanResult("00:11:22:33:44:55", -35.0, 2412, 1, "Test1"),
-                new WifiScanResult("00:11:22:33:44:56", -95.0, 2412, 1, "Test2")
+                new WifiScanResult("00:11:22:33:44:55", -35.0, 2412, "Test1"),
+                new WifiScanResult("00:11:22:33:44:56", -95.0, 2412, "Test2")
             );
             assertFalse(validator.isPhysicallyPossible(inconsistentStrong));
 
             // Test strong signals with consistent nearby signals
             List<WifiScanResult> consistentStrong = Arrays.asList(
-                new WifiScanResult("00:11:22:33:44:55", -45.0, 2412, 1, "Test1"),
-                new WifiScanResult("00:11:22:33:44:56", -65.0, 2412, 1, "Test2")
+                new WifiScanResult("00:11:22:33:44:55", -45.0, 2412, "Test1"),
+                new WifiScanResult("00:11:22:33:44:56", -65.0, 2412, "Test2")
             );
             assertTrue(validator.isPhysicallyPossible(consistentStrong));
         }

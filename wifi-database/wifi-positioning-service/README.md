@@ -70,20 +70,17 @@ Example request:
       "macAddress": "00:11:22:33:44:55",
       "signalStrength": -65,
       "frequency": 2437,
-      "channel": 6,
-      "ssid": "Test-WiFi"
+      "ssid": "MyWiFi"
     },
     {
       "macAddress": "AA:BB:CC:DD:EE:FF",
       "signalStrength": -72,
       "frequency": 5240,
-      "channel": 48,
-      "ssid": "Test-WiFi-5G"
+      "ssid": "MyWiFi5G"
     }
   ],
   "preferHighAccuracy": true,
-  "returnAllMethods": false,
-  "sessionId": "user-session-123"
+  "returnAllMethods": false
 }
 ```
 
@@ -121,26 +118,23 @@ Example response:
 }
 ```
 
-### Algorithm Selection
+### Algorithm Selection Logic
 
-The system selects the appropriate algorithm based on:
+The system dynamically selects positioning algorithms based on available data:
 
-1. Number of visible access points
-   - Single AP → Proximity Detection
-   - 2 APs → RSSI Ratio
-   - 3+ APs → Trilateration or Weighted Centroid
+- Single AP → Proximity detection
+- Two APs → RSSI ratio method
+- Three+ APs with good geometry → Modified trilateration
+- Multiple APs with poor geometry → Weighted centroid
+- Multiple APs with strong signals → Maximum likelihood
 
-2. AP geometry
-   - Good geometry → Trilateration
-   - Poor geometry → Weighted Centroid
+Algorithm selection can be influenced by:
 
-3. Signal quality
-   - Strong signals → Maximum Likelihood
-   - Weak signals → Fallback to simpler methods
-
-4. Additional parameters
+- Number of visible APs
+- Signal strength quality
+- AP geometric distribution
+- Frequency diversity
    - Channel width available → Modified Trilateration
-   - Link speed available → Enhanced Maximum Likelihood
 
 ### Development
 

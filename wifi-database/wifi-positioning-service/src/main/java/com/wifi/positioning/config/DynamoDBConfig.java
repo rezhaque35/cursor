@@ -32,7 +32,7 @@ public class DynamoDBConfig {
                 .dualstackEnabled(false)
                 // Use static credentials for local development
                 .credentialsProvider(StaticCredentialsProvider.create(
-                    AwsBasicCredentials.create("fakeMyKeyId", "fakeSecretAccessKey")))
+                    AwsBasicCredentials.create("dummy", "dummy")))
                 .build();
     }
     

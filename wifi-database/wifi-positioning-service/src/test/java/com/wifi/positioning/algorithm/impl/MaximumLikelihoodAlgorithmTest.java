@@ -56,7 +56,7 @@ class MaximumLikelihoodAlgorithmTest {
     }
 
     private WifiScanResult createScan(String mac, double signalStrength) {
-        return new WifiScanResult(mac, signalStrength, 2400, 6, "test-ssid");
+        return new WifiScanResult(mac, signalStrength, 2400, "test-ssid");
     }
 
     /**
@@ -565,6 +565,70 @@ class MaximumLikelihoodAlgorithmTest {
             
             assertNull(algorithm.calculatePosition(unrelatedScans, knownAPs),
                 "Should return null when no valid measurements are available");
+        }
+    }
+
+    @Nested
+    @DisplayName("Accuracy and Confidence Range Tests")
+    class AccuracyAndConfidenceRangeTests {
+        @Test
+        @DisplayName("should return high accuracy and confidence for strong, well-distributed signals")
+        void shouldReturnHighAccuracyAndConfidenceForStrongSignals() {
+            List<WifiAccessPoint> aps = Arrays.asList(
+                createAP("AP1", 1.0, 1.0, 10.0, 5.0),
+                createAP("AP2", 1.0, 2.0, 10.0, 5.0),
+                createAP("AP3", 2.0, 1.5, 10.0, 5.0),
+                createAP("AP4", 2.0, 2.0, 10.0, 5.0)
+            );
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -50.0),
+                createScan("AP2", -52.0),
+                createScan("AP3", -51.0),
+                createScan("AP4", -53.0)
+            );
+            Position result = algorithm.calculatePosition(scans, aps);
+            assertNotNull(result);
+            // Accuracy: Should be within 1-6m for strong signals, maximum likelihood
+            assertTrue(result.accuracy() >= 1.0 && result.accuracy() <= 6.0,
+                "Expected accuracy between 1 and 6, got " + result.accuracy());
+            // Confidence: Should be high for strong signals
+            assertTrue(result.confidence() >= 0.8 && result.confidence() <= 1.0,
+                "Expected confidence between 0.8 and 1.0, got " + result.confidence());
+            // Latitude/Longitude: Should be within triangle formed by APs, with margin
+            assertTrue(result.latitude() >= 0.9 && result.latitude() <= 3.1,
+                "Expected latitude between 0.9 and 3.1, got " + result.latitude());
+            assertTrue(result.longitude() >= 0.9 && result.longitude() <= 3.1,
+                "Expected longitude between 0.9 and 3.1, got " + result.longitude());
+        }
+
+        @Test
+        @DisplayName("should return lower accuracy and confidence for weak/noisy signals")
+        void shouldReturnLowerAccuracyAndConfidenceForWeakSignals() {
+            List<WifiAccessPoint> aps = Arrays.asList(
+                createAP("AP1", 1.0, 1.0, 10.0, 5.0),
+                createAP("AP2", 1.0, 2.0, 10.0, 5.0),
+                createAP("AP3", 2.0, 1.5, 10.0, 5.0),
+                createAP("AP4", 2.0, 2.0, 10.0, 5.0)
+            );
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -85.0),
+                createScan("AP2", -88.0),
+                createScan("AP3", -90.0),
+                createScan("AP4", -87.0)
+            );
+            Position result = algorithm.calculatePosition(scans, aps);
+            assertNotNull(result);
+            // Accuracy: Should be worse (>8m) for weak signals
+            assertTrue(result.accuracy() > 8.0,
+                "Expected accuracy > 8 for weak signals, got " + result.accuracy());
+            // Confidence: Should be lower for weak signals
+            assertTrue(result.confidence() < 0.6,
+                "Expected confidence < 0.6 for weak signals, got " + result.confidence());
+            // Latitude/Longitude: Should be within or near triangle, allow wider margin for weak signals
+            assertTrue(result.latitude() >= 0.7 && result.latitude() <= 3.3,
+                "Expected latitude between 0.7 and 3.3, got " + result.latitude());
+            assertTrue(result.longitude() >= 0.7 && result.longitude() <= 3.3,
+                "Expected longitude between 0.7 and 3.3, got " + result.longitude());
         }
     }
 } 

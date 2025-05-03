@@ -48,7 +48,6 @@ public class PositioningServiceTestImpl implements PositioningService {
                                 Map<String, Object> data = new HashMap<>();
                                 data.put("signalStrength", scan.signalStrength());
                                 data.put("frequency", scan.frequency());
-                                data.put("channel", scan.channel());
                                 data.put("ssid", scan.ssid());
                                 data.put("linkSpeed", scan.linkSpeed());
                                 data.put("channelWidth", scan.channelWidth());

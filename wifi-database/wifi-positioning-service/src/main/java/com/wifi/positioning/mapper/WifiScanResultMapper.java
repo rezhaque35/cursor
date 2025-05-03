@@ -25,7 +25,6 @@ public class WifiScanResultMapper {
             dto.macAddress(),
             dto.signalStrength().doubleValue(), // Convert Integer to Double
             dto.frequency(),
-            dto.channel(),
             dto.ssid()
         );
     }
@@ -54,7 +53,6 @@ public class WifiScanResultMapper {
             model.macAddress(),
             model.signalStrength().intValue(), // Convert Double to Integer
             model.frequency(),
-            model.channel(),
             model.ssid(),
             null, // linkSpeed
             null  // channelWidth
@@ -87,7 +85,6 @@ public class WifiScanResultMapper {
             Map<String, Object> apData = new HashMap<>();
             apData.put("signalStrength", dto.signalStrength());
             if (dto.frequency() != null) apData.put("frequency", dto.frequency());
-            if (dto.channel() != null) apData.put("channel", dto.channel());
             if (dto.ssid() != null) apData.put("ssid", dto.ssid());
             if (dto.linkSpeed() != null) apData.put("linkSpeed", dto.linkSpeed());
             if (dto.channelWidth() != null) apData.put("channelWidth", dto.channelWidth());
@@ -119,14 +116,12 @@ public class WifiScanResultMapper {
                 }
                 
                 Integer frequency = getIntValue(data, "frequency");
-                Integer channel = getIntValue(data, "channel");
                 String ssid = (String) data.get("ssid");
                 
                 results.add(new WifiScanResult(
                     macAddress,
                     signalStrength,
                     frequency,
-                    channel,
                     ssid
                 ));
             } catch (IllegalArgumentException e) {

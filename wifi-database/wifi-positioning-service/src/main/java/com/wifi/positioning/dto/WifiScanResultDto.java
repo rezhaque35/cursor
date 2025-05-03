@@ -18,10 +18,6 @@ public record WifiScanResultDto(
     @Max(value = 6000, message = "Frequency must be at most 6000 MHz")
     Integer frequency,
     
-    @Min(value = 1, message = "Channel must be at least 1")
-    @Max(value = 165, message = "Channel must be at most 165")
-    Integer channel,
-    
     String ssid,
     
     @Min(value = 0, message = "Link speed must be non-negative")
@@ -31,10 +27,4 @@ public record WifiScanResultDto(
     @Max(value = 160, message = "Channel width must be at most 160 MHz")
     Integer channelWidth
 ) {
-    public WifiScanResultDto {
-        // Validate required pairs of fields
-        if ((frequency == null && channel != null) || (frequency != null && channel == null)) {
-            throw new IllegalArgumentException("Both frequency and channel must be provided together or not at all");
-        }
-    }
 } 

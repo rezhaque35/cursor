@@ -1,6 +1,10 @@
 package com.wifi.positioning.algorithm.impl;
 
 import com.wifi.positioning.algorithm.PositioningAlgorithm;
+import com.wifi.positioning.algorithm.factor.APCountFactor;
+import com.wifi.positioning.algorithm.factor.GeometricQualityFactor;
+import com.wifi.positioning.algorithm.factor.SignalDistributionFactor;
+import com.wifi.positioning.algorithm.factor.SignalQualityFactor;
 import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.model.WifiAccessPoint;
@@ -66,6 +70,37 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
     private static final String ALGORITHM_NAME = "RSSI Ratio";
     private static final double BASE_CONFIDENCE = 0.75;
     private static final int MIN_REQUIRED_APS = 2;
+    
+    /**
+     * Weight constants from the algorithm selection framework.
+     * These reflect the strengths and weaknesses of the RSSI Ratio algorithm:
+     * - Works optimally with 2 APs
+     * - Good with 3 APs but less effective with more APs
+     * - Medium signal quality sensitivity
+     * - Moderate impact from geometric quality
+     * - Good performance with uniform signals, worse with outliers
+     */
+    // AP Count weights from framework document
+    private static final double RSSI_RATIO_SINGLE_AP_WEIGHT = 0.0; // Not applicable for single AP
+    private static final double RSSI_RATIO_TWO_APS_WEIGHT = 1.0;   // Optimal for two APs
+    private static final double RSSI_RATIO_THREE_APS_WEIGHT = 0.7; // Good for three APs
+    private static final double RSSI_RATIO_FOUR_PLUS_APS_WEIGHT = 0.5; // Diminishing returns with more APs
+    
+    // Signal quality adjustments from framework document
+    private static final double RSSI_RATIO_STRONG_SIGNAL_ADJUSTMENT = 1.0;   // No change for strong signals
+    private static final double RSSI_RATIO_MEDIUM_SIGNAL_ADJUSTMENT = 0.9;   // Slight reduction for medium signals
+    private static final double RSSI_RATIO_WEAK_SIGNAL_ADJUSTMENT = 0.6;     // Significant reduction for weak signals
+    
+    // Geometric quality adjustments from framework document
+    private static final double RSSI_RATIO_EXCELLENT_GDOP_ADJUSTMENT = 1.0;  // No change for excellent geometry
+    private static final double RSSI_RATIO_GOOD_GDOP_ADJUSTMENT = 1.0;       // No change for good geometry
+    private static final double RSSI_RATIO_FAIR_GDOP_ADJUSTMENT = 0.9;       // Slight reduction for fair geometry
+    private static final double RSSI_RATIO_POOR_GDOP_ADJUSTMENT = 0.8;       // More reduction for poor geometry
+    
+    // Signal distribution adjustments from framework document
+    private static final double RSSI_RATIO_UNIFORM_SIGNALS_ADJUSTMENT = 1.2; // Significant improvement for uniform signals
+    private static final double RSSI_RATIO_MIXED_SIGNALS_ADJUSTMENT = 0.9;   // Slight reduction for mixed signals
+    private static final double RSSI_RATIO_SIGNAL_OUTLIERS_ADJUSTMENT = 0.7; // Significant reduction for outliers
 
     /**
      * Helper class to store weighted position calculation results
@@ -155,18 +190,40 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
             throw new IllegalArgumentException("No valid AP pairs found for position calculation");
         }
 
-        // Calculate average accuracy from known APs using parallel stream
-        double avgAccuracy = knownAPs.parallelStream()
+        // Improved accuracy calculation
+        double avgSignalStrength = wifiScan.stream()
+            .mapToDouble(WifiScanResult::signalStrength)
+            .average()
+            .orElse(-80.0);
+
+        double baseAccuracy = knownAPs.parallelStream()
             .mapToDouble(WifiAccessPoint::getHorizontalAccuracy)
             .average()
-            .orElse(15.0); // default accuracy if none available
+            .orElse(15.0);
+
+        // Scale accuracy based on signal strength - weak signals get worse accuracy
+        double signalFactor = Math.max(1.0, Math.min(3.0, 
+            (-avgSignalStrength - 50) / 10.0));
+        double finalAccuracy = baseAccuracy * signalFactor;
+
+        // Improved confidence calculation
+        double signalQuality = wifiScan.stream()
+            .mapToDouble(scan -> Math.min(1.0, Math.max(0.0, (scan.signalStrength() + 95.0) / 45.0)))
+            .average()
+            .orElse(0.5);
+
+        double baseConfidence = Math.min(0.85, totalWeight.doubleValue() / 
+            (wifiScan.size() * (wifiScan.size() - 1) / 2));
+
+        double computedConfidence = Math.min(0.85, baseConfidence + (signalQuality * 1.0));
+        double finalConfidence = (avgSignalStrength >= -70) ? Math.max(0.7, computedConfidence) : computedConfidence;
 
         return new Position(
             weightedLat.doubleValue() / totalWeight.doubleValue(),
             weightedLon.doubleValue() / totalWeight.doubleValue(),
             weightedAlt.doubleValue() / totalWeight.doubleValue(),
-            avgAccuracy,
-            Math.min(0.85, totalWeight.doubleValue() / (wifiScan.size() * (wifiScan.size() - 1) / 2))
+            finalAccuracy,
+            finalConfidence
         );
     }
 
@@ -178,5 +235,65 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
     @Override
     public String getName() {
         return ALGORITHM_NAME;
+    }
+    
+    @Override
+    public double getBaseWeight(APCountFactor factor) {
+        switch (factor) {
+            case SINGLE_AP:
+                return RSSI_RATIO_SINGLE_AP_WEIGHT; // Not applicable for single AP
+            case TWO_APS:
+                return RSSI_RATIO_TWO_APS_WEIGHT;   // Optimal for two APs
+            case THREE_APS:
+                return RSSI_RATIO_THREE_APS_WEIGHT; // Good for three APs
+            case FOUR_PLUS_APS:
+                return RSSI_RATIO_FOUR_PLUS_APS_WEIGHT; // Diminishing returns with more APs
+            default:
+                return 0.0;
+        }
+    }
+    
+    @Override
+    public double getSignalQualityAdjustment(SignalQualityFactor factor) {
+        switch (factor) {
+            case STRONG_SIGNAL:
+                return RSSI_RATIO_STRONG_SIGNAL_ADJUSTMENT;
+            case MEDIUM_SIGNAL:
+                return RSSI_RATIO_MEDIUM_SIGNAL_ADJUSTMENT;
+            case WEAK_SIGNAL:
+                return RSSI_RATIO_WEAK_SIGNAL_ADJUSTMENT;
+            default:
+                return RSSI_RATIO_MEDIUM_SIGNAL_ADJUSTMENT;
+        }
+    }
+    
+    @Override
+    public double getGeometricQualityAdjustment(GeometricQualityFactor factor) {
+        switch (factor) {
+            case EXCELLENT_GDOP:
+                return RSSI_RATIO_EXCELLENT_GDOP_ADJUSTMENT;
+            case GOOD_GDOP:
+                return RSSI_RATIO_GOOD_GDOP_ADJUSTMENT;
+            case FAIR_GDOP:
+                return RSSI_RATIO_FAIR_GDOP_ADJUSTMENT;
+            case POOR_GDOP:
+                return RSSI_RATIO_POOR_GDOP_ADJUSTMENT;
+            default:
+                return RSSI_RATIO_GOOD_GDOP_ADJUSTMENT;
+        }
+    }
+    
+    @Override
+    public double getSignalDistributionAdjustment(SignalDistributionFactor factor) {
+        switch (factor) {
+            case UNIFORM_SIGNALS:
+                return RSSI_RATIO_UNIFORM_SIGNALS_ADJUSTMENT;
+            case MIXED_SIGNALS:
+                return RSSI_RATIO_MIXED_SIGNALS_ADJUSTMENT;
+            case SIGNAL_OUTLIERS:
+                return RSSI_RATIO_SIGNAL_OUTLIERS_ADJUSTMENT;
+            default:
+                return RSSI_RATIO_MIXED_SIGNALS_ADJUSTMENT;
+        }
     }
 } 

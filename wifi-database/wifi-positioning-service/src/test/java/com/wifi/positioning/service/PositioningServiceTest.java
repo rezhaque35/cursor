@@ -54,7 +54,6 @@ class PositioningServiceTest {
                 .signalStrengthStd(3.0)
                 .ssid("test-ssid")
                 .frequency(2437)
-                .channel(6)
                 .countryCode("US")
                 .vendor("test-vendor")
                 .build();
@@ -63,7 +62,6 @@ class PositioningServiceTest {
                 "00:11:22:33:44:55", 
                 -65, 
                 2437, 
-                6, 
                 "test-ssid", 
                 54, 
                 40);

@@ -21,4 +21,7 @@ public record Position(
             throw new IllegalArgumentException("Confidence must be between 0 and 1");
         }
     }
+    public static Position of(double latitude, double longitude) {
+        return new Position(latitude, longitude, null, 1.0, 1.0);
+    }
 } 

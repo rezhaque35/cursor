@@ -57,7 +57,7 @@ class TrilaterationAlgorithmTest {
     }
 
     private WifiScanResult createScan(String mac, double signalStrength) {
-        return new WifiScanResult(mac, signalStrength, 2400, 6, "test-ssid");
+        return new WifiScanResult(mac, signalStrength, 2400, "test-ssid");
     }
 
     /**
@@ -400,9 +400,9 @@ class TrilaterationAlgorithmTest {
             );
 
             // Create custom WifiScanResult objects with different frequencies
-            WifiScanResult scan1 = new WifiScanResult("AP1", -65.0, 2400, 6, "test-ssid");
-            WifiScanResult scan2 = new WifiScanResult("AP2", -65.0, 5000, 6, "test-ssid");
-            WifiScanResult scan3 = new WifiScanResult("AP3", -65.0, 6000, 6, "test-ssid");
+            WifiScanResult scan1 = new WifiScanResult("AP1", -65.0, 2400, "test-ssid");
+            WifiScanResult scan2 = new WifiScanResult("AP2", -65.0, 5000, "test-ssid");
+            WifiScanResult scan3 = new WifiScanResult("AP3", -65.0, 6000, "test-ssid");
 
             List<WifiScanResult> scans = Arrays.asList(scan1, scan2, scan3);
 
@@ -468,6 +468,66 @@ class TrilaterationAlgorithmTest {
             );
 
             assertNull(algorithm.calculatePosition(scans, knownAPs));
+        }
+    }
+
+    @Nested
+    @DisplayName("Accuracy and Confidence Range Tests")
+    class AccuracyAndConfidenceRangeTests {
+        @Test
+        @DisplayName("should return high accuracy and confidence for strong, well-distributed signals")
+        void shouldReturnHighAccuracyAndConfidenceForStrongSignals() {
+            List<WifiAccessPoint> aps = Arrays.asList(
+                createAP("AP1", 1.0, 1.0, 10.0, 5.0),
+                createAP("AP2", 1.0, 2.0, 10.0, 5.0),
+                createAP("AP3", 2.0, 1.5, 10.0, 5.0)
+            );
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -60.0),
+                createScan("AP2", -62.0),
+                createScan("AP3", -61.0)
+            );
+            Position result = algorithm.calculatePosition(scans, aps);
+            assertNotNull(result);
+            // Accuracy: Should be within 1-5m for strong signals, trilateration
+            assertTrue(result.accuracy() >= 1.0 && result.accuracy() <= 5.0,
+                "Expected accuracy between 1 and 5, got " + result.accuracy());
+            // Confidence: Should be high for strong signals
+            assertTrue(result.confidence() >= 0.8 && result.confidence() <= 0.85,
+                "Expected confidence between 0.8 and 0.85, got " + result.confidence());
+            // Latitude/Longitude: Should be within triangle formed by APs, with margin
+            assertTrue(result.latitude() >= 0.9 && result.latitude() <= 2.1,
+                "Expected latitude between 0.9 and 2.1, got " + result.latitude());
+            assertTrue(result.longitude() >= 0.9 && result.longitude() <= 2.1,
+                "Expected longitude between 0.9 and 2.1, got " + result.longitude());
+        }
+
+        @Test
+        @DisplayName("should return lower accuracy and confidence for weak/noisy signals")
+        void shouldReturnLowerAccuracyAndConfidenceForWeakSignals() {
+            List<WifiAccessPoint> aps = Arrays.asList(
+                createAP("AP1", 1.0, 1.0, 10.0, 5.0),
+                createAP("AP2", 1.0, 2.0, 10.0, 5.0),
+                createAP("AP3", 2.0, 1.5, 10.0, 5.0)
+            );
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -85.0),
+                createScan("AP2", -88.0),
+                createScan("AP3", -90.0)
+            );
+            Position result = algorithm.calculatePosition(scans, aps);
+            assertNotNull(result);
+            // Accuracy: Should be worse (>10m) for weak signals
+            assertTrue(result.accuracy() > 10.0,
+                "Expected accuracy > 10 for weak signals, got " + result.accuracy());
+            // Confidence: Should be lower for weak signals
+            assertTrue(result.confidence() < 0.6,
+                "Expected confidence < 0.6 for weak signals, got " + result.confidence());
+            // Latitude/Longitude: Should be within or near triangle, allow wider margin for weak signals
+            assertTrue(result.latitude() >= 0.7 && result.latitude() <= 2.3,
+                "Expected latitude between 0.7 and 2.3, got " + result.latitude());
+            assertTrue(result.longitude() >= 0.7 && result.longitude() <= 2.3,
+                "Expected longitude between 0.7 and 2.3, got " + result.longitude());
         }
     }
 } 

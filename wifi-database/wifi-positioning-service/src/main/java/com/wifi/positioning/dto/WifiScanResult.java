@@ -4,7 +4,6 @@ public record WifiScanResult(
     String macAddress,
     Double signalStrength,
     Integer frequency,
-    Integer channel,
     String ssid
 ) {
     public WifiScanResult {

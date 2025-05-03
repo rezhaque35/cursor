@@ -1,6 +1,10 @@
 package com.wifi.positioning.algorithm.impl;
 
 import com.wifi.positioning.algorithm.PositioningAlgorithm;
+import com.wifi.positioning.algorithm.factor.APCountFactor;
+import com.wifi.positioning.algorithm.factor.GeometricQualityFactor;
+import com.wifi.positioning.algorithm.factor.SignalDistributionFactor;
+import com.wifi.positioning.algorithm.factor.SignalQualityFactor;
 import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.model.WifiAccessPoint;
@@ -300,20 +304,15 @@ public class LogDistancePathLossAlgorithm implements PositioningAlgorithm {
         double baseDistance = REFERENCE_DISTANCE * Math.pow(10, actualPathLoss / (10 * pathLossExponent));
         double distance;
         
-        // Force the distance to scale according to signal strength categories
         if (signalStrength <= WEAK_SIGNAL_THRESHOLD) {
-            // Weak signals - dramatically increase distance
             distance = baseDistance * DISTANCE_SCALE_FACTOR * 3.0;
         } else if (signalStrength >= STRONG_SIGNAL_THRESHOLD) {
-            // Strong signals - use a much smaller scaling factor
             distance = baseDistance * 0.5;
         } else {
-            // Medium signals - linear interpolation between strong and weak
-            // This ensures a consistent ordering: strong < medium < weak
             double signalRange = STRONG_SIGNAL_THRESHOLD - WEAK_SIGNAL_THRESHOLD;
             double normalizedStrength = (signalStrength - WEAK_SIGNAL_THRESHOLD) / signalRange;
-            double scaleFactor = 3.0 - (normalizedStrength * 2.5); // Scale from 3.0 down to 0.5
-            distance = baseDistance * scaleFactor;
+            double scaleFactor = 3.0 - (normalizedStrength * 1.5); // Increased minimum value for medium signals
+            distance = baseDistance * scaleFactor * 1.5; // Added multiplier to increase overall distance
         }
         
         return distance;
@@ -349,6 +348,96 @@ public class LogDistancePathLossAlgorithm implements PositioningAlgorithm {
 
     @Override
     public String getName() {
-        return "log_distance";
+        return "log_distance_path_loss";
+    }
+    
+    /**
+     * Weight constants from the algorithm selection framework.
+     * These reflect the strengths and weaknesses of the Log Distance Path Loss algorithm:
+     * - Works with all AP counts but optimal with 3+ APs
+     * - Moderately dependent on signal quality
+     * - Moderately sensitive to geometric quality
+     * - Better performance with uniform signals
+     */
+    // Signal distribution adjustments from framework document
+    private static final double LOG_DISTANCE_UNIFORM_SIGNALS_ADJUSTMENT = 1.1;  // Better with uniform signals
+    private static final double LOG_DISTANCE_MIXED_SIGNALS_ADJUSTMENT = 0.8;    // Reduced with mixed signals
+    private static final double LOG_DISTANCE_SIGNAL_OUTLIERS_ADJUSTMENT = 0.8;  // Reduced with outliers
+    
+    @Override
+    public double getSignalDistributionAdjustment(SignalDistributionFactor factor) {
+        switch (factor) {
+            case UNIFORM_SIGNALS:
+                return LOG_DISTANCE_UNIFORM_SIGNALS_ADJUSTMENT;
+            case MIXED_SIGNALS:
+                return LOG_DISTANCE_MIXED_SIGNALS_ADJUSTMENT;
+            case SIGNAL_OUTLIERS:
+                return LOG_DISTANCE_SIGNAL_OUTLIERS_ADJUSTMENT;
+            default:
+                return LOG_DISTANCE_MIXED_SIGNALS_ADJUSTMENT;
+        }
+    }
+    
+    // AP Count weights from framework document
+    private static final double LOG_DISTANCE_SINGLE_AP_WEIGHT = 0.4;    // Low but usable with single AP
+    private static final double LOG_DISTANCE_TWO_APS_WEIGHT = 0.5;      // Better with two APs
+    private static final double LOG_DISTANCE_THREE_APS_WEIGHT = 0.5;    // Better with three APs
+    private static final double LOG_DISTANCE_FOUR_PLUS_APS_WEIGHT = 0.4;// Diminishing returns with more APs
+    
+    @Override
+    public double getBaseWeight(APCountFactor factor) {
+        switch (factor) {
+            case SINGLE_AP:
+                return LOG_DISTANCE_SINGLE_AP_WEIGHT;      // Low but usable with single AP
+            case TWO_APS:
+                return LOG_DISTANCE_TWO_APS_WEIGHT;        // Better with two APs
+            case THREE_APS:
+                return LOG_DISTANCE_THREE_APS_WEIGHT;      // Better with three APs
+            case FOUR_PLUS_APS:
+                return LOG_DISTANCE_FOUR_PLUS_APS_WEIGHT;  // Diminishing returns with more APs
+            default:
+                return 0.0;
+        }
+    }
+    
+    // Signal quality adjustments from framework document
+    private static final double LOG_DISTANCE_STRONG_SIGNAL_ADJUSTMENT = 1.0;  // No change for strong signals
+    private static final double LOG_DISTANCE_MEDIUM_SIGNAL_ADJUSTMENT = 0.8;  // Reduced for medium signals
+    private static final double LOG_DISTANCE_WEAK_SIGNAL_ADJUSTMENT = 0.6;    // Significant reduction for weak signals
+    
+    @Override
+    public double getSignalQualityAdjustment(SignalQualityFactor factor) {
+        switch (factor) {
+            case STRONG_SIGNAL:
+                return LOG_DISTANCE_STRONG_SIGNAL_ADJUSTMENT;
+            case MEDIUM_SIGNAL:
+                return LOG_DISTANCE_MEDIUM_SIGNAL_ADJUSTMENT;
+            case WEAK_SIGNAL:
+                return LOG_DISTANCE_WEAK_SIGNAL_ADJUSTMENT;
+            default:
+                return LOG_DISTANCE_MEDIUM_SIGNAL_ADJUSTMENT;
+        }
+    }
+    
+    // Geometric quality adjustments from framework document
+    private static final double LOG_DISTANCE_EXCELLENT_GDOP_ADJUSTMENT = 1.0; // No change for excellent geometry
+    private static final double LOG_DISTANCE_GOOD_GDOP_ADJUSTMENT = 1.0;      // No change for good geometry
+    private static final double LOG_DISTANCE_FAIR_GDOP_ADJUSTMENT = 0.8;      // Some reduction for fair geometry
+    private static final double LOG_DISTANCE_POOR_GDOP_ADJUSTMENT = 0.7;      // Significant reduction for poor geometry
+    
+    @Override
+    public double getGeometricQualityAdjustment(GeometricQualityFactor factor) {
+        switch (factor) {
+            case EXCELLENT_GDOP:
+                return LOG_DISTANCE_EXCELLENT_GDOP_ADJUSTMENT;
+            case GOOD_GDOP:
+                return LOG_DISTANCE_GOOD_GDOP_ADJUSTMENT;
+            case FAIR_GDOP:
+                return LOG_DISTANCE_FAIR_GDOP_ADJUSTMENT;
+            case POOR_GDOP:
+                return LOG_DISTANCE_POOR_GDOP_ADJUSTMENT;
+            default:
+                return LOG_DISTANCE_GOOD_GDOP_ADJUSTMENT;
+        }
     }
 } 
