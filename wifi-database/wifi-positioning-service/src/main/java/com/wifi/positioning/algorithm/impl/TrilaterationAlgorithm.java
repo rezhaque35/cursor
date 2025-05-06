@@ -527,26 +527,27 @@ public class TrilaterationAlgorithm implements PositioningAlgorithm {
      * - Modest performance with varying signal distributions
      */
     // AP Count weights from framework document
-    private static final double TRILATERATION_SINGLE_AP_WEIGHT = 0.0;    // Not applicable for single AP
-    private static final double TRILATERATION_TWO_APS_WEIGHT = 0.0;      // Not applicable for two APs
-    private static final double TRILATERATION_THREE_APS_WEIGHT = 1.0;    // Optimal for three APs (exact solution)
-    private static final double TRILATERATION_FOUR_PLUS_APS_WEIGHT = 0.8;// Good for overdetermined systems
+    private static final double TRILATERATION_SINGLE_AP_WEIGHT = 0.0;      // Not applicable for single AP
+    private static final double TRILATERATION_TWO_APS_WEIGHT = 0.0;        // Not applicable for two APs
+    private static final double TRILATERATION_THREE_APS_WEIGHT = 1.0;      // Optimal for three APs (exact solution)
+    private static final double TRILATERATION_FOUR_PLUS_APS_WEIGHT = 0.8;  // Good for overdetermined systems
     
-    // Signal quality adjustments from framework document
-    private static final double TRILATERATION_STRONG_SIGNAL_ADJUSTMENT = 1.1;  // Improved with strong signals
-    private static final double TRILATERATION_MEDIUM_SIGNAL_ADJUSTMENT = 0.8;  // Reduced for medium signals
-    private static final double TRILATERATION_WEAK_SIGNAL_ADJUSTMENT = 0.3;    // Significant reduction for weak signals
+    // Signal quality multipliers from framework document
+    private static final double TRILATERATION_STRONG_SIGNAL_MULTIPLIER = 1.1;  // Better with strong signals
+    private static final double TRILATERATION_MEDIUM_SIGNAL_MULTIPLIER = 0.8;  // Reduced with medium signals
+    private static final double TRILATERATION_WEAK_SIGNAL_MULTIPLIER = 0.3;    // Major reduction for weak signals
+    private static final double TRILATERATION_VERY_WEAK_SIGNAL_MULTIPLIER = 0.0; // ×0.0 for very weak signals
     
-    // Geometric quality adjustments from framework document
-    private static final double TRILATERATION_EXCELLENT_GDOP_ADJUSTMENT = 1.3; // Significant boost for excellent geometry
-    private static final double TRILATERATION_GOOD_GDOP_ADJUSTMENT = 0.9;      // Slight reduction for good geometry
-    private static final double TRILATERATION_FAIR_GDOP_ADJUSTMENT = 0.6;      // Significant reduction for fair geometry
-    private static final double TRILATERATION_POOR_GDOP_ADJUSTMENT = 0.3;      // Major reduction for poor geometry
+    // Geometric quality multipliers from framework document
+    private static final double TRILATERATION_EXCELLENT_GDOP_MULTIPLIER = 1.3; // Significant boost for excellent geometry
+    private static final double TRILATERATION_GOOD_GDOP_MULTIPLIER = 0.9;      // Slight reduction for good geometry
+    private static final double TRILATERATION_FAIR_GDOP_MULTIPLIER = 0.6;      // Significant reduction for fair geometry
+    private static final double TRILATERATION_POOR_GDOP_MULTIPLIER = 0.3;      // Major reduction for poor geometry
     
-    // Signal distribution adjustments from framework document
-    private static final double TRILATERATION_UNIFORM_SIGNALS_ADJUSTMENT = 1.1;  // Better with uniform signals
-    private static final double TRILATERATION_MIXED_SIGNALS_ADJUSTMENT = 0.8;    // Reduced with mixed signals
-    private static final double TRILATERATION_SIGNAL_OUTLIERS_ADJUSTMENT = 0.5;  // Significant reduction with outliers
+    // Signal distribution multipliers from framework document
+    private static final double TRILATERATION_UNIFORM_SIGNALS_MULTIPLIER = 1.1;  // Better with uniform signals
+    private static final double TRILATERATION_MIXED_SIGNALS_MULTIPLIER = 0.8;    // Reduced with mixed signals
+    private static final double TRILATERATION_SIGNAL_OUTLIERS_MULTIPLIER = 0.5;  // Significant reduction with outliers
     
     @Override
     public double getBaseWeight(APCountFactor factor) {
@@ -565,46 +566,48 @@ public class TrilaterationAlgorithm implements PositioningAlgorithm {
     }
     
     @Override
-    public double getSignalQualityAdjustment(SignalQualityFactor factor) {
+    public double getSignalQualityMultiplier(SignalQualityFactor factor) {
         switch (factor) {
             case STRONG_SIGNAL:
-                return TRILATERATION_STRONG_SIGNAL_ADJUSTMENT;
+                return TRILATERATION_STRONG_SIGNAL_MULTIPLIER;
             case MEDIUM_SIGNAL:
-                return TRILATERATION_MEDIUM_SIGNAL_ADJUSTMENT;
+                return TRILATERATION_MEDIUM_SIGNAL_MULTIPLIER;
             case WEAK_SIGNAL:
-                return TRILATERATION_WEAK_SIGNAL_ADJUSTMENT;
+                return TRILATERATION_WEAK_SIGNAL_MULTIPLIER;
+            case VERY_WEAK_SIGNAL:
+                return TRILATERATION_VERY_WEAK_SIGNAL_MULTIPLIER;
             default:
-                return TRILATERATION_MEDIUM_SIGNAL_ADJUSTMENT;
+                return TRILATERATION_MEDIUM_SIGNAL_MULTIPLIER;
         }
     }
     
     @Override
-    public double getGeometricQualityAdjustment(GeometricQualityFactor factor) {
+    public double getGeometricQualityMultiplier(GeometricQualityFactor factor) {
         switch (factor) {
             case EXCELLENT_GDOP:
-                return TRILATERATION_EXCELLENT_GDOP_ADJUSTMENT;
+                return TRILATERATION_EXCELLENT_GDOP_MULTIPLIER;
             case GOOD_GDOP:
-                return TRILATERATION_GOOD_GDOP_ADJUSTMENT;
+                return TRILATERATION_GOOD_GDOP_MULTIPLIER;
             case FAIR_GDOP:
-                return TRILATERATION_FAIR_GDOP_ADJUSTMENT;
+                return TRILATERATION_FAIR_GDOP_MULTIPLIER;
             case POOR_GDOP:
-                return TRILATERATION_POOR_GDOP_ADJUSTMENT;
+                return TRILATERATION_POOR_GDOP_MULTIPLIER;
             default:
-                return TRILATERATION_GOOD_GDOP_ADJUSTMENT;
+                return TRILATERATION_GOOD_GDOP_MULTIPLIER;
         }
     }
     
     @Override
-    public double getSignalDistributionAdjustment(SignalDistributionFactor factor) {
+    public double getSignalDistributionMultiplier(SignalDistributionFactor factor) {
         switch (factor) {
             case UNIFORM_SIGNALS:
-                return TRILATERATION_UNIFORM_SIGNALS_ADJUSTMENT;
+                return TRILATERATION_UNIFORM_SIGNALS_MULTIPLIER;
             case MIXED_SIGNALS:
-                return TRILATERATION_MIXED_SIGNALS_ADJUSTMENT;
+                return TRILATERATION_MIXED_SIGNALS_MULTIPLIER;
             case SIGNAL_OUTLIERS:
-                return TRILATERATION_SIGNAL_OUTLIERS_ADJUSTMENT;
+                return TRILATERATION_SIGNAL_OUTLIERS_MULTIPLIER;
             default:
-                return TRILATERATION_MIXED_SIGNALS_ADJUSTMENT;
+                return TRILATERATION_MIXED_SIGNALS_MULTIPLIER;
         }
     }
 } 

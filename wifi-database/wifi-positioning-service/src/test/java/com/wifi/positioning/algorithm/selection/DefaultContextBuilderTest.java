@@ -60,8 +60,8 @@ class DefaultContextBuilderTest {
         }
         
         @Test
-        @DisplayName("should return WEAK_SIGNAL for low signal strengths")
-        void shouldReturnWeakSignalForLowSignalStrengths() {
+        @DisplayName("should return WEAK_SIGNAL for weak signal strengths")
+        void shouldReturnWeakSignalForWeakSignalStrengths() {
             // Arrange
             List<WifiScanResult> scans = createWifiScans(new double[]{-86.0, -90.0, -88.0});
             
@@ -70,7 +70,21 @@ class DefaultContextBuilderTest {
             
             // Assert
             assertEquals(SignalQualityFactor.WEAK_SIGNAL, factor, 
-                    "Expected WEAK_SIGNAL for signals worse than -85dBm");
+                    "Expected WEAK_SIGNAL for signals between -85dBm and -95dBm");
+        }
+        
+        @Test
+        @DisplayName("should return VERY_WEAK_SIGNAL for very weak signal strengths")
+        void shouldReturnVeryWeakSignalForVeryWeakSignalStrengths() {
+            // Arrange
+            List<WifiScanResult> scans = createWifiScans(new double[]{-96.0, -98.0, -100.0});
+            
+            // Act
+            SignalQualityFactor factor = contextBuilder.determineSignalQuality(scans);
+            
+            // Assert
+            assertEquals(SignalQualityFactor.VERY_WEAK_SIGNAL, factor, 
+                    "Expected VERY_WEAK_SIGNAL for signals worse than -95dBm");
         }
         
         @Test

@@ -81,26 +81,27 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
      * - Good performance with uniform signals, worse with outliers
      */
     // AP Count weights from framework document
-    private static final double RSSI_RATIO_SINGLE_AP_WEIGHT = 0.0; // Not applicable for single AP
-    private static final double RSSI_RATIO_TWO_APS_WEIGHT = 1.0;   // Optimal for two APs
-    private static final double RSSI_RATIO_THREE_APS_WEIGHT = 0.7; // Good for three APs
-    private static final double RSSI_RATIO_FOUR_PLUS_APS_WEIGHT = 0.5; // Diminishing returns with more APs
+    private static final double RSSI_RATIO_SINGLE_AP_WEIGHT = 0.0;    // Not applicable for single AP
+    private static final double RSSI_RATIO_TWO_APS_WEIGHT = 1.0;      // Optimal for two APs
+    private static final double RSSI_RATIO_THREE_APS_WEIGHT = 0.7;    // Good for three APs
+    private static final double RSSI_RATIO_FOUR_PLUS_APS_WEIGHT = 0.5;// Useful but not optimal for 4+ APs
     
-    // Signal quality adjustments from framework document
-    private static final double RSSI_RATIO_STRONG_SIGNAL_ADJUSTMENT = 1.0;   // No change for strong signals
-    private static final double RSSI_RATIO_MEDIUM_SIGNAL_ADJUSTMENT = 0.9;   // Slight reduction for medium signals
-    private static final double RSSI_RATIO_WEAK_SIGNAL_ADJUSTMENT = 0.6;     // Significant reduction for weak signals
+    // Signal quality multipliers from framework document
+    private static final double RSSI_RATIO_STRONG_SIGNAL_MULTIPLIER = 1.0;  // No change with strong signals
+    private static final double RSSI_RATIO_MEDIUM_SIGNAL_MULTIPLIER = 0.9;  // Slight reduction with medium signals
+    private static final double RSSI_RATIO_WEAK_SIGNAL_MULTIPLIER = 0.6;    // Significant reduction with weak signals
+    private static final double RSSI_RATIO_VERY_WEAK_SIGNAL_MULTIPLIER = 0.0; // ×0.0 for very weak signals
     
-    // Geometric quality adjustments from framework document
-    private static final double RSSI_RATIO_EXCELLENT_GDOP_ADJUSTMENT = 1.0;  // No change for excellent geometry
-    private static final double RSSI_RATIO_GOOD_GDOP_ADJUSTMENT = 1.0;       // No change for good geometry
-    private static final double RSSI_RATIO_FAIR_GDOP_ADJUSTMENT = 0.9;       // Slight reduction for fair geometry
-    private static final double RSSI_RATIO_POOR_GDOP_ADJUSTMENT = 0.8;       // More reduction for poor geometry
+    // Geometric quality multipliers from framework document
+    private static final double RSSI_RATIO_EXCELLENT_GDOP_MULTIPLIER = 1.0; // No change for excellent geometry
+    private static final double RSSI_RATIO_GOOD_GDOP_MULTIPLIER = 1.0;      // No change for good geometry
+    private static final double RSSI_RATIO_FAIR_GDOP_MULTIPLIER = 0.9;      // Slight reduction for fair geometry
+    private static final double RSSI_RATIO_POOR_GDOP_MULTIPLIER = 0.8;      // More reduction for poor geometry
     
-    // Signal distribution adjustments from framework document
-    private static final double RSSI_RATIO_UNIFORM_SIGNALS_ADJUSTMENT = 1.2; // Significant improvement for uniform signals
-    private static final double RSSI_RATIO_MIXED_SIGNALS_ADJUSTMENT = 0.9;   // Slight reduction for mixed signals
-    private static final double RSSI_RATIO_SIGNAL_OUTLIERS_ADJUSTMENT = 0.7; // Significant reduction for outliers
+    // Signal distribution multipliers from framework document
+    private static final double RSSI_RATIO_UNIFORM_SIGNALS_MULTIPLIER = 1.2; // Significant improvement for uniform signals
+    private static final double RSSI_RATIO_MIXED_SIGNALS_MULTIPLIER = 0.9;   // Slight reduction for mixed signals
+    private static final double RSSI_RATIO_SIGNAL_OUTLIERS_MULTIPLIER = 0.7; // Significant reduction for outliers
 
     /**
      * Helper class to store weighted position calculation results
@@ -241,59 +242,61 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
     public double getBaseWeight(APCountFactor factor) {
         switch (factor) {
             case SINGLE_AP:
-                return RSSI_RATIO_SINGLE_AP_WEIGHT; // Not applicable for single AP
+                return RSSI_RATIO_SINGLE_AP_WEIGHT;      // Not applicable for single AP
             case TWO_APS:
-                return RSSI_RATIO_TWO_APS_WEIGHT;   // Optimal for two APs
+                return RSSI_RATIO_TWO_APS_WEIGHT;        // Optimal for two APs
             case THREE_APS:
-                return RSSI_RATIO_THREE_APS_WEIGHT; // Good for three APs
+                return RSSI_RATIO_THREE_APS_WEIGHT;      // Good for three APs
             case FOUR_PLUS_APS:
-                return RSSI_RATIO_FOUR_PLUS_APS_WEIGHT; // Diminishing returns with more APs
+                return RSSI_RATIO_FOUR_PLUS_APS_WEIGHT;  // Useful but not optimal for 4+ APs
             default:
                 return 0.0;
         }
     }
     
     @Override
-    public double getSignalQualityAdjustment(SignalQualityFactor factor) {
+    public double getSignalQualityMultiplier(SignalQualityFactor factor) {
         switch (factor) {
             case STRONG_SIGNAL:
-                return RSSI_RATIO_STRONG_SIGNAL_ADJUSTMENT;
+                return RSSI_RATIO_STRONG_SIGNAL_MULTIPLIER;
             case MEDIUM_SIGNAL:
-                return RSSI_RATIO_MEDIUM_SIGNAL_ADJUSTMENT;
+                return RSSI_RATIO_MEDIUM_SIGNAL_MULTIPLIER;
             case WEAK_SIGNAL:
-                return RSSI_RATIO_WEAK_SIGNAL_ADJUSTMENT;
+                return RSSI_RATIO_WEAK_SIGNAL_MULTIPLIER;
+            case VERY_WEAK_SIGNAL:
+                return RSSI_RATIO_VERY_WEAK_SIGNAL_MULTIPLIER;
             default:
-                return RSSI_RATIO_MEDIUM_SIGNAL_ADJUSTMENT;
+                return RSSI_RATIO_MEDIUM_SIGNAL_MULTIPLIER;
         }
     }
     
     @Override
-    public double getGeometricQualityAdjustment(GeometricQualityFactor factor) {
+    public double getGeometricQualityMultiplier(GeometricQualityFactor factor) {
         switch (factor) {
             case EXCELLENT_GDOP:
-                return RSSI_RATIO_EXCELLENT_GDOP_ADJUSTMENT;
+                return RSSI_RATIO_EXCELLENT_GDOP_MULTIPLIER;
             case GOOD_GDOP:
-                return RSSI_RATIO_GOOD_GDOP_ADJUSTMENT;
+                return RSSI_RATIO_GOOD_GDOP_MULTIPLIER;
             case FAIR_GDOP:
-                return RSSI_RATIO_FAIR_GDOP_ADJUSTMENT;
+                return RSSI_RATIO_FAIR_GDOP_MULTIPLIER;
             case POOR_GDOP:
-                return RSSI_RATIO_POOR_GDOP_ADJUSTMENT;
+                return RSSI_RATIO_POOR_GDOP_MULTIPLIER;
             default:
-                return RSSI_RATIO_GOOD_GDOP_ADJUSTMENT;
+                return RSSI_RATIO_GOOD_GDOP_MULTIPLIER;
         }
     }
     
     @Override
-    public double getSignalDistributionAdjustment(SignalDistributionFactor factor) {
+    public double getSignalDistributionMultiplier(SignalDistributionFactor factor) {
         switch (factor) {
             case UNIFORM_SIGNALS:
-                return RSSI_RATIO_UNIFORM_SIGNALS_ADJUSTMENT;
+                return RSSI_RATIO_UNIFORM_SIGNALS_MULTIPLIER;
             case MIXED_SIGNALS:
-                return RSSI_RATIO_MIXED_SIGNALS_ADJUSTMENT;
+                return RSSI_RATIO_MIXED_SIGNALS_MULTIPLIER;
             case SIGNAL_OUTLIERS:
-                return RSSI_RATIO_SIGNAL_OUTLIERS_ADJUSTMENT;
+                return RSSI_RATIO_SIGNAL_OUTLIERS_MULTIPLIER;
             default:
-                return RSSI_RATIO_MIXED_SIGNALS_ADJUSTMENT;
+                return RSSI_RATIO_MIXED_SIGNALS_MULTIPLIER;
         }
     }
 } 

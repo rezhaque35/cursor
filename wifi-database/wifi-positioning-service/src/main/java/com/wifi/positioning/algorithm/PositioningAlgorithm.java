@@ -53,44 +53,45 @@ public interface PositioningAlgorithm {
     double getBaseWeight(APCountFactor factor);
     
     /**
-     * Returns the weight adjustment for this algorithm based on signal quality.
+     * Returns the weight multiplier for this algorithm based on signal quality.
      * 
-     * Implementations should provide adjustments based on signal quality:
-     * - Strong signals: positive adjustment (+0.1)
-     * - Medium signals: no adjustment (0.0)
-     * - Weak signals: negative adjustment (-0.1)
+     * Implementations should provide multipliers based on signal quality:
+     * - Strong signals (> -70 dBm): typically values around 0.9-1.2
+     * - Medium signals (-70 to -85 dBm): typically values around 0.7-1.0
+     * - Weak signals (< -85 dBm): typically values around 0.3-0.8
+     * - Very weak signals (< -95 dBm): typically values around 0.0-0.5
      * 
      * @param factor The signal quality factor
-     * @return The weight adjustment value
+     * @return The weight multiplier value (e.g., 0.9, 1.1)
      */
-    double getSignalQualityAdjustment(SignalQualityFactor factor);
+    double getSignalQualityMultiplier(SignalQualityFactor factor);
     
     /**
-     * Returns the weight adjustment for this algorithm based on geometric quality.
+     * Returns the weight multiplier for this algorithm based on geometric quality.
      * 
-     * Implementations should provide adjustments based on GDOP:
-     * - Excellent GDOP: significant positive adjustment (+0.15)
-     * - Good GDOP: slight positive adjustment (+0.05)
-     * - Fair GDOP: no adjustment (0.0)
-     * - Poor GDOP: negative adjustment (-0.1)
+     * Implementations should provide multipliers based on GDOP:
+     * - Excellent GDOP (< 2): typically values around 1.0-1.3
+     * - Good GDOP (2-4): typically values around 0.9-1.1
+     * - Fair GDOP (4-6): typically values around 0.6-1.2
+     * - Poor GDOP (> 6): typically values around 0.3-1.3
      * 
      * @param factor The geometric quality factor
-     * @return The weight adjustment value
+     * @return The weight multiplier value (e.g., 0.9, 1.1)
      */
-    double getGeometricQualityAdjustment(GeometricQualityFactor factor);
+    double getGeometricQualityMultiplier(GeometricQualityFactor factor);
     
     /**
-     * Returns the weight adjustment for this algorithm based on signal distribution.
+     * Returns the weight multiplier for this algorithm based on signal distribution.
      * 
-     * Implementations should provide adjustments based on signal distribution:
-     * - Uniform signals: positive adjustment (+0.1)
-     * - Mixed signals: no adjustment (0.0)
-     * - Signal outliers: negative adjustment (-0.1)
+     * Implementations should provide multipliers based on signal distribution:
+     * - Uniform signals: typically values around 0.9-1.2
+     * - Mixed signals: typically values around 0.7-1.3
+     * - Signal outliers: typically values around 0.5-1.4
      * 
      * @param factor The signal distribution factor
-     * @return The weight adjustment value
+     * @return The weight multiplier value (e.g., 0.9, 1.1)
      */
-    double getSignalDistributionAdjustment(SignalDistributionFactor factor);
+    double getSignalDistributionMultiplier(SignalDistributionFactor factor);
     
     /**
      * Calculates the final weight for this algorithm based on all factors.
@@ -108,10 +109,10 @@ public interface PositioningAlgorithm {
         SignalDistributionFactor distFactor = SignalDistributionFactor.fromWifiScans(wifiScan);
         
         double baseWeight = getBaseWeight(apFactor);
-        double signalAdjustment = getSignalQualityAdjustment(signalFactor);
-        double geoAdjustment = getGeometricQualityAdjustment(geoFactor);
-        double distAdjustment = getSignalDistributionAdjustment(distFactor);
+        double signalMultiplier = getSignalQualityMultiplier(signalFactor);
+        double geoMultiplier = getGeometricQualityMultiplier(geoFactor);
+        double distMultiplier = getSignalDistributionMultiplier(distFactor);
         
-        return baseWeight * (1 + signalAdjustment + geoAdjustment + distAdjustment);
+        return baseWeight * signalMultiplier * geoMultiplier * distMultiplier;
     }
 } 

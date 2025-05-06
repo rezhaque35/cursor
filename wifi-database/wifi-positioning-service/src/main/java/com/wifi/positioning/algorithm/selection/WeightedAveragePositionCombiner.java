@@ -1,6 +1,7 @@
 package com.wifi.positioning.algorithm.selection;
 
 import com.wifi.positioning.dto.Position;
+import com.wifi.positioning.algorithm.factor.GeometricQualityFactor;
 import com.wifi.positioning.algorithm.util.GDOPCalculator;
 import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
@@ -28,8 +29,6 @@ public class WeightedAveragePositionCombiner implements PositionCombiner {
     private static final double MAX_COLLINEAR_CONFIDENCE = 0.69; // Maximum confidence for collinear configurations
     private static final double MIN_COLLINEAR_ACCURACY = 6.0; // Minimum accuracy for collinear configurations
     private static final double ACCURACY_SCALE_FACTOR = 0.8; // Used to scale maxAccuracy for collinear base accuracy
-    private static final double COLLINEARITY_THRESHOLD = 0.01; // Threshold for variance ratio to determine collinearity
-    private static final double SINGULARITY_THRESHOLD = 1e-10; // Threshold for near-zero variance
     
     @Override
     public Position combinePositions(List<WeightedPosition> positions) {
@@ -77,8 +76,13 @@ public class WeightedAveragePositionCombiner implements PositionCombiner {
         // Calculate condition number for geometric quality assessment
         double conditionNumber = GDOPCalculator.calculateConditionNumber(covLatLat, covLonLon, covLatLon);
         
-        // Determine if the points are collinear
-        boolean isCollinear = isCollinear(positions);
+        // Extract positions to check for collinearity
+        List<Position> positionList = positions.stream()
+            .map(WeightedPosition::position)
+            .collect(Collectors.toList());
+            
+        // Determine if the points are collinear using the GeometricQualityFactor utility
+        boolean isCollinear = GeometricQualityFactor.isCollinear(positionList);
         logger.debug("Is collinear: {}", isCollinear);
         
         // Calculate geometric quality factor based on condition number and collinearity
@@ -160,69 +164,6 @@ public class WeightedAveragePositionCombiner implements PositionCombiner {
             covLatLat, covLatLon, covLatLon, covLonLon);
             
         return new double[] {covLatLat, covLonLon, covLatLon};
-    }
-    
-    /**
-     * Determines if the positions form a collinear pattern (points in a straight line)
-     * by checking variance in latitude and longitude.
-     * 
-     * Mathematical approach:
-     * 1. Calculate variance in both latitude and longitude dimensions
-     * 2. Find the ratio of the minimum variance to the maximum variance
-     * 3. If this ratio is very small, the points are likely aligned along one dimension
-     * 
-     * This algorithm doesn't require specific mathematical formulas beyond basic
-     * statistical variance calculation:
-     * Var(X) = (1/n) * Σ[(Xi - X_mean)²]
-     * 
-     * The collinearity criterion is:
-     * min(Var(lat), Var(lon)) / max(Var(lat), Var(lon)) < threshold
-     * OR
-     * Var(lat) < SINGULARITY_THRESHOLD OR Var(lon) < SINGULARITY_THRESHOLD (for perfect horizontal/vertical lines)
-     * 
-     * @param positions List of weighted positions to analyze
-     * @return true if positions appear collinear, false otherwise
-     */
-    private boolean isCollinear(List<WeightedPosition> positions) {
-        if (positions.size() < 3) {
-            return false;
-        }
-        
-        // Calculate mean latitude and longitude
-        double meanLat = positions.stream()
-            .mapToDouble(wp -> wp.position().latitude())
-            .average()
-            .orElse(0);
-            
-        double meanLon = positions.stream()
-            .mapToDouble(wp -> wp.position().longitude())
-            .average()
-            .orElse(0);
-            
-        // Calculate variances
-        double varLat = positions.stream()
-            .mapToDouble(wp -> Math.pow(wp.position().latitude() - meanLat, 2))
-            .average()
-            .orElse(0);
-            
-        double varLon = positions.stream()
-            .mapToDouble(wp -> Math.pow(wp.position().longitude() - meanLon, 2))
-            .average()
-            .orElse(0);
-            
-        // Check for perfect horizontal or vertical lines
-        if (varLat < SINGULARITY_THRESHOLD || varLon < SINGULARITY_THRESHOLD) {
-            return true;
-        }
-        
-        // Calculate variance ratio
-        double minVar = Math.min(varLat, varLon);
-        double maxVar = Math.max(varLat, varLon);
-        double varianceRatio = minVar / maxVar;
-        
-        logger.debug("Variance ratio: {} (lat: {}, lon: {})", varianceRatio, varLat, varLon);
-        
-        return varianceRatio < COLLINEARITY_THRESHOLD;
     }
     
     /**

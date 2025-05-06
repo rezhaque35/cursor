@@ -5,6 +5,7 @@ import com.wifi.positioning.algorithm.factor.SignalDistributionFactor;
 import com.wifi.positioning.algorithm.factor.SignalQualityFactor;
 import com.wifi.positioning.algorithm.util.GDOPCalculator;
 import com.wifi.positioning.dto.WifiScanResult;
+import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.model.WifiAccessPoint;
 import org.springframework.stereotype.Component;
 
@@ -28,25 +29,49 @@ public class DefaultContextBuilder implements ContextBuilder {
     private static final double SIGNAL_WEIGHT_FACTOR = 10.0; // Base for signal weight (10^(dBm/10))
     private static final double MIN_AP_COUNT_FOR_GEOMETRY = 3; // Minimum APs needed for valid geometry
     
+    
     @Override
     public SelectionContext buildContext(List<WifiScanResult> validScans, Map<String, WifiAccessPoint> apMap) {
-        // Evaluate geometry
-        GeometryFactors geometry = evaluateAPGeometry(validScans, apMap);
+        // Calculate selection factors
+        GeometricQualityFactor geometricQuality = determineGeometricQuality(validScans, apMap);
+        SignalQualityFactor signalQualityFactor = determineSignalQuality(validScans);
+        SignalDistributionFactor distributionFactor = determineSignalDistribution(validScans);
         
-        // Evaluate signal quality
-        SignalQualityFactors signalQuality = evaluateSignalQuality(validScans);
-        
-        // Evaluate AP location certainty
-        double locationCertainty = evaluateAPLocationCertainty(validScans, apMap);
+        // Calculate AP count factor
+        long apCount = validScans.stream()
+            .map(WifiScanResult::macAddress)
+            .distinct()
+            .count();
         
         // Build context
         return SelectionContext.builder()
-                .isCollinear(geometry.isCollinear)
-                .isClustered(geometry.isClustered)
-                .isWeakSignal(signalQuality.isWeak)
-                .isVariableSignal(signalQuality.isVariable)
-                .apLocationConfidence(locationCertainty)
+                .isCollinear(checkCollinearity(validScans, apMap))
+                .geometricQuality(geometricQuality)
+                .signalQuality(signalQualityFactor)
+                .signalDistribution(distributionFactor)
+                .apCountFactor(com.wifi.positioning.algorithm.factor.APCountFactor.fromCount((int)apCount))
                 .build();
+    }
+
+    /**
+     * Checks if the access points in the valid scans are collinear.
+     * 
+     * @param validScans List of valid WiFi scan results
+     * @param apMap Map of known access points by MAC address
+     * @return true if the access points are collinear, false otherwise
+     */
+    private boolean checkCollinearity(List<WifiScanResult> validScans, Map<String, WifiAccessPoint> apMap) {
+        if (validScans.size() < 3) {
+            return false;
+        }
+        
+        return GeometricQualityFactor.isCollinear(
+            validScans.stream()
+                .map(scan -> apMap.get(scan.macAddress()))
+                .filter(ap -> ap != null && ap.getLatitude() != null && ap.getLongitude() != null)
+                .map(ap -> new Position(ap.getLatitude(), ap.getLongitude(), 0.0, 0.0, 0.0))
+                .collect(Collectors.toList())
+        );
     }
 
     /**
@@ -167,102 +192,6 @@ public class DefaultContextBuilder implements ContextBuilder {
         return SignalQualityFactor.fromWifiScans(wifiScans);
     }
 
-    private GeometryFactors evaluateAPGeometry(List<WifiScanResult> validScans, 
-                                             Map<String, WifiAccessPoint> apMap) {
-        GeometryFactors factors = new GeometryFactors();
-        
-        if (validScans.size() < 3) {
-            return factors;
-        }
-        
-        // Check for collinearity
-        List<WifiAccessPoint> aps = validScans.stream()
-            .map(scan -> apMap.get(scan.macAddress()))
-            .collect(Collectors.toList());
-        
-        // Calculate centroid
-        double centroidLat = 0, centroidLon = 0;
-        for (WifiAccessPoint ap : aps) {
-            centroidLat += ap.getLatitude();
-            centroidLon += ap.getLongitude();
-        }
-        centroidLat /= aps.size();
-        centroidLon /= aps.size();
-        
-        // Check collinearity using linear regression and R² value
-        double sumXY = 0, sumX = 0, sumY = 0, sumX2 = 0;
-        double n = aps.size();
-        
-        for (WifiAccessPoint ap : aps) {
-            double x = ap.getLatitude() - centroidLat;
-            double y = ap.getLongitude() - centroidLon;
-            sumXY += x * y;
-            sumX += x;
-            sumY += y;
-            sumX2 += x * x;
-        }
-        
-        // Calculate coefficient of determination (R²)
-        double numerator = n * sumXY - sumX * sumY;
-        double denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumX2 - sumX * sumX));
-        
-        double r2 = Math.pow(numerator / denominator, 2);
-        
-        // Closer to 1 means more collinear
-        factors.isCollinear = r2 > 0.9;
-        
-        // Check for clustering
-        double distances = 0;
-        int count = 0;
-        
-        for (int i = 0; i < aps.size(); i++) {
-            for (int j = i + 1; j < aps.size(); j++) {
-                WifiAccessPoint ap1 = aps.get(i);
-                WifiAccessPoint ap2 = aps.get(j);
-                
-                double distance = calculateDistance(
-                    ap1.getLatitude(), ap1.getLongitude(),
-                    ap2.getLatitude(), ap2.getLongitude()
-                );
-                
-                distances += distance;
-                count++;
-            }
-        }
-        
-        double avgDistance = count > 0 ? distances / count : 0;
-        
-        // If average distance is small, consider it clustered
-        factors.isClustered = avgDistance < 0.001; // ~100m in decimal degrees
-        
-        return factors;
-    }
-
-    private SignalQualityFactors evaluateSignalQuality(List<WifiScanResult> validScans) {
-        SignalQualityFactors factors = new SignalQualityFactors();
-        
-        // Calculate average signal strength
-        double totalSignalStrength = 0;
-        double minSignal = 0;
-        double maxSignal = -100;
-        
-        for (WifiScanResult scan : validScans) {
-            totalSignalStrength += scan.signalStrength();
-            minSignal = Math.min(minSignal, scan.signalStrength());
-            maxSignal = Math.max(maxSignal, scan.signalStrength());
-        }
-        
-        double avgSignalStrength = totalSignalStrength / validScans.size();
-        
-        // Consider signals weak if average is below -75 dBm
-        factors.isWeak = avgSignalStrength < -75;
-        
-        // Consider signals variable if the range is more than 15 dBm
-        factors.isVariable = (maxSignal - minSignal) > 15;
-        
-        return factors;
-    }
-
     private double evaluateAPLocationCertainty(List<WifiScanResult> validScans, 
                                             Map<String, WifiAccessPoint> apMap) {
         double totalConfidence = 0;
@@ -289,15 +218,5 @@ public class DefaultContextBuilder implements ContextBuilder {
                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
-    }
-    
-    private static class GeometryFactors {
-        boolean isCollinear = false;
-        boolean isClustered = false;
-    }
-    
-    private static class SignalQualityFactors {
-        boolean isWeak = false;
-        boolean isVariable = false;
     }
 } 

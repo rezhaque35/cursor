@@ -82,26 +82,27 @@ public class WeightedCentroidAlgorithm implements PositioningAlgorithm {
      * - Very effective with mixed signals and outliers
      */
     // AP Count weights from framework document
-    private static final double WEIGHTED_CENTROID_SINGLE_AP_WEIGHT = 0.0;    // Not applicable for single AP
-    private static final double WEIGHTED_CENTROID_TWO_APS_WEIGHT = 0.8;      // Good for two APs
-    private static final double WEIGHTED_CENTROID_THREE_APS_WEIGHT = 0.8;    // Good for three APs
-    private static final double WEIGHTED_CENTROID_FOUR_PLUS_APS_WEIGHT = 0.7;// Good for four+ APs
+    private static final double WEIGHTED_CENTROID_SINGLE_AP_WEIGHT = 0.0;     // Not applicable for single AP
+    private static final double WEIGHTED_CENTROID_TWO_APS_WEIGHT = 0.8;       // Good for two APs
+    private static final double WEIGHTED_CENTROID_THREE_APS_WEIGHT = 0.8;     // Good for three APs
+    private static final double WEIGHTED_CENTROID_FOUR_PLUS_APS_WEIGHT = 0.7; // Good for 4+ APs
     
-    // Signal quality adjustments from framework document
-    private static final double WEIGHTED_CENTROID_STRONG_SIGNAL_ADJUSTMENT = 1.0;  // No change for strong signals
-    private static final double WEIGHTED_CENTROID_MEDIUM_SIGNAL_ADJUSTMENT = 1.0;  // No change for medium signals
-    private static final double WEIGHTED_CENTROID_WEAK_SIGNAL_ADJUSTMENT = 0.8;    // Minor reduction for weak signals
+    // Signal quality multipliers from framework document
+    private static final double WEIGHTED_CENTROID_STRONG_SIGNAL_MULTIPLIER = 1.0;  // No change with strong signals
+    private static final double WEIGHTED_CENTROID_MEDIUM_SIGNAL_MULTIPLIER = 1.0;  // No change with medium signals
+    private static final double WEIGHTED_CENTROID_WEAK_SIGNAL_MULTIPLIER = 0.8;    // Moderate reduction with weak signals
+    private static final double WEIGHTED_CENTROID_VERY_WEAK_SIGNAL_MULTIPLIER = 0.0; // ×0.0 for very weak signals
     
-    // Geometric quality adjustments from framework document
-    private static final double WEIGHTED_CENTROID_EXCELLENT_GDOP_ADJUSTMENT = 1.0; // No change for excellent geometry
-    private static final double WEIGHTED_CENTROID_GOOD_GDOP_ADJUSTMENT = 1.1;      // Slight improvement for good geometry
-    private static final double WEIGHTED_CENTROID_FAIR_GDOP_ADJUSTMENT = 1.2;      // Better with fair geometry
-    private static final double WEIGHTED_CENTROID_POOR_GDOP_ADJUSTMENT = 1.3;      // Best with poor geometry
+    // Geometric quality multipliers from framework document
+    private static final double WEIGHTED_CENTROID_EXCELLENT_GDOP_MULTIPLIER = 1.0; // No change for excellent geometry
+    private static final double WEIGHTED_CENTROID_GOOD_GDOP_MULTIPLIER = 1.1;      // Slight boost with good geometry
+    private static final double WEIGHTED_CENTROID_FAIR_GDOP_MULTIPLIER = 1.2;      // Better with fair geometry
+    private static final double WEIGHTED_CENTROID_POOR_GDOP_MULTIPLIER = 1.3;      // Best with poor geometry
     
-    // Signal distribution adjustments from framework document
-    private static final double WEIGHTED_CENTROID_UNIFORM_SIGNALS_ADJUSTMENT = 1.0;  // No change for uniform signals
-    private static final double WEIGHTED_CENTROID_MIXED_SIGNALS_ADJUSTMENT = 1.2;    // Better with mixed signals
-    private static final double WEIGHTED_CENTROID_SIGNAL_OUTLIERS_ADJUSTMENT = 1.4;  // Best with signal outliers
+    // Signal distribution multipliers from framework document
+    private static final double WEIGHTED_CENTROID_UNIFORM_SIGNALS_MULTIPLIER = 1.0;  // No change for uniform signals
+    private static final double WEIGHTED_CENTROID_MIXED_SIGNALS_MULTIPLIER = 1.8;    // Better with mixed signals
+    private static final double WEIGHTED_CENTROID_SIGNAL_OUTLIERS_MULTIPLIER = 1.4;  // Best with signal outliers
     
     /**
      * Helper class to store weighted position calculation results
@@ -207,59 +208,61 @@ public class WeightedCentroidAlgorithm implements PositioningAlgorithm {
     public double getBaseWeight(APCountFactor factor) {
         switch (factor) {
             case SINGLE_AP:
-                return WEIGHTED_CENTROID_SINGLE_AP_WEIGHT; // Not applicable for single AP
+                return WEIGHTED_CENTROID_SINGLE_AP_WEIGHT;      // Not applicable for single AP
             case TWO_APS:
-                return WEIGHTED_CENTROID_TWO_APS_WEIGHT;   // Good for two APs
+                return WEIGHTED_CENTROID_TWO_APS_WEIGHT;        // Good for two APs
             case THREE_APS:
-                return WEIGHTED_CENTROID_THREE_APS_WEIGHT; // Good for three APs
+                return WEIGHTED_CENTROID_THREE_APS_WEIGHT;      // Good for three APs
             case FOUR_PLUS_APS:
-                return WEIGHTED_CENTROID_FOUR_PLUS_APS_WEIGHT; // Good for four+ APs
+                return WEIGHTED_CENTROID_FOUR_PLUS_APS_WEIGHT;  // Good for 4+ APs
             default:
                 return 0.0;
         }
     }
     
     @Override
-    public double getSignalQualityAdjustment(SignalQualityFactor factor) {
+    public double getSignalQualityMultiplier(SignalQualityFactor factor) {
         switch (factor) {
             case STRONG_SIGNAL:
-                return WEIGHTED_CENTROID_STRONG_SIGNAL_ADJUSTMENT;
+                return WEIGHTED_CENTROID_STRONG_SIGNAL_MULTIPLIER;
             case MEDIUM_SIGNAL:
-                return WEIGHTED_CENTROID_MEDIUM_SIGNAL_ADJUSTMENT;
+                return WEIGHTED_CENTROID_MEDIUM_SIGNAL_MULTIPLIER;
             case WEAK_SIGNAL:
-                return WEIGHTED_CENTROID_WEAK_SIGNAL_ADJUSTMENT;
+                return WEIGHTED_CENTROID_WEAK_SIGNAL_MULTIPLIER;
+            case VERY_WEAK_SIGNAL:
+                return WEIGHTED_CENTROID_VERY_WEAK_SIGNAL_MULTIPLIER;
             default:
-                return WEIGHTED_CENTROID_MEDIUM_SIGNAL_ADJUSTMENT;
+                return WEIGHTED_CENTROID_MEDIUM_SIGNAL_MULTIPLIER;
         }
     }
     
     @Override
-    public double getGeometricQualityAdjustment(GeometricQualityFactor factor) {
+    public double getGeometricQualityMultiplier(GeometricQualityFactor factor) {
         switch (factor) {
             case EXCELLENT_GDOP:
-                return WEIGHTED_CENTROID_EXCELLENT_GDOP_ADJUSTMENT;
+                return WEIGHTED_CENTROID_EXCELLENT_GDOP_MULTIPLIER;
             case GOOD_GDOP:
-                return WEIGHTED_CENTROID_GOOD_GDOP_ADJUSTMENT;
+                return WEIGHTED_CENTROID_GOOD_GDOP_MULTIPLIER;
             case FAIR_GDOP:
-                return WEIGHTED_CENTROID_FAIR_GDOP_ADJUSTMENT;
+                return WEIGHTED_CENTROID_FAIR_GDOP_MULTIPLIER;
             case POOR_GDOP:
-                return WEIGHTED_CENTROID_POOR_GDOP_ADJUSTMENT;
+                return WEIGHTED_CENTROID_POOR_GDOP_MULTIPLIER;
             default:
-                return WEIGHTED_CENTROID_GOOD_GDOP_ADJUSTMENT;
+                return WEIGHTED_CENTROID_GOOD_GDOP_MULTIPLIER;
         }
     }
     
     @Override
-    public double getSignalDistributionAdjustment(SignalDistributionFactor factor) {
+    public double getSignalDistributionMultiplier(SignalDistributionFactor factor) {
         switch (factor) {
             case UNIFORM_SIGNALS:
-                return WEIGHTED_CENTROID_UNIFORM_SIGNALS_ADJUSTMENT;
+                return WEIGHTED_CENTROID_UNIFORM_SIGNALS_MULTIPLIER;
             case MIXED_SIGNALS:
-                return WEIGHTED_CENTROID_MIXED_SIGNALS_ADJUSTMENT;
+                return WEIGHTED_CENTROID_MIXED_SIGNALS_MULTIPLIER;
             case SIGNAL_OUTLIERS:
-                return WEIGHTED_CENTROID_SIGNAL_OUTLIERS_ADJUSTMENT;
+                return WEIGHTED_CENTROID_SIGNAL_OUTLIERS_MULTIPLIER;
             default:
-                return WEIGHTED_CENTROID_MIXED_SIGNALS_ADJUSTMENT;
+                return WEIGHTED_CENTROID_MIXED_SIGNALS_MULTIPLIER;
         }
     }
 } 

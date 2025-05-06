@@ -14,8 +14,11 @@ public enum SignalQualityFactor {
     /** Medium signals (between -70 and -85 dBm) */
     MEDIUM_SIGNAL(-70.0, -85.0),
     
-    /** Weak signals (worse than -85 dBm) */
-    WEAK_SIGNAL(-85.0, Double.POSITIVE_INFINITY);
+    /** Weak signals (between -85 and -95 dBm) */
+    WEAK_SIGNAL(-85.0, -95.0),
+    
+    /** Very weak signals (worse than -95 dBm) */
+    VERY_WEAK_SIGNAL(-95.0, Double.POSITIVE_INFINITY);
     
     private final double upperBound;
     private final double lowerBound;
@@ -36,8 +39,10 @@ public enum SignalQualityFactor {
             return STRONG_SIGNAL;
         } else if (signalStrength > -85.0) {
             return MEDIUM_SIGNAL;
-        } else {
+        } else if (signalStrength > -95.0) {
             return WEAK_SIGNAL;
+        } else {
+            return VERY_WEAK_SIGNAL;
         }
     }
     

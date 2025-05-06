@@ -379,13 +379,13 @@ class ProximityDetectionAlgorithmTest {
             APCountFactor fourPlusAPs = APCountFactor.FOUR_PLUS_APS;
             
             // When & Then
-            assertEquals(0.90, algorithm.getBaseWeight(singleAP), 0.001, 
+            assertEquals(1.0, algorithm.getBaseWeight(singleAP), 0.001, 
                     "Proximity algorithm should have high weight for single AP");
-            assertEquals(0.70, algorithm.getBaseWeight(twoAPs), 0.001, 
+            assertEquals(0.4, algorithm.getBaseWeight(twoAPs), 0.001, 
                     "Proximity algorithm should have medium weight for two APs");
-            assertEquals(0.50, algorithm.getBaseWeight(threeAPs), 0.001, 
+            assertEquals(0.3, algorithm.getBaseWeight(threeAPs), 0.001, 
                     "Proximity algorithm should have lower weight for three APs");
-            assertEquals(0.40, algorithm.getBaseWeight(fourPlusAPs), 0.001, 
+            assertEquals(0.2, algorithm.getBaseWeight(fourPlusAPs), 0.001, 
                     "Proximity algorithm should have low weight for four+ APs");
         }
         
@@ -402,46 +402,50 @@ class ProximityDetectionAlgorithmTest {
             SignalQualityFactor strongSignal = SignalQualityFactor.STRONG_SIGNAL;
             SignalQualityFactor mediumSignal = SignalQualityFactor.MEDIUM_SIGNAL;
             SignalQualityFactor weakSignal = SignalQualityFactor.WEAK_SIGNAL;
+            SignalQualityFactor veryWeakSignal = SignalQualityFactor.VERY_WEAK_SIGNAL;
             
             // When & Then
-            assertEquals(0.15, algorithm.getSignalQualityAdjustment(strongSignal), 0.001, 
-                    "Proximity algorithm should have positive adjustment for strong signals");
-            assertEquals(0.0, algorithm.getSignalQualityAdjustment(mediumSignal), 0.001, 
-                    "Proximity algorithm should have neutral adjustment for medium signals");
-            assertEquals(-0.25, algorithm.getSignalQualityAdjustment(weakSignal), 0.001, 
-                    "Proximity algorithm should have negative adjustment for weak signals");
+            assertEquals(0.9, algorithm.getSignalQualityMultiplier(strongSignal), 0.001, 
+                    "Proximity algorithm should have multiplier of 0.9 for strong signals");
+            assertEquals(0.7, algorithm.getSignalQualityMultiplier(mediumSignal), 0.001, 
+                    "Proximity algorithm should have multiplier of 0.7 for medium signals");
+            assertEquals(0.4, algorithm.getSignalQualityMultiplier(weakSignal), 0.001, 
+                    "Proximity algorithm should have multiplier of 0.4 for weak signals");
+            assertEquals(0.5, algorithm.getSignalQualityMultiplier(veryWeakSignal), 0.001, 
+                    "Proximity algorithm should have multiplier of 0.5 for very weak signals");
         }
         
         /**
          * Tests geometric quality adjustments.
          * Verifies that:
          * - Proximity algorithm doesn't rely on geometric factors
-         * - All geometric factors return zero adjustment
+         * - All geometric factors return multiplier of 1.0
          */
         @Test
-        @DisplayName("should return zero adjustment for geometric quality factors")
+        @DisplayName("should return neutral multiplier for geometric quality factors")
         void shouldReturnZeroAdjustmentForGeometricFactors() {
             // Given
             GeometricQualityFactor excellentGDOP = GeometricQualityFactor.EXCELLENT_GDOP;
             
             // When & Then
-            assertEquals(0.0, algorithm.getGeometricQualityAdjustment(excellentGDOP), 0.001, 
-                    "Proximity algorithm should have no adjustment for geometric factors");
+            assertEquals(1.0, algorithm.getGeometricQualityMultiplier(excellentGDOP), 0.001, 
+                    "Proximity algorithm should have neutral multiplier for geometric factors");
             
             // Test all other GDOP factors as well
-            assertEquals(0.0, algorithm.getGeometricQualityAdjustment(GeometricQualityFactor.GOOD_GDOP), 0.001);
-            assertEquals(0.0, algorithm.getGeometricQualityAdjustment(GeometricQualityFactor.FAIR_GDOP), 0.001);
-            assertEquals(0.0, algorithm.getGeometricQualityAdjustment(GeometricQualityFactor.POOR_GDOP), 0.001);
+            assertEquals(1.0, algorithm.getGeometricQualityMultiplier(GeometricQualityFactor.GOOD_GDOP), 0.001);
+            assertEquals(1.0, algorithm.getGeometricQualityMultiplier(GeometricQualityFactor.FAIR_GDOP), 0.001);
+            assertEquals(1.0, algorithm.getGeometricQualityMultiplier(GeometricQualityFactor.POOR_GDOP), 0.001);
         }
         
         /**
-         * Tests signal distribution adjustments.
+         * Tests signal distribution multipliers.
          * Verifies that:
-         * - Signal outliers provide positive adjustment (proximity works well with outliers)
-         * - Uniform signals provide slight positive adjustment
+         * - Signal outliers have multiplier of 0.9
+         * - Uniform signals have multiplier of 1.0
+         * - Mixed signals have multiplier of 0.7
          */
         @Test
-        @DisplayName("should return correct signal distribution adjustments")
+        @DisplayName("should return correct signal distribution multipliers")
         void shouldReturnCorrectSignalDistributionAdjustments() {
             // Given
             SignalDistributionFactor uniformSignals = SignalDistributionFactor.UNIFORM_SIGNALS;
@@ -449,12 +453,12 @@ class ProximityDetectionAlgorithmTest {
             SignalDistributionFactor signalOutliers = SignalDistributionFactor.SIGNAL_OUTLIERS;
             
             // When & Then
-            assertEquals(0.05, algorithm.getSignalDistributionAdjustment(uniformSignals), 0.001, 
-                    "Proximity algorithm should have slight positive adjustment for uniform signals");
-            assertEquals(0.0, algorithm.getSignalDistributionAdjustment(mixedSignals), 0.001, 
-                    "Proximity algorithm should have neutral adjustment for mixed signals");
-            assertEquals(0.10, algorithm.getSignalDistributionAdjustment(signalOutliers), 0.001, 
-                    "Proximity algorithm should have positive adjustment for signal outliers");
+            assertEquals(1.0, algorithm.getSignalDistributionMultiplier(uniformSignals), 0.001, 
+                    "Proximity algorithm should have multiplier of 1.0 for uniform signals");
+            assertEquals(0.7, algorithm.getSignalDistributionMultiplier(mixedSignals), 0.001, 
+                    "Proximity algorithm should have multiplier of 0.7 for mixed signals");
+            assertEquals(0.9, algorithm.getSignalDistributionMultiplier(signalOutliers), 0.001, 
+                    "Proximity algorithm should have multiplier of 0.9 for signal outliers");
         }
         
         /**
@@ -485,22 +489,23 @@ class ProximityDetectionAlgorithmTest {
             double weightThreeWeak = algorithm.calculateWeight(3, weakThreeAPs, 7.0);
             
             // Then
-            // Calculate expected value for single AP with strong signal
-            double expectedSingleStrong = 0.90 * (1 + 0.15 + 0.0 + 0.05);
+            // Calculate expected value for single AP with strong signal using multipliers
+            // 1.0 (base weight) * 0.9 (signal quality) * 1.0 (geometric) * 1.0 (distribution) = 0.9
+            double expectedSingleStrong = 1.0 * 0.9 * 1.0 * 1.0;
             assertEquals(expectedSingleStrong, weightSingleStrong, 0.001, 
                     "Weight calculation for single strong AP should be correct");
             
-            // For three APs with weak signal
-            // Expected original calculation: 0.50 * (1 - 0.25 + 0.0 + 0.0) = 0.375
-            // But actual implementation returns 0.4 as a minimum threshold
-            assertEquals(0.4, weightThreeWeak, 0.001,
+            // For three APs with weak signal (using multipliers)
+            // 0.3 (base weight) * 0.4 (signal quality) * 1.0 (geometric) * 1.0 (distribution) = 0.12
+            double expectedThreeWeak = 0.3 * 0.4 * 1.0 * 1.0;
+            assertEquals(expectedThreeWeak, weightThreeWeak, 0.001,
                     "Weight calculation for three weak APs should be correct");
             
             // Verify reasonable ranges
             assertTrue(weightSingleStrong > weightThreeWeak,
                     "Single strong AP should have higher weight than three weak APs for proximity algorithm");
-            assertTrue(weightSingleStrong > 0 && weightSingleStrong <= 1.2,
-                    "Weight should be in reasonable range (0-1.2)");
+            assertTrue(weightSingleStrong > 0 && weightSingleStrong <= 1.0,
+                    "Weight should be in reasonable range (0-1.0)");
             assertTrue(weightThreeWeak > 0 && weightThreeWeak <= 1.0,
                     "Weight should be in reasonable range (0-1.0)");
         }

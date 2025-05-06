@@ -42,6 +42,7 @@ For remaining eligible algorithms, we apply base weights according to AP count:
 | Strong (> -70 dBm) | ×0.9 | ×1.0 | ×1.0 | ×1.1 | ×1.2 | ×1.0 |
 | Medium (-70 to -85 dBm) | ×0.7 | ×0.9 | ×1.0 | ×0.8 | ×0.9 | ×0.8 |
 | Weak (< -85 dBm) | ×0.4 | ×0.6 | ×0.8 | ×0.3 | ×0.5 | ×0.6 |
+| Very Weak (< -95 dBm) | ×0.5 | ×0.0 | ×0.0 | ×0.0 | ×0.0 | ×0.0 |
 
 ### Geometric Quality Adjustments
 

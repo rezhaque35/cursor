@@ -28,9 +28,9 @@ import java.util.stream.Collectors;
  * STRENGTHS:
  * - Most accurate algorithm when sufficient data available
  * - Handles noisy measurements robustly
- * - Incorporates historical signal patterns
  * - Provides realistic confidence estimates
  * - Accounts for AP geometry quality via GDOP
+ * - Adaptive signal variance estimation based on signal strength
  * 
  * WEAKNESSES:
  * - Computationally intensive
@@ -40,7 +40,6 @@ import java.util.stream.Collectors;
  * 
  * TUNABLE PARAMETERS:
  * - GRID_RESOLUTION: Search space granularity (meters)
- * - SIGNAL_STD_DEV: Expected signal variation (dBm)
  * - MAX_ITERATIONS: Maximum gradient descent steps
  * - CONVERGENCE_THRESHOLD: Stop condition (meters)
  * - PATH_LOSS_EXPONENT: Signal propagation model
@@ -57,7 +56,10 @@ import java.util.stream.Collectors;
  *    where each measurement probability is:
  *    P(RSSI | pos) = N(RSSI; μ(d), σ²)
  *    - μ(d) is expected RSSI at distance d
- *    - σ² is signal variance
+ *    - σ² is signal variance, adaptively calculated based on signal strength:
+ *      * Strong signals (>-60 dBm): σ = 2.5 dBm
+ *      * Medium signals (-60 to -80 dBm): σ = 4.0 dBm
+ *      * Weak signals (<-80 dBm): σ = 6.0 dBm
  * 
  * 2. Log-Likelihood Maximization:
  *    LL(pos) = Σ log(P(measurement_i | pos))
@@ -103,7 +105,6 @@ import java.util.stream.Collectors;
 public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
 
     private static final double GRID_RESOLUTION = 1.0; // meters
-    private static final double SIGNAL_STD_DEV = 4.0; // dBm
     private static final int MAX_ITERATIONS = 100;
     private static final double CONVERGENCE_THRESHOLD = 0.1; // meters
     private static final double REFERENCE_DISTANCE = 1.0;
@@ -111,9 +112,14 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
     private static final double PATH_LOSS_EXPONENT = 3.0;
     private static final double EARTH_RADIUS = 6371000; // Earth radius in meters
     
+    // Signal strength thresholds and corresponding standard deviations
+    private static final double STRONG_SIGNAL_THRESHOLD = -60.0; // dBm
+    private static final double WEAK_SIGNAL_THRESHOLD = -80.0;   // dBm
+    private static final double STRONG_SIGNAL_STD_DEV = 2.5;    // Based on empirical studies for strong signals
+    private static final double MEDIUM_SIGNAL_STD_DEV = 4.0;    // Default for typical indoor environments
+    private static final double WEAK_SIGNAL_STD_DEV = 6.0;      // Higher uncertainty for weak signals
+    
     // Constants for signal strength thresholds
-    private static final double STRONG_SIGNAL_THRESHOLD = -65.0; // dBm, signals stronger than this are considered "strong"
-    private static final double WEAK_SIGNAL_THRESHOLD = -80.0; // dBm, signals weaker than this are considered "weak"
     private static final double MIN_ACCURACY = 1.0; // meters, minimum accuracy value for strong signals
     private static final double MAX_ACCURACY = 5.0; // meters, maximum accuracy value for strong signals
     private static final double MIN_CONFIDENCE = 0.6;
@@ -129,10 +135,28 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
      * - Moderately sensitive to geometric quality
      * - Extremely effective with mixed signals and outliers
      */
-    // Signal distribution adjustments from framework document
-    private static final double MAXIMUM_LIKELIHOOD_UNIFORM_SIGNALS_ADJUSTMENT = 0.9;  // Slight reduction for uniform signals
-    private static final double MAXIMUM_LIKELIHOOD_MIXED_SIGNALS_ADJUSTMENT = 1.3;    // Significant improvement with mixed signals
-    private static final double MAXIMUM_LIKELIHOOD_SIGNAL_OUTLIERS_ADJUSTMENT = 1.2;  // Significant improvement with outliers
+    // AP Count weights from framework document
+    private static final double MAXIMUM_LIKELIHOOD_SINGLE_AP_WEIGHT = 0.0;    // Not applicable for single AP
+    private static final double MAXIMUM_LIKELIHOOD_TWO_APS_WEIGHT = 0.0;      // Not applicable for two APs
+    private static final double MAXIMUM_LIKELIHOOD_THREE_APS_WEIGHT = 0.0;    // Not applicable for three APs (needs more APs)
+    private static final double MAXIMUM_LIKELIHOOD_FOUR_PLUS_APS_WEIGHT = 1.0;// Optimal for four+ APs
+    
+    // Signal quality multipliers from framework document
+    private static final double MAXIMUM_LIKELIHOOD_STRONG_SIGNAL_MULTIPLIER = 1.2;  // Significant improvement with strong signals
+    private static final double MAXIMUM_LIKELIHOOD_MEDIUM_SIGNAL_MULTIPLIER = 0.9;  // Slight reduction with medium signals
+    private static final double MAXIMUM_LIKELIHOOD_WEAK_SIGNAL_MULTIPLIER = 0.5;    // Major reduction for weak signals
+    private static final double MAXIMUM_LIKELIHOOD_VERY_WEAK_SIGNAL_MULTIPLIER = 0.0; // ×0.0 for very weak signals
+    
+    // Geometric quality multipliers from framework document
+    private static final double MAXIMUM_LIKELIHOOD_EXCELLENT_GDOP_MULTIPLIER = 1.2; // Significant boost for excellent geometry
+    private static final double MAXIMUM_LIKELIHOOD_GOOD_GDOP_MULTIPLIER = 1.1;      // Good boost for good geometry
+    private static final double MAXIMUM_LIKELIHOOD_FAIR_GDOP_MULTIPLIER = 0.9;      // Some reduction for fair geometry
+    private static final double MAXIMUM_LIKELIHOOD_POOR_GDOP_MULTIPLIER = 0.7;      // Significant reduction for poor geometry
+    
+    // Signal distribution multipliers from framework document
+    private static final double MAXIMUM_LIKELIHOOD_UNIFORM_SIGNALS_MULTIPLIER = 0.9;  // Slightly reduced with uniform signals
+    private static final double MAXIMUM_LIKELIHOOD_MIXED_SIGNALS_MULTIPLIER = 1.1;    // Some improvement with mixed signals
+    private static final double MAXIMUM_LIKELIHOOD_SIGNAL_OUTLIERS_MULTIPLIER = 1.2;  // Significant improvement with outliers
     
     /**
      * Calculates position using Maximum Likelihood Estimation.
@@ -370,8 +394,7 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
                 WifiAccessPoint ap = apMap.get(scan.macAddress());
                 if (ap == null) return null;
 
-                double stdDev = ap.getSignalStrengthStd() != null ? 
-                              ap.getSignalStrengthStd() : SIGNAL_STD_DEV;
+                double stdDev = calculateAdaptiveStdDev(scan.signalStrength());
 
                 return new MeasurementModel(
                     ap.getLatitude(),
@@ -592,25 +615,19 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
     }
 
     @Override
-    public double getSignalDistributionAdjustment(SignalDistributionFactor factor) {
+    public double getSignalDistributionMultiplier(SignalDistributionFactor factor) {
         switch (factor) {
             case UNIFORM_SIGNALS:
-                return MAXIMUM_LIKELIHOOD_UNIFORM_SIGNALS_ADJUSTMENT;
+                return MAXIMUM_LIKELIHOOD_UNIFORM_SIGNALS_MULTIPLIER;
             case MIXED_SIGNALS:
-                return MAXIMUM_LIKELIHOOD_MIXED_SIGNALS_ADJUSTMENT;
+                return MAXIMUM_LIKELIHOOD_MIXED_SIGNALS_MULTIPLIER;
             case SIGNAL_OUTLIERS:
-                return MAXIMUM_LIKELIHOOD_SIGNAL_OUTLIERS_ADJUSTMENT;
+                return MAXIMUM_LIKELIHOOD_SIGNAL_OUTLIERS_MULTIPLIER;
             default:
-                return MAXIMUM_LIKELIHOOD_MIXED_SIGNALS_ADJUSTMENT;
+                return MAXIMUM_LIKELIHOOD_MIXED_SIGNALS_MULTIPLIER;
         }
     }
 
-    // AP Count weights from framework document
-    private static final double MAXIMUM_LIKELIHOOD_SINGLE_AP_WEIGHT = 0.0;    // Not applicable for single AP
-    private static final double MAXIMUM_LIKELIHOOD_TWO_APS_WEIGHT = 0.0;      // Not applicable for two APs
-    private static final double MAXIMUM_LIKELIHOOD_THREE_APS_WEIGHT = 0.0;    // Not applicable for three APs (needs more APs)
-    private static final double MAXIMUM_LIKELIHOOD_FOUR_PLUS_APS_WEIGHT = 1.0;// Optimal for four+ APs
-    
     @Override
     public double getBaseWeight(APCountFactor factor) {
         switch (factor) {
@@ -627,44 +644,35 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
         }
     }
     
-    // Signal quality adjustments from framework document
-    private static final double MAXIMUM_LIKELIHOOD_STRONG_SIGNAL_ADJUSTMENT = 1.2;  // Significant improvement with strong signals
-    private static final double MAXIMUM_LIKELIHOOD_MEDIUM_SIGNAL_ADJUSTMENT = 0.9;  // Reduced for medium signals
-    private static final double MAXIMUM_LIKELIHOOD_WEAK_SIGNAL_ADJUSTMENT = 0.5;    // Major reduction for weak signals
-    
     @Override
-    public double getSignalQualityAdjustment(SignalQualityFactor factor) {
+    public double getSignalQualityMultiplier(SignalQualityFactor factor) {
         switch (factor) {
             case STRONG_SIGNAL:
-                return MAXIMUM_LIKELIHOOD_STRONG_SIGNAL_ADJUSTMENT;
+                return MAXIMUM_LIKELIHOOD_STRONG_SIGNAL_MULTIPLIER;
             case MEDIUM_SIGNAL:
-                return MAXIMUM_LIKELIHOOD_MEDIUM_SIGNAL_ADJUSTMENT;
+                return MAXIMUM_LIKELIHOOD_MEDIUM_SIGNAL_MULTIPLIER;
             case WEAK_SIGNAL:
-                return MAXIMUM_LIKELIHOOD_WEAK_SIGNAL_ADJUSTMENT;
+                return MAXIMUM_LIKELIHOOD_WEAK_SIGNAL_MULTIPLIER;
+            case VERY_WEAK_SIGNAL:
+                return MAXIMUM_LIKELIHOOD_VERY_WEAK_SIGNAL_MULTIPLIER;
             default:
-                return MAXIMUM_LIKELIHOOD_MEDIUM_SIGNAL_ADJUSTMENT;
+                return MAXIMUM_LIKELIHOOD_MEDIUM_SIGNAL_MULTIPLIER;
         }
     }
     
-    // Geometric quality adjustments from framework document
-    private static final double MAXIMUM_LIKELIHOOD_EXCELLENT_GDOP_ADJUSTMENT = 1.2; // Significant boost for excellent geometry
-    private static final double MAXIMUM_LIKELIHOOD_GOOD_GDOP_ADJUSTMENT = 1.1;      // Good boost for good geometry
-    private static final double MAXIMUM_LIKELIHOOD_FAIR_GDOP_ADJUSTMENT = 0.9;      // Some reduction for fair geometry
-    private static final double MAXIMUM_LIKELIHOOD_POOR_GDOP_ADJUSTMENT = 0.7;      // Significant reduction for poor geometry
-    
     @Override
-    public double getGeometricQualityAdjustment(GeometricQualityFactor factor) {
+    public double getGeometricQualityMultiplier(GeometricQualityFactor factor) {
         switch (factor) {
             case EXCELLENT_GDOP:
-                return MAXIMUM_LIKELIHOOD_EXCELLENT_GDOP_ADJUSTMENT;
+                return MAXIMUM_LIKELIHOOD_EXCELLENT_GDOP_MULTIPLIER;
             case GOOD_GDOP:
-                return MAXIMUM_LIKELIHOOD_GOOD_GDOP_ADJUSTMENT;
+                return MAXIMUM_LIKELIHOOD_GOOD_GDOP_MULTIPLIER;
             case FAIR_GDOP:
-                return MAXIMUM_LIKELIHOOD_FAIR_GDOP_ADJUSTMENT;
+                return MAXIMUM_LIKELIHOOD_FAIR_GDOP_MULTIPLIER;
             case POOR_GDOP:
-                return MAXIMUM_LIKELIHOOD_POOR_GDOP_ADJUSTMENT;
+                return MAXIMUM_LIKELIHOOD_POOR_GDOP_MULTIPLIER;
             default:
-                return MAXIMUM_LIKELIHOOD_GOOD_GDOP_ADJUSTMENT;
+                return MAXIMUM_LIKELIHOOD_GOOD_GDOP_MULTIPLIER;
         }
     }
 
@@ -731,5 +739,21 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
         }
         
         return refinedAccuracy;
+    }
+
+    /**
+     * Calculates adaptive standard deviation based on signal strength.
+     * 
+     * @param signalStrength Signal strength in dBm
+     * @return Adaptive standard deviation in dBm
+     */
+    private double calculateAdaptiveStdDev(double signalStrength) {
+        if (signalStrength >= STRONG_SIGNAL_THRESHOLD) {
+            return STRONG_SIGNAL_STD_DEV;
+        } else if (signalStrength >= WEAK_SIGNAL_THRESHOLD) {
+            return MEDIUM_SIGNAL_STD_DEV;
+        } else {
+            return WEAK_SIGNAL_STD_DEV;
+        }
     }
 } 
