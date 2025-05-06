@@ -4,10 +4,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.*;
 
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-
+/**
+ * DynamoDB entity model for WiFi access points.
+ * Contains only the essential fields that are required for positioning calculations,
+ * matching the fields in the WifiAccessPoint model.
+ */
 @Data
 @NoArgsConstructor
 @DynamoDbBean
@@ -21,25 +22,11 @@ public class DynamoWifiAccessPoint {
     private Double horizontalAccuracy;
     private Double verticalAccuracy;
     private Double confidence;
-    private String bestMethod;
-    private List<String> methodsUsed;
-    private Integer sampleCount;
-    private String firstSeen;
-    private String lastSeen;
     private String ssid;
     private Integer frequency;
-    private String countryCode;
     private String vendor;
-    private Double signalStrengthAvg;
-    private Double signalStrengthStd;
-    private Map<String, Integer> readingsByHour;
-    private String calculationTime;
-    private Long ttl;
     private String status;
-    private Integer calculationDurationMs;
-    private String calculationVersion;
     private String geohash;
-    private String errorType;
 
     @DynamoDbPartitionKey
     @DynamoDbAttribute("mac_addr")
@@ -102,84 +89,14 @@ public class DynamoWifiAccessPoint {
         return confidence;
     }
 
-    @DynamoDbAttribute("best_method")
-    public String getBestMethod() {
-        return bestMethod;
-    }
-
-    @DynamoDbAttribute("methods_used")
-    public List<String> getMethodsUsed() {
-        return methodsUsed;
-    }
-
-    @DynamoDbAttribute("sample_count")
-    public Integer getSampleCount() {
-        return sampleCount;
-    }
-
-    @DynamoDbAttribute("first_seen")
-    public String getFirstSeen() {
-        return firstSeen;
-    }
-
-    @DynamoDbAttribute("last_seen")
-    public String getLastSeen() {
-        return lastSeen;
-    }
-
     @DynamoDbAttribute("frequency")
     public Integer getFrequency() {
         return frequency;
     }
 
-    @DynamoDbAttribute("country_code")
-    public String getCountryCode() {
-        return countryCode;
-    }
-
     @DynamoDbAttribute("vendor")
     public String getVendor() {
         return vendor;
-    }
-
-    @DynamoDbAttribute("signal_strength_avg")
-    public Double getSignalStrengthAvg() {
-        return signalStrengthAvg;
-    }
-
-    @DynamoDbAttribute("signal_strength_std")
-    public Double getSignalStrengthStd() {
-        return signalStrengthStd;
-    }
-
-    @DynamoDbAttribute("readings_by_hour")
-    public Map<String, Integer> getReadingsByHour() {
-        return readingsByHour;
-    }
-
-    @DynamoDbAttribute("calculation_time")
-    public String getCalculationTime() {
-        return calculationTime;
-    }
-
-    @DynamoDbAttribute("ttl")
-    public Long getTtl() {
-        return ttl;
-    }
-
-    @DynamoDbAttribute("calculation_duration_ms")
-    public Integer getCalculationDurationMs() {
-        return calculationDurationMs;
-    }
-
-    @DynamoDbAttribute("calculation_version")
-    public String getCalculationVersion() {
-        return calculationVersion;
-    }
-
-    @DynamoDbAttribute("error_type")
-    public String getErrorType() {
-        return errorType;
     }
 
     public DynamoWifiAccessPoint fromWifiAccessPoint(WifiAccessPoint ap) {
@@ -195,6 +112,7 @@ public class DynamoWifiAccessPoint {
         this.ssid = ap.getSsid();
         this.frequency = ap.getFrequency();
         this.vendor = ap.getVendor();
+        this.status = ap.getStatus();
         return this;
     }
 
@@ -212,6 +130,7 @@ public class DynamoWifiAccessPoint {
                 .ssid(this.ssid)
                 .frequency(this.frequency)
                 .vendor(this.vendor)
+                .status(this.status)
                 .build();
     }
 } 

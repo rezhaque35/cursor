@@ -164,6 +164,7 @@ public class PositioningControllerIntegrationTest {
         ap.setFrequency(2437);
         ap.setVendor("Test-Vendor");
         ap.setGeohash("9q8yyk");
+        ap.setStatus(WifiAccessPoint.STATUS_ACTIVE);
         return ap;
     }
 } 

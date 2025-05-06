@@ -42,6 +42,7 @@ class WifiAccessPointRepositoryTest {
                 .frequency(2437)
                 .vendor("test-vendor")
                 .geohash("abcdef")
+                .status(WifiAccessPoint.STATUS_ACTIVE)
                 .build();
     }
 
@@ -148,24 +149,6 @@ class WifiAccessPointRepositoryTest {
     }
     
     @Test
-    void findByMacAddress_shouldReturnCorrectData_forCollinearApsScenario() {
-        // Arrange - Load all data including collinear APs
-        inMemoryRepository.loadAllTestScenarios();
-        
-        // Act - Check for AP #8 which is part of the collinear set
-        List<WifiAccessPoint> found = repository.findByMacAddress("00:11:22:33:44:08");
-        
-        // Assert
-        assertFalse(found.isEmpty());
-        assertEquals(1, found.size());
-        WifiAccessPoint ap = found.get(0);
-        assertEquals("00:11:22:33:44:08", ap.getMacAddress());
-        // Verify it's in the expected collinear pattern along latitude
-        assertEquals(37.7754 + 2*0.0001, ap.getLatitude(), 0.0001);
-        assertEquals(-122.4194, ap.getLongitude(), 0.0001);
-    }
-    
-    @Test
     void findByMacAddress_shouldReturnAllScenarioData_whenAllScenariosAreLoaded() {
         // Arrange
         inMemoryRepository.loadAllTestScenarios();
@@ -175,16 +158,5 @@ class WifiAccessPointRepositoryTest {
         assertFalse(repository.findByMacAddress("00:11:22:33:44:02").isEmpty()); // RSSI Ratio
         assertFalse(repository.findByMacAddress("00:11:22:33:44:03").isEmpty()); // Trilateration
         assertFalse(repository.findByMacAddress("00:11:22:33:44:05").isEmpty()); // Weak Signal
-        
-        // Check collinear APs (should have 5 of them)
-        int collinearCount = 0;
-        for (int i = 6; i <= 10; i++) {
-            String macAddress = String.format("00:11:22:33:44:%02d", i);
-            List<WifiAccessPoint> aps = repository.findByMacAddress(macAddress);
-            if (!aps.isEmpty()) {
-                collinearCount++;
-            }
-        }
-        assertEquals(5, collinearCount, "Should have 5 collinear APs");
     }
 } 

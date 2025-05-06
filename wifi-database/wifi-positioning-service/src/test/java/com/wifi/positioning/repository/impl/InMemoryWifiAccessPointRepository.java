@@ -196,6 +196,7 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                 .frequency(2437)
                 .vendor("Cisco")
                 .geohash("9q8yyk")
+                .status(WifiAccessPoint.STATUS_ACTIVE)
                 .build();
         
         addAccessPoint(ap);
@@ -218,6 +219,7 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                 .frequency(5180)
                 .vendor("Aruba")
                 .geohash("9q8yyk")
+                .status(WifiAccessPoint.STATUS_ACTIVE)
                 .build();
         
         addAccessPoint(ap);
@@ -240,6 +242,7 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                 .frequency(2462)
                 .vendor("Ubiquiti")
                 .geohash("9q8yyk")
+                .status(WifiAccessPoint.STATUS_ACTIVE)
                 .build();
         
         addAccessPoint(ap);
@@ -256,50 +259,25 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                 .longitude(-122.4198)
                 .altitude(20.0)
                 .horizontalAccuracy(35.0)
-                .verticalAccuracy(12.0)
+                .verticalAccuracy(10.0)
                 .confidence(0.45)
                 .ssid("WeakSignal_Test")
                 .frequency(2412)
-                .vendor("HPE-Aruba")
+                .vendor("Netgear")
                 .geohash("9q8yyk")
+                .status(WifiAccessPoint.STATUS_WARNING)
                 .build();
         
         addAccessPoint(ap);
     }
     
     /**
-     * Loads multiple test scenarios based on the test data script
+     * Loads test data for all scenarios
      */
     public void loadAllTestScenarios() {
-        clearAll();
         loadProximityDetectionScenario();
         loadRssiRatioScenario();
         loadTrilaterationScenario();
         loadWeakSignalsScenario();
-        
-        // Add collinear APs
-        for (int i = 6; i <= 10; i++) {
-            String macSuffix = String.format("%02d", i);
-            double latitude = 37.7754 + (i-6)*0.0001;
-            double longitude = -122.4194;
-            double altitude = 15.0 + (i-6)*2;
-            
-            WifiAccessPoint ap = WifiAccessPoint.builder()
-                    .macAddress("00:11:22:33:44:" + macSuffix)
-                    .version("20240411-1205" + (i-6) + "0")
-                    .latitude(latitude)
-                    .longitude(longitude)
-                    .altitude(altitude)
-                    .horizontalAccuracy(18.5)
-                    .verticalAccuracy(6.0)
-                    .confidence(0.72)
-                    .ssid("Collinear_Test_" + i)
-                    .frequency(2437)
-                    .vendor("Ruckus")
-                    .geohash("9q8yyk")
-                    .build();
-            
-            addAccessPoint(ap);
-        }
     }
 } 

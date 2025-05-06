@@ -329,6 +329,7 @@ class GPSPositioningCalculatorAdapterTest {
         ap.setSsid("Test_SSID");
         ap.setConfidence(0.85);
         ap.setHorizontalAccuracy(10.0);
+        ap.setStatus(WifiAccessPoint.STATUS_ACTIVE);
         return ap;
     }
 } 

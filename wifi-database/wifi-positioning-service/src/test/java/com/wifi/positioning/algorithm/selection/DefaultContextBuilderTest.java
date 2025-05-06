@@ -267,6 +267,7 @@ class DefaultContextBuilderTest {
                     .latitude(coordinates[i][0])
                     .longitude(coordinates[i][1])
                     .confidence(0.9)
+                    .status(WifiAccessPoint.STATUS_ACTIVE)
                     .build();
             apMap.put(macAddress, ap);
         }

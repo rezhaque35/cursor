@@ -651,6 +651,7 @@ class GPSPositioningCalculatorTest {
                 .horizontalAccuracy(10.0)
                 .verticalAccuracy(5.0)
                 .confidence(0.85)
+                .status(WifiAccessPoint.STATUS_ACTIVE)
                 .build();
         }
 

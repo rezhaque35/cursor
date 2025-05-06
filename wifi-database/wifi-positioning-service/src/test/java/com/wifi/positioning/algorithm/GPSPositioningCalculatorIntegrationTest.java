@@ -47,10 +47,10 @@ class GPSPositioningCalculatorIntegrationTest {
         @DisplayName("should return high accuracy/confidence for strong signals (hybrid)")
         void shouldReturnHighAccuracyConfidenceForStrongSignals() {
             List<WifiAccessPoint> aps = Arrays.asList(
-                WifiAccessPoint.builder().macAddress("AP1").latitude(1.0).longitude(1.0).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP2").latitude(1.0).longitude(2.0).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP3").latitude(2.0).longitude(1.5).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP4").latitude(2.0).longitude(2.0).altitude(10.0).confidence(0.95).build()
+                WifiAccessPoint.builder().macAddress("AP1").latitude(1.0).longitude(1.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP2").latitude(1.0).longitude(2.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP3").latitude(2.0).longitude(1.5).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP4").latitude(2.0).longitude(2.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build()
             );
             List<WifiScanResult> scans = Arrays.asList(
                 new WifiScanResult("AP1", -50.0, 2412, "test"),
@@ -83,10 +83,10 @@ class GPSPositioningCalculatorIntegrationTest {
         @DisplayName("should return lower accuracy/confidence for weak signals (hybrid)")
         void shouldReturnLowerAccuracyConfidenceForWeakSignals() {
             List<WifiAccessPoint> aps = Arrays.asList(
-                WifiAccessPoint.builder().macAddress("AP1").latitude(1.0).longitude(1.0).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP2").latitude(1.0).longitude(2.0).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP3").latitude(2.0).longitude(1.5).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP4").latitude(2.0).longitude(2.0).altitude(10.0).confidence(0.95).build()
+                WifiAccessPoint.builder().macAddress("AP1").latitude(1.0).longitude(1.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP2").latitude(1.0).longitude(2.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP3").latitude(2.0).longitude(1.5).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP4").latitude(2.0).longitude(2.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build()
             );
             List<WifiScanResult> scans = Arrays.asList(
                 new WifiScanResult("AP1", -85.0, 2412, "test"),
@@ -113,10 +113,10 @@ class GPSPositioningCalculatorIntegrationTest {
         @DisplayName("should handle mixed signal quality with reasonable accuracy/confidence")
         void shouldHandleMixedSignalQuality() {
             List<WifiAccessPoint> aps = Arrays.asList(
-                WifiAccessPoint.builder().macAddress("AP1").latitude(1.0).longitude(1.0).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP2").latitude(1.0).longitude(2.0).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP3").latitude(2.0).longitude(1.5).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP4").latitude(2.0).longitude(2.0).altitude(10.0).confidence(0.95).build()
+                WifiAccessPoint.builder().macAddress("AP1").latitude(1.0).longitude(1.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP2").latitude(1.0).longitude(2.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP3").latitude(2.0).longitude(1.5).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP4").latitude(2.0).longitude(2.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build()
             );
             // Mixed signal quality - some strong, some weak
             List<WifiScanResult> scans = Arrays.asList(
@@ -147,9 +147,9 @@ class GPSPositioningCalculatorIntegrationTest {
         void shouldHandleCollinearAPs() {
             // Collinear APs - all in a straight line
             List<WifiAccessPoint> aps = Arrays.asList(
-                WifiAccessPoint.builder().macAddress("AP1").latitude(1.0).longitude(1.0).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP2").latitude(1.0).longitude(2.0).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP3").latitude(1.0).longitude(3.0).altitude(10.0).confidence(0.95).build()
+                WifiAccessPoint.builder().macAddress("AP1").latitude(1.0).longitude(1.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP2").latitude(1.0).longitude(2.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP3").latitude(1.0).longitude(3.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build()
             );
             List<WifiScanResult> scans = Arrays.asList(
                 new WifiScanResult("AP1", -65.0, 2412, "test"),
@@ -179,10 +179,10 @@ class GPSPositioningCalculatorIntegrationTest {
         void shouldHandleClusteredAPs() {
             // Clustered APs - all very close together
             List<WifiAccessPoint> aps = Arrays.asList(
-                WifiAccessPoint.builder().macAddress("AP1").latitude(1.00).longitude(1.00).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP2").latitude(1.01).longitude(1.01).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP3").latitude(1.02).longitude(0.99).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP4").latitude(0.99).longitude(1.02).altitude(10.0).confidence(0.95).build()
+                WifiAccessPoint.builder().macAddress("AP1").latitude(1.00).longitude(1.00).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP2").latitude(1.01).longitude(1.01).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP3").latitude(1.02).longitude(0.99).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP4").latitude(0.99).longitude(1.02).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build()
             );
             List<WifiScanResult> scans = Arrays.asList(
                 new WifiScanResult("AP1", -60.0, 2412, "test"),
@@ -220,6 +220,7 @@ class GPSPositioningCalculatorIntegrationTest {
                         .longitude(1.0 + j * 0.5)
                         .altitude(10.0)
                         .confidence(0.95)
+                        .status(WifiAccessPoint.STATUS_ACTIVE)
                         .build());
                 }
             }
@@ -265,10 +266,10 @@ class GPSPositioningCalculatorIntegrationTest {
         void shouldVerifyAlgorithmSelection() {
             // Test case for strong signals with 4 APs - should select appropriate algorithms
             List<WifiAccessPoint> aps = Arrays.asList(
-                WifiAccessPoint.builder().macAddress("AP1").latitude(1.0).longitude(1.0).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP2").latitude(1.0).longitude(2.0).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP3").latitude(2.0).longitude(1.5).altitude(10.0).confidence(0.95).build(),
-                WifiAccessPoint.builder().macAddress("AP4").latitude(2.0).longitude(2.0).altitude(10.0).confidence(0.95).build()
+                WifiAccessPoint.builder().macAddress("AP1").latitude(1.0).longitude(1.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP2").latitude(1.0).longitude(2.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP3").latitude(2.0).longitude(1.5).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build(),
+                WifiAccessPoint.builder().macAddress("AP4").latitude(2.0).longitude(2.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build()
             );
             List<WifiScanResult> scans = Arrays.asList(
                 new WifiScanResult("AP1", -55.0, 2412, "test"),
