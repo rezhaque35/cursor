@@ -192,14 +192,8 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                 .horizontalAccuracy(50.0)
                 .verticalAccuracy(8.0)
                 .confidence(0.65)
-                .bestMethod("proximity")
-                .methodsUsed(new String[]{"proximity"})
-                .sampleCount(1)
-                .signalStrengthAvg(-65.0)
-                .signalStrengthStd(0.0)
                 .ssid("SingleAP_Test")
                 .frequency(2437)
-                .countryCode("US")
                 .vendor("Cisco")
                 .geohash("9q8yyk")
                 .build();
@@ -220,14 +214,8 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                 .horizontalAccuracy(25.0)
                 .verticalAccuracy(5.0)
                 .confidence(0.78)
-                .bestMethod("rssi_ratio")
-                .methodsUsed(new String[]{"rssi_ratio", "weighted_centroid"})
-                .sampleCount(15)
-                .signalStrengthAvg(-68.5)
-                .signalStrengthStd(2.1)
                 .ssid("DualAP_Test")
                 .frequency(5180)
-                .countryCode("US")
                 .vendor("Aruba")
                 .geohash("9q8yyk")
                 .build();
@@ -248,14 +236,8 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                 .horizontalAccuracy(8.5)
                 .verticalAccuracy(3.0)
                 .confidence(0.92)
-                .bestMethod("trilateration")
-                .methodsUsed(new String[]{"trilateration", "weighted_centroid", "rssi_ratio"})
-                .sampleCount(45)
-                .signalStrengthAvg(-62.3)
-                .signalStrengthStd(1.8)
                 .ssid("TriAP_Test")
                 .frequency(2462)
-                .countryCode("US")
                 .vendor("Ubiquiti")
                 .geohash("9q8yyk")
                 .build();
@@ -276,14 +258,8 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                 .horizontalAccuracy(35.0)
                 .verticalAccuracy(12.0)
                 .confidence(0.45)
-                .bestMethod("maximum_likelihood")
-                .methodsUsed(new String[]{"maximum_likelihood", "weighted_centroid", "rssi_ratio"})
-                .sampleCount(30)
-                .signalStrengthAvg(-85.5)
-                .signalStrengthStd(5.2)
                 .ssid("WeakSignal_Test")
                 .frequency(2412)
-                .countryCode("US")
                 .vendor("HPE-Aruba")
                 .geohash("9q8yyk")
                 .build();
@@ -307,8 +283,6 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
             double latitude = 37.7754 + (i-6)*0.0001;
             double longitude = -122.4194;
             double altitude = 15.0 + (i-6)*2;
-            double signalStrength = -70.0 + (i-6)*2;
-            int sampleCount = 25 + (i-6)*5;
             
             WifiAccessPoint ap = WifiAccessPoint.builder()
                     .macAddress("00:11:22:33:44:" + macSuffix)
@@ -319,14 +293,8 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                     .horizontalAccuracy(18.5)
                     .verticalAccuracy(6.0)
                     .confidence(0.72)
-                    .bestMethod("weighted_centroid")
-                    .methodsUsed(new String[]{"weighted_centroid", "rssi_ratio"})
-                    .sampleCount(sampleCount)
-                    .signalStrengthAvg(signalStrength)
-                    .signalStrengthStd(2.8)
                     .ssid("Collinear_Test_" + i)
                     .frequency(2437)
-                    .countryCode("US")
                     .vendor("Ruckus")
                     .geohash("9q8yyk")
                     .build();

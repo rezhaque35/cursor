@@ -88,7 +88,6 @@ class LogDistancePathLossAlgorithmTest {
                 .altitude(0.0)
                 .horizontalAccuracy(5.0)
                 .confidence(0.8)
-                .signalStrengthAvg(-65.0)
                 .build();
         }
 
@@ -199,7 +198,6 @@ class LogDistancePathLossAlgorithmTest {
                     .altitude(0.0)
                     .horizontalAccuracy(5.0)
                     .confidence(0.8)
-                    .signalStrengthAvg(-65.0)
                     .build()
             );
 
@@ -258,7 +256,6 @@ class LogDistancePathLossAlgorithmTest {
                     .altitude(0.0)
                     .horizontalAccuracy(5.0)
                     .confidence(0.9)
-                    .signalStrengthAvg(-65.0)
                     .build(),
                 WifiAccessPoint.builder()
                     .macAddress("AP2")
@@ -267,7 +264,6 @@ class LogDistancePathLossAlgorithmTest {
                     .altitude(0.0)
                     .horizontalAccuracy(5.0)
                     .confidence(0.8)
-                    .signalStrengthAvg(-70.0)
                     .build()
             );
 

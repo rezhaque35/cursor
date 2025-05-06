@@ -38,15 +38,10 @@ class WifiAccessPointRepositoryTest {
                 .horizontalAccuracy(5.0)
                 .verticalAccuracy(2.0)
                 .confidence(0.85)
-                .bestMethod("test-method")
-                .methodsUsed(new String[]{"test-method-1", "test-method-2"})
-                .sampleCount(10)
-                .signalStrengthAvg(-65.0)
-                .signalStrengthStd(3.0)
                 .ssid("test-ssid")
                 .frequency(2437)
-                .countryCode("US")
                 .vendor("test-vendor")
+                .geohash("abcdef")
                 .build();
     }
 
@@ -87,8 +82,6 @@ class WifiAccessPointRepositoryTest {
                 .latitude(37.7750)
                 .longitude(-122.4195)
                 .confidence(0.90)
-                .bestMethod("test-method-updated")
-                .methodsUsed(new String[]{"test-method-1", "test-method-3"})
                 .build();
         
         inMemoryRepository.addAccessPoint(secondVersion);
@@ -116,9 +109,7 @@ class WifiAccessPointRepositoryTest {
         WifiAccessPoint ap = found.get(0);
         assertEquals("00:11:22:33:44:01", ap.getMacAddress());
         assertEquals("20240411-120000", ap.getVersion());
-        assertEquals("proximity", ap.getBestMethod());
         assertEquals(0.65, ap.getConfidence());
-        assertEquals(-65.0, ap.getSignalStrengthAvg());
         assertEquals("SingleAP_Test", ap.getSsid());
     }
     
@@ -135,11 +126,8 @@ class WifiAccessPointRepositoryTest {
         assertEquals(1, found.size());
         WifiAccessPoint ap = found.get(0);
         assertEquals("00:11:22:33:44:02", ap.getMacAddress());
-        assertEquals("rssi_ratio", ap.getBestMethod());
         assertEquals(0.78, ap.getConfidence());
-        assertEquals(2, ap.getMethodsUsed().length);
-        assertTrue(List.of(ap.getMethodsUsed()).contains("rssi_ratio"));
-        assertTrue(List.of(ap.getMethodsUsed()).contains("weighted_centroid"));
+        assertEquals("DualAP_Test", ap.getSsid());
     }
     
     @Test
@@ -155,10 +143,8 @@ class WifiAccessPointRepositoryTest {
         assertEquals(1, found.size());
         WifiAccessPoint ap = found.get(0);
         assertEquals("00:11:22:33:44:05", ap.getMacAddress());
-        assertEquals("maximum_likelihood", ap.getBestMethod());
         assertEquals(0.45, ap.getConfidence());
-        assertEquals(-85.5, ap.getSignalStrengthAvg());
-        assertTrue(ap.getSignalStrengthAvg() < -80.0, "Should be a weak signal (less than -80 dBm)");
+        assertEquals("WeakSignal_Test", ap.getSsid());
     }
     
     @Test
@@ -174,7 +160,6 @@ class WifiAccessPointRepositoryTest {
         assertEquals(1, found.size());
         WifiAccessPoint ap = found.get(0);
         assertEquals("00:11:22:33:44:08", ap.getMacAddress());
-        assertEquals("weighted_centroid", ap.getBestMethod());
         // Verify it's in the expected collinear pattern along latitude
         assertEquals(37.7754 + 2*0.0001, ap.getLatitude(), 0.0001);
         assertEquals(-122.4194, ap.getLongitude(), 0.0001);

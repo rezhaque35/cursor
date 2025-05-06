@@ -47,15 +47,10 @@ class PositioningServiceTest {
                 .horizontalAccuracy(5.0)
                 .verticalAccuracy(2.0)
                 .confidence(0.85)
-                .bestMethod("test-method")
-                .methodsUsed(new String[]{"test-method-1", "test-method-2"})
-                .sampleCount(10)
-                .signalStrengthAvg(-65.0)
-                .signalStrengthStd(3.0)
                 .ssid("test-ssid")
                 .frequency(2437)
-                .countryCode("US")
                 .vendor("test-vendor")
+                .geohash("9q8yyk")
                 .build();
         
         WifiScanResultDto scanResult = new WifiScanResultDto(

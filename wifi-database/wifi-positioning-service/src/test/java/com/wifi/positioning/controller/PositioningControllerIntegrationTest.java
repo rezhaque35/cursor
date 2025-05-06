@@ -158,12 +158,12 @@ public class PositioningControllerIntegrationTest {
         ap.setLongitude(lon);
         ap.setAltitude(alt);
         ap.setSsid(ssid);
-        ap.setVersion("test-version");
         ap.setConfidence(0.85);
         ap.setHorizontalAccuracy(10.0);
-        ap.setSignalStrengthAvg(-65.0);
-        ap.setBestMethod("proximity"); // This doesn't affect the test, just data integrity
-        ap.setMethodsUsed(new String[]{"proximity"});
+        ap.setVerticalAccuracy(5.0);
+        ap.setFrequency(2437);
+        ap.setVendor("Test-Vendor");
+        ap.setGeohash("9q8yyk");
         return ap;
     }
 } 

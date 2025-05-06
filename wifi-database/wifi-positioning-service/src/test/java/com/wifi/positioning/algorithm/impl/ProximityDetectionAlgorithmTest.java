@@ -48,7 +48,6 @@ class ProximityDetectionAlgorithmTest {
             .altitude(alt)
             .horizontalAccuracy(accuracy)
             .confidence(0.8)
-            .signalStrengthAvg(-65.0)
             .build();
     }
 

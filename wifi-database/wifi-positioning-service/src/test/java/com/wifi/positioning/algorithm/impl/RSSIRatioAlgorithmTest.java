@@ -34,7 +34,7 @@ class RSSIRatioAlgorithmTest {
         algorithm = new RSSIRatioAlgorithm();
     }
 
-    private WifiAccessPoint createAP(String mac, String vendor, double lat, double lon, double signalStrength) {
+    private WifiAccessPoint createAP(String mac, String vendor, double lat, double lon) {
         return WifiAccessPoint.builder()
             .macAddress(mac)
             .vendor(vendor)
@@ -43,7 +43,6 @@ class RSSIRatioAlgorithmTest {
             .altitude(0.0)
             .horizontalAccuracy(5.0)
             .confidence(0.8)
-            .signalStrengthAvg(signalStrength)
             .build();
     }
 
@@ -81,8 +80,8 @@ class RSSIRatioAlgorithmTest {
         @DisplayName("should return valid confidence level")
         void shouldReturnValidConfidence() {
             List<WifiAccessPoint> knownAPs = Arrays.asList(
-                createAP("AP1", "Cisco", 1.0, 1.0, -65.0),
-                createAP("AP2", "Cisco", 1.0, 2.0, -70.0)
+                createAP("AP1", "Cisco", 1.0, 1.0),
+                createAP("AP2", "Cisco", 1.0, 2.0)
             );
 
             List<WifiScanResult> scans = Arrays.asList(
@@ -139,7 +138,7 @@ class RSSIRatioAlgorithmTest {
         @DisplayName("should require minimum number of access points")
         void shouldRequireMinimumAPs() {
             List<WifiAccessPoint> knownAPs = Collections.singletonList(
-                createAP("AP1", "Cisco", 1.0, 1.0, -65.0)
+                createAP("AP1", "Cisco", 1.0, 1.0)
             );
 
             List<WifiScanResult> scans = Collections.singletonList(
@@ -174,8 +173,8 @@ class RSSIRatioAlgorithmTest {
         @DisplayName("should calculate position with two access points")
         void shouldCalculatePositionWithTwoAPs() {
             List<WifiAccessPoint> knownAPs = Arrays.asList(
-                createAP("AP1", "Cisco", 1.0, 1.0, -65.0),
-                createAP("AP2", "Cisco", 1.0, 2.0, -70.0)
+                createAP("AP1", "Cisco", 1.0, 1.0),
+                createAP("AP2", "Cisco", 1.0, 2.0)
             );
 
             List<WifiScanResult> scans = Arrays.asList(
@@ -202,8 +201,8 @@ class RSSIRatioAlgorithmTest {
         @DisplayName("should handle signal strength variations")
         void shouldHandleSignalStrengthVariations() {
             List<WifiAccessPoint> knownAPs = Arrays.asList(
-                createAP("AP1", "Cisco", 1.0, 1.0, -50.0),
-                createAP("AP2", "Cisco", 1.0, 2.0, -80.0)
+                createAP("AP1", "Cisco", 1.0, 1.0),
+                createAP("AP2", "Cisco", 1.0, 2.0)
             );
 
             List<WifiScanResult> scans = Arrays.asList(
@@ -239,9 +238,9 @@ class RSSIRatioAlgorithmTest {
         @DisplayName("should provide position within expected range")
         void shouldProvidePositionWithinRange() {
             List<WifiAccessPoint> knownAPs = Arrays.asList(
-                createAP("AP1", "Cisco", 1.0, 1.0, -65.0),
-                createAP("AP2", "Cisco", 1.0, 2.0, -70.0),
-                createAP("AP3", "Cisco", 2.0, 1.5, -75.0)
+                createAP("AP1", "Cisco", 1.0, 1.0),
+                createAP("AP2", "Cisco", 1.0, 2.0),
+                createAP("AP3", "Cisco", 2.0, 1.5)
             );
 
             List<WifiScanResult> scans = Arrays.asList(
@@ -265,8 +264,8 @@ class RSSIRatioAlgorithmTest {
         @DisplayName("should return expected accuracy and confidence for strong signals")
         void shouldReturnExpectedAccuracyAndConfidenceForStrongSignals() {
             List<WifiAccessPoint> aps = Arrays.asList(
-                createAP("AP1", "Cisco", 1.0, 1.0, -65.0),
-                createAP("AP2", "Cisco", 1.0, 2.0, -62.0)
+                createAP("AP1", "Cisco", 1.0, 1.0),
+                createAP("AP2", "Cisco", 1.0, 2.0)
             );
             List<WifiScanResult> scans = Arrays.asList(
                 createScan("AP1", -65.0),
@@ -291,8 +290,8 @@ class RSSIRatioAlgorithmTest {
         @DisplayName("should return worse accuracy and lower confidence for weak/mismatched signals")
         void shouldReturnWorseAccuracyAndLowerConfidenceForWeakSignals() {
             List<WifiAccessPoint> aps = Arrays.asList(
-                createAP("AP1", "Cisco", 1.0, 1.0, -85.0),
-                createAP("AP2", "Cisco", 1.0, 2.0, -90.0)
+                createAP("AP1", "Cisco", 1.0, 1.0),
+                createAP("AP2", "Cisco", 1.0, 2.0)
             );
             List<WifiScanResult> scans = Arrays.asList(
                 createScan("AP1", -85.0),

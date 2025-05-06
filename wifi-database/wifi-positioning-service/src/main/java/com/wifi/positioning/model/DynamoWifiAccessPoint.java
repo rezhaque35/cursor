@@ -191,13 +191,9 @@ public class DynamoWifiAccessPoint {
         this.horizontalAccuracy = ap.getHorizontalAccuracy();
         this.verticalAccuracy = ap.getVerticalAccuracy();
         this.confidence = ap.getConfidence();
-        this.bestMethod = ap.getBestMethod();
-        this.signalStrengthAvg = ap.getSignalStrengthAvg();
-        this.signalStrengthStd = ap.getSignalStrengthStd();
         this.geohash = ap.getGeohash();
         this.ssid = ap.getSsid();
         this.frequency = ap.getFrequency();
-        this.countryCode = ap.getCountryCode();
         this.vendor = ap.getVendor();
         return this;
     }
@@ -212,15 +208,9 @@ public class DynamoWifiAccessPoint {
                 .horizontalAccuracy(this.horizontalAccuracy)
                 .verticalAccuracy(this.verticalAccuracy)
                 .confidence(this.confidence)
-                .bestMethod(this.bestMethod)
-                .methodsUsed(this.methodsUsed != null ? this.methodsUsed.toArray(new String[0]) : new String[0])
-                .sampleCount(this.sampleCount)
-                .signalStrengthAvg(this.signalStrengthAvg)
-                .signalStrengthStd(this.signalStrengthStd)
                 .geohash(this.geohash)
                 .ssid(this.ssid)
                 .frequency(this.frequency)
-                .countryCode(this.countryCode)
                 .vendor(this.vendor)
                 .build();
     }

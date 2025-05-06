@@ -50,8 +50,6 @@ class MaximumLikelihoodAlgorithmTest {
             .altitude(alt)
             .horizontalAccuracy(accuracy)
             .confidence(0.8)
-            .signalStrengthAvg(-65.0)
-            .signalStrengthStd(4.0)
             .build();
     }
 

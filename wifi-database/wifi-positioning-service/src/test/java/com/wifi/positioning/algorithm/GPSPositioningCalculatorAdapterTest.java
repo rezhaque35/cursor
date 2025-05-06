@@ -329,7 +329,6 @@ class GPSPositioningCalculatorAdapterTest {
         ap.setSsid("Test_SSID");
         ap.setConfidence(0.85);
         ap.setHorizontalAccuracy(10.0);
-        ap.setSignalStrengthAvg(-65.0);
         return ap;
     }
 } 

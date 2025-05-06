@@ -17,7 +17,7 @@ public class RepositoryVerification {
         // Create repository instance
         InMemoryWifiAccessPointRepository repository = new InMemoryWifiAccessPointRepository();
         
-        // Create test access point
+        // Create a test access point
         WifiAccessPoint testAP = WifiAccessPoint.builder()
                 .macAddress("00:11:22:33:44:55")
                 .version("test-1.0")
@@ -27,15 +27,10 @@ public class RepositoryVerification {
                 .horizontalAccuracy(5.0)
                 .verticalAccuracy(2.0)
                 .confidence(0.85)
-                .bestMethod("test-method")
-                .methodsUsed(new String[]{"test-method-1", "test-method-2"})
-                .sampleCount(10)
-                .signalStrengthAvg(-65.0)
-                .signalStrengthStd(3.0)
                 .ssid("test-ssid")
                 .frequency(2437)
-                .countryCode("US")
                 .vendor("test-vendor")
+                .geohash("9q8yyk")
                 .build();
         
         // Test basic operations
@@ -92,9 +87,6 @@ public class RepositoryVerification {
         System.out.println("Proximity scenario loaded: " + (proximityLoaded ? "PASS" : "FAIL"));
         
         if (proximityLoaded) {
-            boolean correctMethod = proximityAP.get(0).getBestMethod().equals("proximity");
-            System.out.println("Proximity method correct: " + (correctMethod ? "PASS" : "FAIL"));
-            
             boolean correctConfidence = proximityAP.get(0).getConfidence() == 0.65;
             System.out.println("Proximity confidence correct: " + (correctConfidence ? "PASS" : "FAIL"));
         }
@@ -120,8 +112,8 @@ public class RepositoryVerification {
         System.out.println("Weak signal scenario loaded: " + (weakSignalLoaded ? "PASS" : "FAIL"));
         
         if (weakSignalLoaded) {
-            boolean weakSignalStrength = weakSignalAP.get(0).getSignalStrengthAvg() < -80.0;
-            System.out.println("Weak signal strength correct: " + (weakSignalStrength ? "PASS" : "FAIL"));
+            boolean lowConfidence = weakSignalAP.get(0).getConfidence() < 0.5;
+            System.out.println("Weak signal confidence correct: " + (lowConfidence ? "PASS" : "FAIL"));
         }
     }
 } 

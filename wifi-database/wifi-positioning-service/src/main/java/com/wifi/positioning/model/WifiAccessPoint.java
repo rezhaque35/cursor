@@ -5,6 +5,10 @@ import lombok.Builder;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+/**
+ * Model class representing a WiFi access point with positioning-relevant fields.
+ * Contains only fields necessary for positioning algorithm calculations.
+ */
 @Data
 @Builder
 @NoArgsConstructor
@@ -18,15 +22,8 @@ public class WifiAccessPoint {
     private Double horizontalAccuracy;
     private Double verticalAccuracy;
     private Double confidence;
-    private String bestMethod;
-    private String[] methodsUsed;
-    private Integer sampleCount;
-    private Double signalStrengthAvg;
-    private Double signalStrengthStd;
     private String geohash;
     private String ssid;
     private Integer frequency;
-    private Integer channel;
-    private String countryCode;
     private String vendor;
 } 
