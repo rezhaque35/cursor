@@ -259,144 +259,6 @@ public PositioningResult validateAndCalculate(List<WifiScanResult> scanResults) 
 }
 ```
 
-## Test Coverage Summary
-
-### Unit Tests
-- Total Tests: 114
-- All tests passing
-- Coverage includes:
-  - Repository tests for DynamoDB interaction
-  - Utility tests for geohashing
-  - Algorithm implementation tests
-  - Controller and service layer tests
-  - Signal physics validation tests
-
-### Integration Tests
-- Total Tests: 14
-- Success Rate: 100%
-- Coverage includes:
-  - Basic algorithm scenarios
-  - Advanced positioning scenarios
-  - Temporal and environmental tests
-  - Error and edge cases
-
-### Additional Test Recommendations
-1. Load testing scenarios
-2. Concurrent request handling tests
-3. More temporal variation tests
-4. Cross-frequency interference tests
-5. Environmental factor simulation tests
-
-## Test Cases Implementation Details
-
-### Basic Algorithm Test Cases (1-5)
-1. **Single AP - Proximity Detection**
-   - **Purpose**: Validate basic proximity-based positioning with minimal data
-   - **Input**: Single AP with -65.0 dBm signal at 2.4GHz
-   - **Expected**: Position with accuracy ±5-15m, confidence 0.35-0.55
-   - **Best Method**: "proximity"
-   - **Rationale**: Tests system's ability to handle simplest positioning scenario with strong signal
-   - **Signal Quality Impact**: Strong signal (-65 dBm) provides better accuracy than typical single AP scenarios
-   - **Note**: Accuracy and confidence ranges are signal-strength dependent:
-     * Strong signals (-65 dBm): 5-15m accuracy, 0.35-0.55 confidence
-     * Medium signals (-75 dBm): 10-25m accuracy, 0.30-0.45 confidence
-     * Weak signals (-85 dBm): 15-50m accuracy, 0.25-0.35 confidence
-
-2. **Two APs - RSSI Ratio Method**
-   - **Purpose**: Test relative signal strength positioning
-   - **Input**: Two APs with -68.5 dBm and -62.3 dBm at different frequencies (5GHz and 2.4GHz)
-   - **Expected**: Accuracy ±10-30m, confidence 0.40-0.65
-   - **Best Method**: "rssi_ratio"
-   - **Rationale**: Validates positioning without absolute signal calibration
-
-3. **Three APs - Trilateration**
-   - **Purpose**: Test geometric positioning with mixed signal quality
-   - **Input**: Three APs with varying signal strengths (-62.3, -71.2, -85.5 dBm)
-   - **Expected**: Accuracy ±8-20m, confidence 0.50-0.75
-   - **Best Method**: "trilateration"
-   - **Rationale**: Tests trilateration with mixed signal qualities
-
-4. **Multiple APs - Maximum Likelihood**
-   - **Purpose**: Test advanced positioning with redundant measurements
-   - **Input**: Four APs with mixed signal qualities (-71.2 to -68.0 dBm)
-   - **Expected**: Accuracy ±15-30m, confidence 0.39-0.70
-   - **Best Method**: "maximum_likelihood"
-   - **Rationale**: Validates statistical positioning approach
-
-5. **Weak Signals**
-   - **Purpose**: Test system behavior with poor signal conditions
-   - **Input**: Single AP with -85.5 dBm signal
-   - **Expected**: Accuracy ±25-75m, confidence 0.25-0.40
-   - **Best Method**: "proximity"
-   - **Rationale**: Validates graceful degradation
-
-### Advanced Scenario Test Cases (6-20)
-1. **Collinear APs (6-10)**
-   - **Purpose**: Test geometric dilution of precision handling
-   - **Input**: Three APs in linear arrangement (-70.0, -68.0, -66.0 dBm)
-   - **Expected**: ERROR status due to poor geometry
-   - **Rationale**: Validates geometry quality assessment
-
-2. **High Density Cluster (11-15)**
-   - **Purpose**: Test positioning in AP-rich environments
-   - **Input**: Four APs with strong signals (-65.0 to -60.5 dBm)
-   - **Expected**: Accuracy ±10-20m, confidence 0.44-0.75
-   - **Best Method**: "maximum_likelihood"
-   - **Rationale**: Tests algorithm selection in optimal conditions
-
-3. **Mixed Signal Quality (16-20)**
-   - **Purpose**: Test adaptive algorithm selection
-   - **Input**: Three APs with progressive signal degradation (-60.0 to -70.0 dBm)
-   - **Expected**: Accuracy ±10-25m, confidence 0.45-0.75
-   - **Best Method**: "trilateration"
-   - **Rationale**: Tests dynamic algorithm weighting
-
-### Temporal and Environmental Test Cases (21-35)
-1. **Time Series Data (21-25)**
-   - **Purpose**: Test temporal stability
-   - **Input**: Two APs with consistent signals (-70.0, -72.0 dBm)
-   - **Expected**: Accuracy ±12-25m, confidence 0.37-0.70
-   - **Best Method**: "rssi_ratio"
-   - **Rationale**: Validates temporal robustness
-
-2. **Log-Distance Path Loss (26-30)**
-   - **Purpose**: Test distance-based modeling
-   - **Input**: Two APs with strong signals (-50.0, -53.0 dBm)
-   - **Expected**: Accuracy ±10-20m, confidence 0.45-0.80
-   - **Best Method**: "rssi_ratio"
-   - **Rationale**: Validates path loss model
-
-3. **Historical Analysis (31-35)**
-   - **Purpose**: Test positioning with historical context
-   - **Input**: Two APs with identical signal strengths (-68.0 dBm)
-   - **Expected**: Accuracy ±10-20m, confidence 0.45-0.75
-   - **Best Method**: "rssi_ratio"
-   - **Rationale**: Validates long-term stability
-
-### Error and Edge Cases (36-40)
-1. **Invalid Coordinates Test**
-   - **Purpose**: Test handling of invalid location data
-   - **Input**: Single AP with extremely weak signal (-99.9 dBm)
-   - **Expected**: ERROR status
-   - **Rationale**: Validates input validation
-
-2. **Insufficient Data Test**
-   - **Purpose**: Test handling of unreliable positioning scenarios
-   - **Input**: Single AP with extremely weak signal (-99.9 dBm)
-   - **Expected**: ERROR status
-   - **Rationale**: Validates minimum quality requirements
-
-3. **Algorithm Failure Test**
-   - **Purpose**: Test handling of physically impossible scenarios
-   - **Input**: Three APs with physically impossible signal relationships
-   - **Expected**: ERROR status
-   - **Rationale**: Validates physics-based validation
-
-Note: All test cases include additional parameters:
-- `preferHighAccuracy`: Boolean flag to enable advanced algorithms
-- `returnAllMethods`: Boolean flag to return results from all applicable algorithms
-- Comprehensive validation of response fields including horizontalAccuracy, confidence, and bestMethod
-
 
 ### Confidence Calculation
 
@@ -808,6 +670,165 @@ The framework is implemented in the `AlgorithmSelector` class which evaluates ea
 4. **Graceful Degradation**: Falls back to simpler methods when more complex ones are unsuitable
 5. **Explainable Decisions**: Records reasons for algorithm selection and weight adjustments for transparency
 
+
 ## Conclusion
 
 This hybrid algorithm selection framework enables the WiFi Positioning Service to adapt to a wide range of scenarios by dynamically selecting the most appropriate positioning algorithms based on the characteristics of the input data. 
+
+
+## Test Coverage Summary
+
+### Unit Tests
+- Total Tests: 114
+- All tests passing
+- Coverage includes:
+  - Repository tests for DynamoDB interaction
+  - Utility tests for geohashing
+  - Algorithm implementation tests
+  - Controller and service layer tests
+  - Signal physics validation tests
+
+### Integration Tests
+- Total Tests: 14
+- Success Rate: 100%
+- Coverage includes:
+  - Basic algorithm scenarios
+  - Advanced positioning scenarios
+  - Temporal and environmental tests
+  - Error and edge cases
+
+### Additional Test Recommendations
+1. Load testing scenarios
+2. Concurrent request handling tests
+3. More temporal variation tests
+4. Cross-frequency interference tests
+5. Environmental factor simulation tests
+
+## Test Cases Implementation Details
+
+### Basic Algorithm Test Cases (1-5)
+1. **Single AP - Proximity Detection**
+   - **Purpose**: Validate basic proximity-based positioning with minimal data
+   - **Input**: Single AP with -65.0 dBm signal at 2.4GHz
+   - **Expected**: Position with accuracy 45-55m, confidence 0.35-0.55
+   - **Best Method**: "proximity"
+   - **Rationale**: Tests system's ability to handle simplest positioning scenario with strong signal
+   - **Signal Quality Impact**: Strong signal (-65 dBm) provides better accuracy than typical single AP scenarios
+   - **Note**: Base weight: 1.0, Signal Quality (Strong): ×0.9, GDOP (Poor): ×0.7, Distribution (Uniform): ×1.1
+     * Final weights: Proximity: 1.0 × 0.9 = 0.9, Log Distance: 0.4 × 1.0 × 0.7 × 1.1 = 0.308
+
+2. **Two APs - RSSI Ratio Method**
+   - **Purpose**: Test relative signal strength positioning
+   - **Input**: Two APs with -68.5 dBm and -62.3 dBm at different frequencies (5GHz and 2.4GHz)
+   - **Expected**: Accuracy 55-70m, confidence 0.40-0.60
+   - **Best Method**: "weighted_centroid rssi ratio"
+   - **Rationale**: Validates positioning without absolute signal calibration
+   - **Note**: Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8, Proximity: 0.4, Log Distance: 0.5
+     * Final weights: Weighted Centroid: 0.8 × 1.0 × 1.3 × 1.0 = 1.04, RSSI Ratio: 1.0 × 1.0 × 0.8 × 1.2 = 0.96
+
+3. **Three APs - Trilateration**
+   - **Purpose**: Test geometric positioning with mixed signal quality
+   - **Input**: Three APs with varying signal strengths (-62.3, -71.2, -85.5 dBm)
+   - **Expected**: Accuracy 90-105m, confidence 0.35-0.55
+   - **Best Method**: "weighted_centroid rssi ratio"
+   - **Rationale**: Tests trilateration with mixed signal qualities
+   - **Note**: Base weights: Trilateration: 1.0, Weighted Centroid: 0.8, RSSI Ratio: 0.7
+     * Final weights: Weighted Centroid: 0.8 × 0.7 × 1.3 × 1.0 = 0.728, RSSI Ratio: 0.7 × 0.7 × 0.8 × 0.9 = 0.3528
+
+4. **Multiple APs - Maximum Likelihood**
+   - **Purpose**: Test advanced positioning with redundant measurements
+   - **Input**: Four APs with mixed signal qualities (-71.2 to -68.0 dBm)
+   - **Expected**: Accuracy 135-150m, confidence 0.35-0.55
+   - **Best Method**: "weighted_centroid rssi ratio"
+   - **Rationale**: Validates statistical positioning approach
+
+5. **Weak Signals**
+   - **Purpose**: Test system behavior with poor signal conditions
+   - **Input**: Single AP with -85.5 dBm signal
+   - **Expected**: Accuracy 30-80m, confidence 0.05-0.15
+   - **Best Method**: "proximity"
+   - **Rationale**: Validates graceful degradation
+   - **Note**: Base weights: Proximity: 1.0, Log Distance: 0.4
+     * Final weights: Proximity: 1.0 × 0.4 × 0.7 × 1.1 = 0.308, Log Distance: 0.4 × 0.4 × 0.7 × 1.1 = 0.1232
+
+### Advanced Scenario Test Cases (6-20)
+1. **Collinear APs (6-10)**
+   - **Purpose**: Test geometric dilution of precision handling
+   - **Input**: Three APs in linear arrangement (-70.0, -68.0, -66.0 dBm)
+   - **Expected**: ERROR status due to poor geometry
+   - **Rationale**: Validates geometry quality assessment
+
+2. **High Density Cluster (11-15)**
+   - **Purpose**: Test positioning in AP-rich environments
+   - **Input**: Four APs with strong signals (-65.0 to -60.5 dBm)
+   - **Expected**: Accuracy 50-60m, confidence 0.35-0.55
+   - **Best Method**: "weighted_centroid maximum_likelihood"
+   - **Rationale**: Tests algorithm selection in optimal conditions
+   - **Note**: Base weights: Maximum Likelihood: 1.0, Trilateration: 0.8, Weighted Centroid: 0.7
+     * Final weights: Weighted Centroid: 0.7 × 0.9 × 1.3 × 1.0 = 0.819, Maximum Likelihood: 1.0 × 0.9 × 0.7 × 0.8 = 0.504
+
+3. **Mixed Signal Quality (16-20)**
+   - **Purpose**: Test adaptive algorithm selection
+   - **Input**: Three APs with progressive signal degradation (-60.0 to -70.0 dBm)
+   - **Expected**: Accuracy 60-75m, confidence 0.35-0.55
+   - **Best Method**: "weighted_centroid rssi ratio"
+   - **Rationale**: Tests dynamic algorithm weighting
+   - **Note**: Base weights: Trilateration: 1.0, Weighted Centroid: 0.8, RSSI Ratio: 0.7
+     * Final weights: Weighted Centroid: 0.8 × 0.7 × 1.3 × 1.0 = 0.728, RSSI Ratio: 0.7 × 0.7 × 0.8 × 0.9 = 0.3528
+
+### Temporal and Environmental Test Cases (21-35)
+1. **Time Series Data (21-25)**
+   - **Purpose**: Test temporal stability
+   - **Input**: Two APs with consistent signals (-70.0, -72.0 dBm)
+   - **Expected**: Accuracy 45-60m, confidence 0.35-0.55
+   - **Best Method**: "weighted_centroid rssi ratio"
+   - **Rationale**: Validates temporal robustness
+   - **Note**: Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8
+     * Final weights: Weighted Centroid: 0.8 × 0.7 × 1.3 × 1.0 = 0.728, RSSI Ratio: 1.0 × 0.7 × 0.8 × 1.1 = 0.616
+
+2. **Log-Distance Path Loss (26-30)**
+   - **Purpose**: Test distance-based modeling
+   - **Input**: Two APs with strong signals (-50.0, -53.0 dBm)
+   - **Expected**: Accuracy 20-35m, confidence 0.40-0.60
+   - **Best Method**: "weighted_centroid rssi ratio"
+   - **Rationale**: Validates path loss model
+   - **Note**: Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8
+     * Final weights: Weighted Centroid: 0.8 × 0.9 × 1.3 × 1.0 = 0.936, RSSI Ratio: 1.0 × 0.9 × 0.8 × 0.8 = 0.576
+
+3. **Stable Signal Quality (31-35)**
+   - **Purpose**: Test positioning with stable signals
+   - **Input**: Two APs with identical signal strengths (-68.0 dBm)
+   - **Expected**: Accuracy 5-15m, confidence 0.65-0.80
+   - **Best Method**: "weighted_centroid rssi ratio"
+   - **Rationale**: Validates long-term stability
+   - **Note**: Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8
+     * Final weights: Weighted Centroid: 0.8 × 0.7 × 1.3 × 1.0 = 0.728, RSSI Ratio: 1.0 × 0.7 × 0.8 × 1.0 = 0.560
+
+### Error and Edge Cases (36-40)
+1. **Invalid Coordinates Test**
+   - **Purpose**: Test handling of invalid location data
+   - **Input**: Single AP with extremely weak signal (-99.9 dBm)
+   - **Expected**: ERROR status
+   - **Rationale**: Validates input validation
+
+2. **Very Weak Signal Test**
+   - **Purpose**: Test handling of very weak signals
+   - **Input**: Single AP with -99.9 dBm signal
+   - **Expected**: Accuracy 5-15m, confidence 0.0-0.1
+   - **Best Method**: "proximity"
+   - **Rationale**: Validates algorithm selection framework for very weak signals
+   - **Note**: According to algorithm selection framework:
+     * Signal strength -99.9 dBm is "Very Weak" (< -95 dBm)
+     * Only Proximity algorithm gets non-zero weight (×0.5)
+     * All other algorithms get zero weight
+
+3. **Algorithm Failure Test**
+   - **Purpose**: Test handling of physically impossible scenarios
+   - **Input**: Three APs with physically impossible signal relationships
+   - **Expected**: ERROR status
+   - **Rationale**: Validates physics-based validation
+
+Note: All test cases include additional parameters:
+- `preferHighAccuracy`: Boolean flag to enable advanced algorithms
+- `returnAllMethods`: Boolean flag to return results from all applicable algorithms
+- Comprehensive validation of response fields including horizontalAccuracy, confidence, and bestMethod
