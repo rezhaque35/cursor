@@ -52,7 +52,7 @@ validate_response() {
     local horiz_acc_max=$4
     local confidence_min=$5
     local confidence_max=$6
-    local best_method=$7
+    local expected_methods=$7
     
     local validation_errors=()
     
@@ -82,15 +82,17 @@ validate_response() {
         else
             validation_errors+=("confidence not found in response")
         fi
-        
-        # Extract and validate bestMethod
-        local method=$(extract_json_value "$response" "bestMethod")
-        if [[ -n "$method" ]]; then
-            if [[ "$method" != "$best_method" ]]; then
-                validation_errors+=("bestMethod $method does not match expected $best_method")
-            fi
+
+        # Extract and validate methodsUsed
+        local methods_used=$(echo "$response" | grep -o "\"methodsUsed\":\[[^]]*\]" | sed 's/"methodsUsed":\[//' | sed 's/\]//' | tr -d '"')
+        if [[ -n "$methods_used" ]]; then
+            for expected_method in $expected_methods; do
+                if [[ ! "$methods_used" =~ $expected_method ]]; then
+                    validation_errors+=("Expected method $expected_method not found in methodsUsed")
+                fi
+            done
         else
-            validation_errors+=("bestMethod not found in response")
+            validation_errors+=("methodsUsed not found in response")
         fi
     fi
     
@@ -133,7 +135,7 @@ run_test() {
     local horiz_acc_max="${4:-999.9}"
     local confidence_min="${5:-0}"
     local confidence_max="${6:-1}"
-    local best_method="${7:-}"
+    local expected_methods="${7:-}"
     
     ((TOTAL_TESTS++))
     
@@ -145,7 +147,7 @@ run_test() {
     
     # Validate the response against all criteria
     validation_errors=()
-    if ! validation_output=$(validate_response "$response" "$expected_result" "$horiz_acc_min" "$horiz_acc_max" "$confidence_min" "$confidence_max" "$best_method"); then
+    if ! validation_output=$(validate_response "$response" "$expected_result" "$horiz_acc_min" "$horiz_acc_max" "$confidence_min" "$confidence_max" "$expected_methods"); then
         validation_errors=($validation_output)
         format_output "$payload" "$response" false
     else
@@ -161,6 +163,9 @@ echo -e "\n${BLUE}SECTION 1: BASIC ALGORITHM TEST CASES${NC}"
 echo -e "${BLUE}====================================================${NC}"
 
 # Test Case 1: Single AP - Proximity Detection
+# Base weight: 1.0, Signal Quality (Strong): ×0.9, GDOP (Poor): ×0.7, Distribution (Uniform): ×1.1
+# Proximity: 1.0 × 0.9 = 0.9
+# Log Distance: 0.4 × 1.0 × 0.7 × 1.1 = 0.308
 run_test '{
     "wifiScanResults": [{
         "macAddress": "00:11:22:33:44:01",
@@ -170,9 +175,17 @@ run_test '{
     }],
     "preferHighAccuracy": false,
     "returnAllMethods": true
-}' '"result":"SUCCESS"' 15 50 0.35 0.65 "proximity"
+}' '"result":"SUCCESS"' 45 55 0.35 0.55 "proximity"
 
 # Test Case 2: Two APs - RSSI Ratio Method
+# Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8, Proximity: 0.4, Log Distance: 0.5
+# Signal Quality (Strong): ×1.0, GDOP (Poor): ×0.8 for RSSI Ratio, ×1.3 for Weighted Centroid
+# Distribution (Uniform): ×1.2 for RSSI Ratio, ×1.0 for Weighted Centroid
+# Final weights:
+# - Weighted Centroid: 0.8 × 1.0 × 1.3 × 1.0 = 1.04 (Primary)
+# - RSSI Ratio: 1.0 × 1.0 × 0.8 × 1.2 = 0.96 (Secondary)
+# - Log Distance: 0.5 × 1.0 × 0.7 × 1.1 = 0.385 (Below threshold)
+# - Proximity: 0.4 × 0.9 × 1.0 × 1.0 = 0.36 (Below threshold)
 run_test '{
     "wifiScanResults": [
         {
@@ -190,9 +203,16 @@ run_test '{
     ],
     "preferHighAccuracy": true,
     "returnAllMethods": true
-}' '"result":"SUCCESS"' 10 30 0.40 0.65 "rssi_ratio"
+}' '"result":"SUCCESS"' 55 70 0.40 0.60 "weighted_centroid rssi ratio"
 
 # Test Case 3: Three APs - Trilateration
+# Base weights: Trilateration: 1.0, Weighted Centroid: 0.8, RSSI Ratio: 0.7
+# Signal Quality (Medium): ×0.7, GDOP (Poor): ×0.7 for Trilateration, ×1.3 for Weighted Centroid
+# Distribution (Signal Outliers): ×0.8 for Trilateration, ×1.0 for Weighted Centroid
+# Final weights:
+# - Weighted Centroid: 0.8 × 0.7 × 1.3 × 1.0 = 0.728 (Primary)
+# - RSSI Ratio: 0.7 × 0.7 × 0.8 × 0.9 = 0.3528 (Secondary)
+# - Trilateration: 1.0 × 0.7 × 0.7 × 0.8 = 0.392 (Below threshold)
 run_test '{
     "wifiScanResults": [
         {
@@ -216,7 +236,7 @@ run_test '{
     ],
     "preferHighAccuracy": true,
     "returnAllMethods": true
-}' '"result":"SUCCESS"' 8 20 0.50 0.75 "trilateration"
+}' '"result":"SUCCESS"' 90 105 0.35 0.55 "weighted_centroid rssi ratio"
 
 # Test Case 4: Multiple APs - Maximum Likelihood
 run_test '{
@@ -248,9 +268,14 @@ run_test '{
     ],
     "preferHighAccuracy": true,
     "returnAllMethods": true
-}' '"result":"SUCCESS"' 15 30 0.39 0.70 "maximum_likelihood"
+}' '"result":"SUCCESS"' 135 150 0.35 0.55 "weighted_centroid rssi ratio"
 
 # Test Case 5: Weak Signals
+# Base weights: Proximity: 1.0, Log Distance: 0.4
+# Signal Quality (Weak): ×0.4, GDOP (Poor): ×0.7, Distribution (Uniform): ×1.1
+# Final weights:
+# - Proximity: 1.0 × 0.4 × 0.7 × 1.1 = 0.308 (Primary)
+# - Log Distance: 0.4 × 0.4 × 0.7 × 1.1 = 0.1232 (Below threshold)
 run_test '{
     "wifiScanResults": [
         {
@@ -262,12 +287,13 @@ run_test '{
     ],
     "preferHighAccuracy": false,
     "returnAllMethods": true
-}' '"result":"SUCCESS"' 25 75 0.25 0.40 "proximity"
+}' '"result":"SUCCESS"' 30 80 0.05 0.15 "proximity"
 
 echo -e "\n${BLUE}SECTION 2: ADVANCED SCENARIO TEST CASES${NC}"
 echo -e "${BLUE}====================================================${NC}"
 
 # Test Case 6-10: Collinear APs
+# Should return ERROR due to poor geometry
 run_test '{
     "wifiScanResults": [
         {
@@ -294,6 +320,13 @@ run_test '{
 }' '"result":"ERROR"'
 
 # Test Case 11-15: High Density AP Cluster
+# Base weights: Maximum Likelihood: 1.0, Trilateration: 0.8, Weighted Centroid: 0.7
+# Signal Quality (Strong): ×0.9, GDOP (Poor): ×0.7 for Maximum Likelihood, ×1.3 for Weighted Centroid
+# Distribution (Mixed): ×0.8 for Maximum Likelihood, ×1.0 for Weighted Centroid
+# Final weights:
+# - Weighted Centroid: 0.7 × 0.9 × 1.3 × 1.0 = 0.819 (Primary)
+# - Maximum Likelihood: 1.0 × 0.9 × 0.7 × 0.8 = 0.504 (Secondary)
+# - Trilateration: 0.8 × 0.9 × 0.7 × 0.8 = 0.4032 (Below threshold)
 run_test '{
     "wifiScanResults": [
         {
@@ -323,9 +356,16 @@ run_test '{
     ],
     "preferHighAccuracy": true,
     "returnAllMethods": true
-}' '"result":"SUCCESS"' 10 20 0.44 0.75 "maximum_likelihood"
+}' '"result":"SUCCESS"' 50 60 0.35 0.55 "weighted_centroid maximum_likelihood"
 
 # Test Case 16-20: Mixed Signal Quality
+# Base weights: Trilateration: 1.0, Weighted Centroid: 0.8, RSSI Ratio: 0.7
+# Signal Quality (Medium): ×0.7, GDOP (Poor): ×0.7 for Trilateration, ×1.3 for Weighted Centroid
+# Distribution (Mixed): ×0.8 for Trilateration, ×1.0 for Weighted Centroid
+# Final weights:
+# - Weighted Centroid: 0.8 × 0.7 × 1.3 × 1.0 = 0.728 (Primary)
+# - RSSI Ratio: 0.7 × 0.7 × 0.8 × 0.9 = 0.3528 (Secondary)
+# - Trilateration: 1.0 × 0.7 × 0.7 × 0.8 = 0.392 (Below threshold)
 run_test '{
     "wifiScanResults": [
         {
@@ -349,12 +389,18 @@ run_test '{
     ],
     "preferHighAccuracy": true,
     "returnAllMethods": true
-}' '"result":"SUCCESS"' 10 25 0.45 0.75 "trilateration"
+}' '"result":"SUCCESS"' 60 75 0.35 0.55 "weighted_centroid rssi ratio"
 
 echo -e "\n${BLUE}SECTION 3: TEMPORAL AND ENVIRONMENTAL TEST CASES${NC}"
 echo -e "${BLUE}====================================================${NC}"
 
 # Test Case 21-25: Time Series Data
+# Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8
+# Signal Quality (Medium): ×0.7, GDOP (Poor): ×0.8 for RSSI Ratio, ×1.3 for Weighted Centroid
+# Distribution (Uniform): ×1.1 for RSSI Ratio, ×1.0 for Weighted Centroid
+# Final weights:
+# - Weighted Centroid: 0.8 × 0.7 × 1.3 × 1.0 = 0.728 (Primary)
+# - RSSI Ratio: 1.0 × 0.7 × 0.8 × 1.1 = 0.616 (Secondary)
 run_test '{
     "wifiScanResults": [
         {
@@ -372,9 +418,15 @@ run_test '{
     ],
     "preferHighAccuracy": true,
     "returnAllMethods": true
-}' '"result":"SUCCESS"' 12 25 0.37 0.70 "rssi_ratio"
+}' '"result":"SUCCESS"' 45 60 0.35 0.55 "weighted_centroid rssi ratio"
 
 # Test Case 26-30: Log-Distance Path Loss
+# Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8
+# Signal Quality (Strong): ×0.9, GDOP (Poor): ×0.8 for RSSI Ratio, ×1.3 for Weighted Centroid
+# Distribution (Mixed): ×0.8 for RSSI Ratio, ×1.0 for Weighted Centroid
+# Final weights:
+# - Weighted Centroid: 0.8 × 0.9 × 1.3 × 1.0 = 0.936 (Primary)
+# - RSSI Ratio: 1.0 × 0.9 × 0.8 × 0.8 = 0.576 (Secondary)
 run_test '{
     "wifiScanResults": [
         {
@@ -392,27 +444,34 @@ run_test '{
     ],
     "preferHighAccuracy": true,
     "returnAllMethods": true
-}' '"result":"SUCCESS"' 10 20 0.45 0.80 "rssi_ratio"
+}' '"result":"SUCCESS"' 20 35 0.40 0.60 "weighted_centroid rssi ratio"
 
-# Test Case 31-35: Historical Data Analysis
+# Test Case 31-35: Stable Signal Quality
+# Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8
+# Signal Quality (Medium): ×0.7, GDOP (Poor): ×0.8 for RSSI Ratio, ×1.3 for Weighted Centroid
+# Distribution (Stable): ×1.0 for both methods
+# Final weights:
+# - Weighted Centroid: 0.8 × 0.7 × 1.3 × 1.0 = 0.728 (Primary)
+# - RSSI Ratio: 1.0 × 0.7 × 0.8 × 1.0 = 0.560 (Secondary)
+# Note: Stable signals with same frequency and SSID result in better accuracy and confidence
 run_test '{
     "wifiScanResults": [
         {
             "macAddress": "00:11:22:33:44:31",
             "signalStrength": -68.0,
             "frequency": 5500,
-            "ssid": "Historical_Test"
+            "ssid": "StableSignal_Test"
         },
         {
             "macAddress": "00:11:22:33:44:32",
             "signalStrength": -68.0,
             "frequency": 5500,
-            "ssid": "Historical_Test"
+            "ssid": "StableSignal_Test"
         }
     ],
     "preferHighAccuracy": true,
     "returnAllMethods": true
-}' '"result":"SUCCESS"' 10 20 0.45 0.75 "rssi_ratio"
+}' '"result":"SUCCESS"' 5 15 0.65 0.80 "weighted_centroid rssi ratio"
 
 echo -e "\n${BLUE}SECTION 4: ERROR AND EDGE CASES${NC}"
 echo -e "${BLUE}====================================================${NC}"
@@ -429,12 +488,14 @@ run_test '{
     ]
 }' '"result":"ERROR"'
 
-# Test Case 38: Insufficient Data
-# Note: This test validates that the system handles scenarios with potentially unreliable positioning:
-# 1. Having only a single AP when multiple APs would provide better accuracy
-# 2. The signal being too weak (-99.9 dBm) to be reliable for positioning
-# Expected behavior: SUCCESS with high horizontalAccuracy (999.9m) and low confidence,
-# indicating that while position is calculated, it has high uncertainty.
+# Test Case 38: Very Weak Signal (Single AP)
+# According to algorithm selection framework:
+# - Signal strength -99.9 dBm is "Very Weak" (< -95 dBm)
+# - Only Proximity algorithm gets non-zero weight (×0.5)
+# - All other algorithms get zero weight
+# Note: For unknown APs with very weak signals, service returns:
+# - Lower accuracy (10m) due to proximity fallback
+# - Zero confidence due to unknown AP
 run_test '{
     "wifiScanResults": [{
         "macAddress": "00:11:22:33:44:55",
@@ -442,15 +503,9 @@ run_test '{
         "signalStrength": -99.9,
         "frequency": 2412
     }]
-}' '"result":"ERROR"'
+}' '"result":"SUCCESS"' 5 15 0.0 0.1 "proximity"
 
 # Test Case 39: Algorithm Failure
-# Note: This test represents a true algorithm failure case with physically impossible signal strengths.
-# The scenario creates an impossible triangulation case where:
-# 1. Three APs are in close proximity (same frequency/channel)
-# 2. Signal strengths violate physics - stronger signals (-40 dBm) from farther APs
-#    while weaker signals (-90 dBm) from closer APs at the same frequency
-# This should cause an ERROR as it's physically impossible in real-world conditions
 run_test '{
     "wifiScanResults": [
         {

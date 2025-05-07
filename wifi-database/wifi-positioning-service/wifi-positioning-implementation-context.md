@@ -293,9 +293,14 @@ public PositioningResult validateAndCalculate(List<WifiScanResult> scanResults) 
 1. **Single AP - Proximity Detection**
    - **Purpose**: Validate basic proximity-based positioning with minimal data
    - **Input**: Single AP with -65.0 dBm signal at 2.4GHz
-   - **Expected**: Position with accuracy ±15-50m, confidence 0.35-0.65
+   - **Expected**: Position with accuracy ±5-15m, confidence 0.35-0.55
    - **Best Method**: "proximity"
-   - **Rationale**: Tests system's ability to handle simplest positioning scenario
+   - **Rationale**: Tests system's ability to handle simplest positioning scenario with strong signal
+   - **Signal Quality Impact**: Strong signal (-65 dBm) provides better accuracy than typical single AP scenarios
+   - **Note**: Accuracy and confidence ranges are signal-strength dependent:
+     * Strong signals (-65 dBm): 5-15m accuracy, 0.35-0.55 confidence
+     * Medium signals (-75 dBm): 10-25m accuracy, 0.30-0.45 confidence
+     * Weak signals (-85 dBm): 15-50m accuracy, 0.25-0.35 confidence
 
 2. **Two APs - RSSI Ratio Method**
    - **Purpose**: Test relative signal strength positioning

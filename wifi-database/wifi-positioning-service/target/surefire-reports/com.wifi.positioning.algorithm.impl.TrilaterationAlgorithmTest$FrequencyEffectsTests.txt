@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.wifi.positioning.algorithm.impl.TrilaterationAlgorithmTest$FrequencyEffectsTests
 -------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in com.wifi.positioning.algorithm.impl.TrilaterationAlgorithmTest$FrequencyEffectsTests
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in com.wifi.positioning.algorithm.impl.TrilaterationAlgorithmTest$FrequencyEffectsTests
