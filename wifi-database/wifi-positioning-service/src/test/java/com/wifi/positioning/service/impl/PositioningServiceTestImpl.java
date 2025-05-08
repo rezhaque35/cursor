@@ -40,24 +40,10 @@ public class PositioningServiceTestImpl implements PositioningService {
         }
 
         try {
-            // Convert scan results to map for calculator
-            Map<String, Map<String, Object>> scanResults = request.wifiScanResults().stream()
-                    .collect(Collectors.toMap(
-                            WifiScanResult::macAddress,
-                            scan -> {
-                                Map<String, Object> data = new HashMap<>();
-                                data.put("signalStrength", scan.signalStrength());
-                                data.put("frequency", scan.frequency());
-                                data.put("ssid", scan.ssid());
-                                data.put("linkSpeed", scan.linkSpeed());
-                                data.put("channelWidth", scan.channelWidth());
-                                return data;
-                            }
-                    ));
-
-            // Get known access points
+            // Get known access points for creating options map
             Map<String, Map<String, Object>> knownAPs = new HashMap<>();
-            for (String macAddress : scanResults.keySet()) {
+            for (WifiScanResult scan : request.wifiScanResults()) {
+                String macAddress = scan.macAddress();
                 Optional<WifiAccessPoint> ap = accessPointRepository.findByMacAddress(macAddress);
                 if (ap.isPresent()) {
                     Map<String, Object> apData = new HashMap<>();
@@ -71,9 +57,9 @@ public class PositioningServiceTestImpl implements PositioningService {
                 }
             }
 
-            // Calculate position using the created options map
+            // Calculate position using the WifiScanResult objects directly
             Map<String, Object> result = positioningCalculator.calculatePosition(
-                scanResults, 
+                request.wifiScanResults(), 
                 createOptionsMap(request, knownAPs)
             );
 

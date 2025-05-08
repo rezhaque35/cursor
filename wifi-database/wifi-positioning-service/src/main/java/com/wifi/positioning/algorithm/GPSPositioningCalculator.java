@@ -101,6 +101,17 @@ public class GPSPositioningCalculator {
             
             return info.toString();
         }
+
+        /**
+         * Get the names of all methods used in the positioning calculation
+         * 
+         * @return List of method names used
+         */
+        public List<String> getMethodsUsedNames() {
+            return this.algorithmWeights.keySet().stream()
+                .map(algorithm -> algorithm.getName().toLowerCase().replaceAll("\\s+", ""))
+                .collect(Collectors.toList());
+        }
     }
 
     public GPSPositioningCalculator(

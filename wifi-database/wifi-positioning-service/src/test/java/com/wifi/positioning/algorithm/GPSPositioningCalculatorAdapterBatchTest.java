@@ -56,22 +56,19 @@ class GPSPositioningCalculatorAdapterBatchTest {
     }
     
     /**
-     * Helper method to create a scan result map for testing
+     * Helper method to create scan results for testing
      */
-    private Map<String, Map<String, Object>> createScanResultsMap(String... macAddresses) {
-        Map<String, Map<String, Object>> scanResultsMap = new HashMap<>();
+    private List<WifiScanResult> createScanResults(String... macAddresses) {
+        List<WifiScanResult> scanResults = new ArrayList<>();
         
         for (int i = 0; i < macAddresses.length; i++) {
             String macAddress = macAddresses[i];
-            Map<String, Object> scanData = new HashMap<>();
-            scanData.put("macAddress", macAddress);
-            scanData.put("ssid", "TestAP_" + i);
-            scanData.put("signalStrength", -60.0 - (i * 2)); // Strong signal
-            scanData.put("frequency", i % 2 == 0 ? 5180 : 2462);
-            scanResultsMap.put(macAddress, scanData);
+            double signalStrength = -60.0 - (i * 2); // Strong signal
+            int frequency = i % 2 == 0 ? 5180 : 2462;
+            scanResults.add(WifiScanResult.of(macAddress, signalStrength, frequency, "TestAP_" + i));
         }
         
-        return scanResultsMap;
+        return scanResults;
     }
     
     /**
@@ -93,7 +90,7 @@ class GPSPositioningCalculatorAdapterBatchTest {
     @DisplayName("Should use batch operation for multiple MAC addresses")
     void shouldUseBatchOperationForMultipleMacAddresses() {
         // Prepare test data
-        Map<String, Map<String, Object>> scanResultsMap = createScanResultsMap(MAC_1, MAC_2, MAC_3);
+        List<WifiScanResult> scanResults = createScanResults(MAC_1, MAC_2, MAC_3);
         
         // Configure mocks
         Map<String, WifiAccessPoint> batchResult = new HashMap<>();
@@ -115,7 +112,7 @@ class GPSPositioningCalculatorAdapterBatchTest {
         when(calculator.calculatePosition(any(), any())).thenReturn(positioningResult);
         
         // Call the method under test
-        adapter.calculatePosition(scanResultsMap, Collections.emptyMap());
+        adapter.calculatePosition(scanResults, Collections.emptyMap());
         
         // Verify batch operation was used
         verify(accessPointRepository, times(1)).findByMacAddresses(any());
@@ -133,7 +130,7 @@ class GPSPositioningCalculatorAdapterBatchTest {
     @DisplayName("Should fall back to individual lookups if batch operation fails")
     void shouldFallBackToIndividualLookupsIfBatchOperationFails() {
         // Prepare test data
-        Map<String, Map<String, Object>> scanResultsMap = createScanResultsMap(MAC_1, MAC_2, MAC_3);
+        List<WifiScanResult> scanResults = createScanResults(MAC_1, MAC_2, MAC_3);
         
         // Configure mocks to simulate batch operation failure
         when(accessPointRepository.findByMacAddresses(any())).thenThrow(new RuntimeException("Batch operation failed"));
@@ -152,7 +149,7 @@ class GPSPositioningCalculatorAdapterBatchTest {
         when(calculator.calculatePosition(any(), any())).thenReturn(positioningResult);
         
         // Call the method under test
-        adapter.calculatePosition(scanResultsMap, Collections.emptyMap());
+        adapter.calculatePosition(scanResults, Collections.emptyMap());
         
         // Verify batch operation was attempted
         verify(accessPointRepository, times(1)).findByMacAddresses(any());
@@ -167,7 +164,7 @@ class GPSPositioningCalculatorAdapterBatchTest {
     @DisplayName("Should handle empty scan results properly")
     void shouldHandleEmptyScanResultsProperly() {
         // Call with empty scan results
-        Map<String, Object> result = adapter.calculatePosition(Collections.emptyMap(), Collections.emptyMap());
+        Map<String, Object> result = adapter.calculatePosition(Collections.emptyList(), Collections.emptyMap());
         
         // Verify
         assertNotNull(result);
@@ -181,7 +178,7 @@ class GPSPositioningCalculatorAdapterBatchTest {
     @DisplayName("Should handle no known access points properly")
     void shouldHandleNoKnownAccessPointsProperly() {
         // Prepare test data
-        Map<String, Map<String, Object>> scanResultsMap = createScanResultsMap(MAC_1, MAC_2, MAC_3);
+        List<WifiScanResult> scanResults = createScanResults(MAC_1, MAC_2, MAC_3);
         
         // Configure mocks to return empty results
         Map<String, WifiAccessPoint> emptyResult = new HashMap<>();
@@ -189,7 +186,7 @@ class GPSPositioningCalculatorAdapterBatchTest {
         when(accessPointRepository.findByMacAddresses(any())).thenReturn(emptyResult);
         
         // Call the method under test
-        Map<String, Object> result = adapter.calculatePosition(scanResultsMap, Collections.emptyMap());
+        Map<String, Object> result = adapter.calculatePosition(scanResults, Collections.emptyMap());
         
         // Verify
         assertNotNull(result);

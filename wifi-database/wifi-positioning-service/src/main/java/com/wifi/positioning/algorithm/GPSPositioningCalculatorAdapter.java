@@ -2,7 +2,6 @@ package com.wifi.positioning.algorithm;
 
 import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.WifiScanResult;
-import com.wifi.positioning.mapper.WifiScanResultMapper;
 import com.wifi.positioning.model.WifiAccessPoint;
 import com.wifi.positioning.repository.WifiAccessPointRepository;
 import com.wifi.positioning.validation.SignalPhysicsValidator;
@@ -64,26 +63,19 @@ public class GPSPositioningCalculatorAdapter {
     }
     
     /**
-     * Convert a map representation of scan results to a list of WifiScanResult objects
-     * and calculate position.
+     * Calculate position using a list of WifiScanResult objects.
      * 
-     * @param scanResultsMap Map of MAC addresses to their scan data
+     * @param scanResults List of WiFi scan results
      * @param options Optional calculation parameters
      * @return A map containing position results
      */
-    public Map<String, Object> calculatePosition(Map<String, Map<String, Object>> scanResultsMap, Map<String, Object> options) {
-        if (scanResultsMap == null || scanResultsMap.isEmpty()) {
+    public Map<String, Object> calculatePosition(List<WifiScanResult> scanResults, Map<String, Object> options) {
+        if (scanResults == null || scanResults.isEmpty()) {
             logger.warn("No scan results provided");
             return new HashMap<>();
         }
         
         try {
-            // Convert the map to a list of WifiScanResult objects
-            List<WifiScanResult> scanResults = mapToWifiScanResults(scanResultsMap);
-            if (scanResults.isEmpty()) {
-                logger.warn("No valid scan results after conversion");
-                return new HashMap<>();
-            }
             
             // Check if the signal physics is valid
             if (!signalPhysicsValidator.isPhysicallyPossible(scanResults)) {
@@ -112,7 +104,7 @@ public class GPSPositioningCalculatorAdapter {
             }
             
             // Get methods used from the positioning result
-            List<String> methodsUsed = getMethodsUsedNames(positioningResult);
+            List<String> methodsUsed = positioningResult.getMethodsUsedNames();
             
             // Convert position to result map
             Map<String, Object> result = positionToResultMap(
@@ -141,41 +133,7 @@ public class GPSPositioningCalculatorAdapter {
         }
     }
     
-    /**
-     * Get the names of all methods used in the positioning calculation
-     * 
-     * @param positioningResult The positioning result containing the algorithm weights
-     * @return List of method names used
-     */
-    private List<String> getMethodsUsedNames(GPSPositioningCalculator.PositioningResult positioningResult) {
-        List<String> methodNames = new ArrayList<>();
-        
-        for (PositioningAlgorithm algorithm : positioningResult.algorithmWeights().keySet()) {
-            if (algorithm != null) {
-                String algoName = algorithm.getName().toLowerCase().replaceAll("\\s+", "");
-                
-                // Convert specific algorithm names to expected test values
-                switch (algoName) {
-                    case "proximitydetection":
-                        methodNames.add("proximitydetection");
-                        break;
-                    case "rssiratio":
-                        methodNames.add("rssiratio");
-                        break;
-                    case "trilateration":
-                        methodNames.add("trilateration");
-                        break;
-                    case "maximumlikelihood":
-                        methodNames.add("maximumlikelihood");
-                        break;
-                    default:
-                        methodNames.add(algoName);
-                }
-            }
-        }
-        
-        return methodNames;
-    }
+
     
     /**
      * Create a response map when position calculation fails
@@ -274,13 +232,7 @@ public class GPSPositioningCalculatorAdapter {
         return knownAPs;
     }
     
-    /**
-     * Convert a map of scan results to a list of WifiScanResult objects
-     */
-    private List<WifiScanResult> mapToWifiScanResults(Map<String, Map<String, Object>> scanResultsMap) {
-        return WifiScanResultMapper.fromCalculatorMap(scanResultsMap);
-    }
-    
+
     /**
      * Convert a Position object to a map containing all position data
      */

@@ -5,7 +5,6 @@ import com.wifi.positioning.dto.PositionRequestDto;
 import com.wifi.positioning.dto.PositionResponseDto;
 import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.exception.PositioningException;
-import com.wifi.positioning.mapper.WifiScanResultMapper;
 import com.wifi.positioning.service.PositioningService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,12 +53,12 @@ public class PositioningServiceImpl implements PositioningService {
         }
         
         try {
-            // Convert DTOs to the input format expected by the calculator
-            Map<String, Map<String, Object>> scanResultsMap = convertScanResults(request.wifiScanResults());
+        
+       
             
             // Create options map and calculate position
             Map<String, Object> result = positioningCalculator.calculatePosition(
-                scanResultsMap, 
+                request.wifiScanResults(), 
                 createOptionsMap(request)
             );
             
@@ -105,12 +104,5 @@ public class PositioningServiceImpl implements PositioningService {
         }
         
         return options;
-    }
-    
-    /**
-     * Converts a list of WifiScanResult objects to a map format used by the positioning calculator.
-     */
-    private Map<String, Map<String, Object>> convertScanResults(List<WifiScanResult> scanResults) {
-        return WifiScanResultMapper.toCalculatorMap(scanResults);
     }
 } 

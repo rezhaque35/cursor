@@ -112,16 +112,17 @@ class PositioningServiceTest {
         assertEquals(List.of("proximity"), response.methodsUsed());
         
         // Verify the calculator was called with the correct data
-        ArgumentCaptor<Map<String, Map<String, Object>>> scanResultsCaptor = 
-                ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<List<WifiScanResult>> scanResultsCaptor = 
+                ArgumentCaptor.forClass(List.class);
         ArgumentCaptor<Map<String, Object>> optionsCaptor = 
                 ArgumentCaptor.forClass(Map.class);
         
         verify(positioningCalculator).calculatePosition(scanResultsCaptor.capture(), optionsCaptor.capture());
         
-        Map<String, Map<String, Object>> capturedScanResults = scanResultsCaptor.getValue();
+        List<WifiScanResult> capturedScanResults = scanResultsCaptor.getValue();
         assertNotNull(capturedScanResults);
-        assertTrue(capturedScanResults.containsKey("00:11:22:33:44:55"));
+        assertEquals(1, capturedScanResults.size());
+        assertEquals("00:11:22:33:44:55", capturedScanResults.get(0).macAddress());
         
         Map<String, Object> capturedOptions = optionsCaptor.getValue();
         assertEquals(TEST_CLIENT, capturedOptions.get("client"));
