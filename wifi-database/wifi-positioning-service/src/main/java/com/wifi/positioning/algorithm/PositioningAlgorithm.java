@@ -47,10 +47,10 @@ public interface PositioningAlgorithm {
      * - Three APs: good weight (0.8)
      * - Four+ APs: high weight (0.9)
      * 
-     * @param factor The AP count factor
+     * @param apCountFactor The AP count factor
      * @return The base weight value for this algorithm
      */
-    double getBaseWeight(APCountFactor factor);
+    double getBaseWeight(APCountFactor apCountFactor);
     
     /**
      * Returns the weight multiplier for this algorithm based on signal quality.
@@ -75,10 +75,10 @@ public interface PositioningAlgorithm {
      * - Fair GDOP (4-6): typically values around 0.6-1.2
      * - Poor GDOP (> 6): typically values around 0.3-1.3
      * 
-     * @param factor The geometric quality factor
+     * @param geometricQualityFactor The geometric quality factor
      * @return The weight multiplier value (e.g., 0.9, 1.1)
      */
-    double getGeometricQualityMultiplier(GeometricQualityFactor factor);
+    double getGeometricQualityMultiplier(GeometricQualityFactor geometricQualityFactor);
     
     /**
      * Returns the weight multiplier for this algorithm based on signal distribution.

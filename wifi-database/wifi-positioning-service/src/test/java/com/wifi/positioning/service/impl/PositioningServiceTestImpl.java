@@ -3,7 +3,7 @@ package com.wifi.positioning.service.impl;
 import com.wifi.positioning.algorithm.GPSPositioningCalculatorAdapter;
 import com.wifi.positioning.dto.PositionRequestDto;
 import com.wifi.positioning.dto.PositionResponseDto;
-import com.wifi.positioning.dto.WifiScanResultDto;
+import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.exception.PositioningException;
 import com.wifi.positioning.model.WifiAccessPoint;
 import com.wifi.positioning.repository.WifiAccessPointRepository;
@@ -43,7 +43,7 @@ public class PositioningServiceTestImpl implements PositioningService {
             // Convert scan results to map for calculator
             Map<String, Map<String, Object>> scanResults = request.wifiScanResults().stream()
                     .collect(Collectors.toMap(
-                            WifiScanResultDto::macAddress,
+                            WifiScanResult::macAddress,
                             scan -> {
                                 Map<String, Object> data = new HashMap<>();
                                 data.put("signalStrength", scan.signalStrength());
@@ -58,17 +58,15 @@ public class PositioningServiceTestImpl implements PositioningService {
             // Get known access points
             Map<String, Map<String, Object>> knownAPs = new HashMap<>();
             for (String macAddress : scanResults.keySet()) {
-                List<WifiAccessPoint> aps = accessPointRepository.findByMacAddress(macAddress);
-                if (!aps.isEmpty()) {
-                    // Use the most recent version
-                    WifiAccessPoint ap = aps.get(0);
+                Optional<WifiAccessPoint> ap = accessPointRepository.findByMacAddress(macAddress);
+                if (ap.isPresent()) {
                     Map<String, Object> apData = new HashMap<>();
-                    apData.put("latitude", ap.getLatitude());
-                    apData.put("longitude", ap.getLongitude());
-                    apData.put("altitude", ap.getAltitude());
-                    apData.put("horizontalAccuracy", ap.getHorizontalAccuracy());
-                    apData.put("verticalAccuracy", ap.getVerticalAccuracy());
-                    apData.put("confidence", ap.getConfidence());
+                    apData.put("latitude", ap.get().getLatitude());
+                    apData.put("longitude", ap.get().getLongitude());
+                    apData.put("altitude", ap.get().getAltitude());
+                    apData.put("horizontalAccuracy", ap.get().getHorizontalAccuracy());
+                    apData.put("verticalAccuracy", ap.get().getVerticalAccuracy());
+                    apData.put("confidence", ap.get().getConfidence());
                     knownAPs.put(macAddress, apData);
                 }
             }
@@ -154,5 +152,23 @@ public class PositioningServiceTestImpl implements PositioningService {
         options.put("timestamp", Instant.now().toEpochMilli());
         
         return options;
+    }
+
+    private Map<String, WifiAccessPoint> lookupWifiInfo(Map<String, Map<String, Object>> scanResults) {
+        if (scanResults == null || scanResults.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        
+        Map<String, WifiAccessPoint> wifiInfoMap = new HashMap<>();
+        
+        for (Map.Entry<String, Map<String, Object>> entry : scanResults.entrySet()) {
+            String macAddress = entry.getKey();
+            
+            // Look up access point information
+            Optional<WifiAccessPoint> ap = accessPointRepository.findByMacAddress(macAddress);
+            ap.ifPresent(wifiAccessPoint -> wifiInfoMap.put(macAddress, wifiAccessPoint));
+        }
+        
+        return wifiInfoMap;
     }
 } 

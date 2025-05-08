@@ -459,19 +459,19 @@ class GPSPositioningCalculatorTest {
             
             // Simulate 5 positions over time with the same APs but varying signal strengths
             List<WifiScanResult> scans1 = Arrays.asList(
-                new WifiScanResult("00:11:22:33:44:24", -65.0, 2437, "test"),
-                new WifiScanResult("00:11:22:33:44:25", -75.0, 5180, "test"),
-                new WifiScanResult("00:11:22:33:44:26", -85.0, 2437, "test")
+                WifiScanResult.of("00:11:22:33:44:24", -65.0, 2437, "test"),
+                WifiScanResult.of("00:11:22:33:44:25", -75.0, 5180, "test"),
+                WifiScanResult.of("00:11:22:33:44:26", -85.0, 2437, "test")
             );
             List<WifiScanResult> scans2 = Arrays.asList(
-                new WifiScanResult("00:11:22:33:44:24", -64.0, 2437, "test"),
-                new WifiScanResult("00:11:22:33:44:25", -76.0, 5180, "test"),
-                new WifiScanResult("00:11:22:33:44:26", -84.0, 2437, "test")
+                WifiScanResult.of("00:11:22:33:44:24", -64.0, 2437, "test"),
+                WifiScanResult.of("00:11:22:33:44:25", -76.0, 5180, "test"),
+                WifiScanResult.of("00:11:22:33:44:26", -84.0, 2437, "test")
             );
             List<WifiScanResult> scans3 = Arrays.asList(
-                new WifiScanResult("00:11:22:33:44:24", -66.0, 2437, "test"),
-                new WifiScanResult("00:11:22:33:44:25", -74.0, 5180, "test"),
-                new WifiScanResult("00:11:22:33:44:26", -86.0, 2437, "test")
+                WifiScanResult.of("00:11:22:33:44:24", -66.0, 2437, "test"),
+                WifiScanResult.of("00:11:22:33:44:25", -74.0, 5180, "test"),
+                WifiScanResult.of("00:11:22:33:44:26", -86.0, 2437, "test")
             );
             
             List<WifiAccessPoint> aps = testData.getAccessPoints("MixedSignal_Test");
@@ -599,47 +599,47 @@ class GPSPositioningCalculatorTest {
         private Map<String, List<WifiScanResult>> loadWifiScans() {
             return Map.of(
                 "SingleAP_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:01", -65.0, 2437, "test")
+                    WifiScanResult.of("00:11:22:33:44:01", -65.0, 2437, "test")
                 ),
                 "DualAP_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:02", -68.5, 5180, "test"),
-                    new WifiScanResult("00:11:22:33:44:03", -70.0, 5180, "test")
+                    WifiScanResult.of("00:11:22:33:44:02", -68.5, 5180, "test"),
+                    WifiScanResult.of("00:11:22:33:44:03", -70.0, 5180, "test")
                 ),
                 "TriAP_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:04", -72.0, 2437, "test"),
-                    new WifiScanResult("00:11:22:33:44:05", -74.0, 2437, "test"),
-                    new WifiScanResult("00:11:22:33:44:06", -76.0, 2437, "test")
+                    WifiScanResult.of("00:11:22:33:44:04", -72.0, 2437, "test"),
+                    WifiScanResult.of("00:11:22:33:44:05", -74.0, 2437, "test"),
+                    WifiScanResult.of("00:11:22:33:44:06", -76.0, 2437, "test")
                 ),
                 "MultiAP_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:07", -65.0, 5180, "test"),
-                    new WifiScanResult("00:11:22:33:44:08", -67.0, 5180, "test"),
-                    new WifiScanResult("00:11:22:33:44:09", -69.0, 5180, "test"),
-                    new WifiScanResult("00:11:22:33:44:10", -71.0, 5180, "test"),
-                    new WifiScanResult("00:11:22:33:44:11", -73.0, 5180, "test")
+                    WifiScanResult.of("00:11:22:33:44:07", -65.0, 5180, "test"),
+                    WifiScanResult.of("00:11:22:33:44:08", -67.0, 5180, "test"),
+                    WifiScanResult.of("00:11:22:33:44:09", -69.0, 5180, "test"),
+                    WifiScanResult.of("00:11:22:33:44:10", -71.0, 5180, "test"),
+                    WifiScanResult.of("00:11:22:33:44:11", -73.0, 5180, "test")
                 ),
                 "WeakSignal_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:12", -85.0, 2437, "test"),
-                    new WifiScanResult("00:11:22:33:44:13", -87.0, 2437, "test"),
-                    new WifiScanResult("00:11:22:33:44:14", -89.0, 2437, "test")
+                    WifiScanResult.of("00:11:22:33:44:12", -85.0, 2437, "test"),
+                    WifiScanResult.of("00:11:22:33:44:13", -87.0, 2437, "test"),
+                    WifiScanResult.of("00:11:22:33:44:14", -89.0, 2437, "test")
                 ),
                 "Collinear_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:15", -75.0, 5180, "test"),
-                    new WifiScanResult("00:11:22:33:44:16", -77.0, 5180, "test"),
-                    new WifiScanResult("00:11:22:33:44:17", -79.0, 5180, "test")
+                    WifiScanResult.of("00:11:22:33:44:15", -75.0, 5180, "test"),
+                    WifiScanResult.of("00:11:22:33:44:16", -77.0, 5180, "test"),
+                    WifiScanResult.of("00:11:22:33:44:17", -79.0, 5180, "test")
                 ),
                 "HighDensity_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:18", -62.0, 5180, "test"),
-                    new WifiScanResult("00:11:22:33:44:19", -63.0, 5180, "test"),
-                    new WifiScanResult("00:11:22:33:44:20", -64.0, 5180, "test"),
-                    new WifiScanResult("00:11:22:33:44:21", -65.0, 5180, "test"),
-                    new WifiScanResult("00:11:22:33:44:22", -66.0, 5180, "test"),
-                    new WifiScanResult("00:11:22:33:44:23", -67.0, 5180, "test")
+                    WifiScanResult.of("00:11:22:33:44:18", -62.0, 5180, "test"),
+                    WifiScanResult.of("00:11:22:33:44:19", -63.0, 5180, "test"),
+                    WifiScanResult.of("00:11:22:33:44:20", -64.0, 5180, "test"),
+                    WifiScanResult.of("00:11:22:33:44:21", -65.0, 5180, "test"),
+                    WifiScanResult.of("00:11:22:33:44:22", -66.0, 5180, "test"),
+                    WifiScanResult.of("00:11:22:33:44:23", -67.0, 5180, "test")
                 ),
                 "MixedSignal_Test", Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:24", -65.0, 2437, "test"),
-                    new WifiScanResult("00:11:22:33:44:25", -75.0, 5180, "test"),
-                    new WifiScanResult("00:11:22:33:44:26", -85.0, 2437, "test"),
-                    new WifiScanResult("00:11:22:33:44:27", -70.0, 5180, "test")
+                    WifiScanResult.of("00:11:22:33:44:24", -65.0, 2437, "test"),
+                    WifiScanResult.of("00:11:22:33:44:25", -75.0, 5180, "test"),
+                    WifiScanResult.of("00:11:22:33:44:26", -85.0, 2437, "test"),
+                    WifiScanResult.of("00:11:22:33:44:27", -70.0, 5180, "test")
                 )
             );
         }

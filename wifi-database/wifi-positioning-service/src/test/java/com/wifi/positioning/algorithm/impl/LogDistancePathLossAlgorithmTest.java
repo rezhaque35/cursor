@@ -65,7 +65,7 @@ class LogDistancePathLossAlgorithmTest {
         @DisplayName("should return null when knownAPs is null")
         void shouldReturnNullWhenKnownAPsIsNull() {
             List<WifiScanResult> scans = Collections.singletonList(
-                new WifiScanResult("00:11:22:33:44:55", -65.0, 2400, "test-ssid")
+                WifiScanResult.of("00:11:22:33:44:55", -65.0, 2400, "test-ssid")
             );
             assertNull(algorithm.calculatePosition(scans, null));
         }
@@ -92,7 +92,7 @@ class LogDistancePathLossAlgorithmTest {
         }
 
         private WifiScanResult createScan(String mac, double signalStrength) {
-            return new WifiScanResult(mac, signalStrength, 2400, "test-ssid");
+            return WifiScanResult.of(mac, signalStrength, 2400, "test-ssid");
         }
 
         /**
@@ -203,21 +203,21 @@ class LogDistancePathLossAlgorithmTest {
 
             // Test strong signal
             List<WifiScanResult> strongSignal = Collections.singletonList(
-                new WifiScanResult("00:11:22:33:44:55", -45.0, 2400, "test-ssid")
+                WifiScanResult.of("00:11:22:33:44:55", -45.0, 2400, "test-ssid")
             );
             Position strongPosition = algorithm.calculatePosition(strongSignal, knownAPs);
             assertNotNull(strongPosition);
 
             // Test medium signal
             List<WifiScanResult> mediumSignal = Collections.singletonList(
-                new WifiScanResult("00:11:22:33:44:55", -65.0, 2400, "test-ssid")
+                WifiScanResult.of("00:11:22:33:44:55", -65.0, 2400, "test-ssid")
             );
             Position mediumPosition = algorithm.calculatePosition(mediumSignal, knownAPs);
             assertNotNull(mediumPosition);
 
             // Test weak signal
             List<WifiScanResult> weakSignal = Collections.singletonList(
-                new WifiScanResult("00:11:22:33:44:55", -85.0, 2400, "test-ssid")
+                WifiScanResult.of("00:11:22:33:44:55", -85.0, 2400, "test-ssid")
             );
             Position weakPosition = algorithm.calculatePosition(weakSignal, knownAPs);
             assertNotNull(weakPosition);
@@ -268,8 +268,8 @@ class LogDistancePathLossAlgorithmTest {
             );
 
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -65.0, 2400, "test-ssid"),
-                new WifiScanResult("AP2", -70.0, 2400, "test-ssid")
+                WifiScanResult.of("AP1", -65.0, 2400, "test-ssid"),
+                WifiScanResult.of("AP2", -70.0, 2400, "test-ssid")
             );
 
             Position position = algorithm.calculatePosition(scans, knownAPs);

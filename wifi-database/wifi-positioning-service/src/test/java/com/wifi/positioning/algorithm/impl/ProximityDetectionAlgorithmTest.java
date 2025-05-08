@@ -52,7 +52,7 @@ class ProximityDetectionAlgorithmTest {
     }
 
     private WifiScanResult createScan(String mac, double signalStrength) {
-        return new WifiScanResult(mac, signalStrength, 2400, "test-ssid");
+        return WifiScanResult.of(mac, signalStrength, 2400, "test-ssid");
     }
 
     /**
@@ -473,14 +473,14 @@ class ProximityDetectionAlgorithmTest {
             // Given
             // Single AP, strong signal, good GDOP
             List<WifiScanResult> strongSingleAP = Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:55", -50.0, 2400, "TestAP")
+                    WifiScanResult.of("00:11:22:33:44:55", -50.0, 2400, "TestAP")
             );
             
             // Three APs, weak signals, poor GDOP
             List<WifiScanResult> weakThreeAPs = Arrays.asList(
-                    new WifiScanResult("00:11:22:33:44:55", -87.0, 2400, "TestAP1"),
-                    new WifiScanResult("11:22:33:44:55:66", -85.0, 2400, "TestAP2"),
-                    new WifiScanResult("22:33:44:55:66:77", -88.0, 2400, "TestAP3")
+                    WifiScanResult.of("00:11:22:33:44:55", -87.0, 2400, "TestAP1"),
+                    WifiScanResult.of("11:22:33:44:55:66", -85.0, 2400, "TestAP2"),
+                    WifiScanResult.of("22:33:44:55:66:77", -88.0, 2400, "TestAP3")
             );
             
             // When

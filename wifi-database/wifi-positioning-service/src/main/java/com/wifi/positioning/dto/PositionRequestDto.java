@@ -15,7 +15,7 @@ public record PositionRequestDto(
     @NotEmpty(message = "At least one WiFi scan result is required")
     @Size(min = 1, max = 20, message = "Between 1 and 20 WiFi scan results must be provided")
     @Valid
-    List<WifiScanResultDto> wifiScanResults,
+    List<WifiScanResult> wifiScanResults,
     
     @NotBlank(message = "Client is required")
     @Size(max = 50, message = "Client must be at most 50 characters")

@@ -248,7 +248,7 @@ class DefaultContextBuilderTest {
     private List<WifiScanResult> createWifiScans(double[] signalStrengths) {
         List<WifiScanResult> scans = new ArrayList<>();
         for (int i = 0; i < signalStrengths.length; i++) {
-            scans.add(new WifiScanResult(
+            scans.add(WifiScanResult.of(
                     String.format("00:11:22:33:44:%02d", i + 10),
                     signalStrengths[i],
                     2400 + i * 5,

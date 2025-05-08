@@ -16,16 +16,16 @@ import static org.junit.jupiter.api.Assertions.*;
 class PositionRequestDtoTest {
 
     private Validator validator;
-    private WifiScanResultDto validScanResult;
+    private WifiScanResult validScanResult;
 
     @BeforeEach
     void setUp() {
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
         validator = factory.getValidator();
         
-        validScanResult = new WifiScanResultDto(
+        validScanResult = new WifiScanResult(
                 "00:11:22:33:44:55", 
-                -65, 
+                -65.0, 
                 2437, 
                 "test-ssid", 
                 54, 

@@ -19,6 +19,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Collections;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -66,6 +68,21 @@ class GPSPositioningCalculatorAdapterTest {
         lenient().when(rssiRatioAlgorithm.getName()).thenReturn("RSSIRatio");
         lenient().when(trilaterationAlgorithm.getName()).thenReturn("Trilateration");
         lenient().when(maximumLikelihoodAlgorithm.getName()).thenReturn("MaximumLikelihood");
+        
+        // Set up default batch response for repository
+        lenient().when(accessPointRepository.findByMacAddresses(any())).thenAnswer(invocation -> {
+            Set<String> macs = invocation.getArgument(0);
+            Map<String, WifiAccessPoint> result = new HashMap<>();
+            
+            for (String mac : macs) {
+                WifiAccessPoint ap = createTestAP(mac, 37.7749, -122.4194, 10.0);
+                // Mock the WifiAccessPoint to ensure getMacAddress returns the correct value
+                lenient().when(ap.getMacAddress()).thenReturn(mac);
+                result.put(mac, ap);
+            }
+            
+            return result;
+        });
     }
 
     @Test
@@ -82,8 +99,7 @@ class GPSPositioningCalculatorAdapterTest {
 
         // Mock the repository to return a known AP
         WifiAccessPoint ap = createTestAP("00:11:22:33:44:01", 37.7749, -122.4194, 10.5);
-        List<WifiAccessPoint> apList = List.of(ap);
-        when(accessPointRepository.findByMacAddress("00:11:22:33:44:01")).thenReturn(apList);
+        when(accessPointRepository.findByMacAddress("00:11:22:33:44:01")).thenReturn(Optional.of(ap));
 
         // Mock calculator to return a positioning result
         Position position = new Position(37.7749, -122.4194, 10.5, 50.0, 0.65);
@@ -128,8 +144,8 @@ class GPSPositioningCalculatorAdapterTest {
         // Mock the repository to return known APs
         WifiAccessPoint ap1 = createTestAP("00:11:22:33:44:02", 37.7750, -122.4195, 12.5);
         WifiAccessPoint ap2 = createTestAP("00:11:22:33:44:03", 37.7751, -122.4196, 15.0);
-        when(accessPointRepository.findByMacAddress("00:11:22:33:44:02")).thenReturn(List.of(ap1));
-        when(accessPointRepository.findByMacAddress("00:11:22:33:44:03")).thenReturn(List.of(ap2));
+        when(accessPointRepository.findByMacAddress("00:11:22:33:44:02")).thenReturn(Optional.of(ap1));
+        when(accessPointRepository.findByMacAddress("00:11:22:33:44:03")).thenReturn(Optional.of(ap2));
 
         // Mock calculator to return a positioning result
         Position position = new Position(37.7750, -122.4195, 12.5, 25.0, 0.78);
@@ -182,9 +198,9 @@ class GPSPositioningCalculatorAdapterTest {
         WifiAccessPoint ap1 = createTestAP("00:11:22:33:44:02", 37.7750, -122.4195, 12.5);
         WifiAccessPoint ap2 = createTestAP("00:11:22:33:44:03", 37.7751, -122.4196, 15.0);
         WifiAccessPoint ap3 = createTestAP("00:11:22:33:44:04", 37.7752, -122.4197, 18.0);
-        when(accessPointRepository.findByMacAddress("00:11:22:33:44:02")).thenReturn(List.of(ap1));
-        when(accessPointRepository.findByMacAddress("00:11:22:33:44:03")).thenReturn(List.of(ap2));
-        when(accessPointRepository.findByMacAddress("00:11:22:33:44:04")).thenReturn(List.of(ap3));
+        when(accessPointRepository.findByMacAddress("00:11:22:33:44:02")).thenReturn(Optional.of(ap1));
+        when(accessPointRepository.findByMacAddress("00:11:22:33:44:03")).thenReturn(Optional.of(ap2));
+        when(accessPointRepository.findByMacAddress("00:11:22:33:44:04")).thenReturn(Optional.of(ap3));
 
         // Mock calculator to return a positioning result
         Position position = new Position(37.7751, -122.4196, 15.0, 8.5, 0.92);
@@ -225,7 +241,7 @@ class GPSPositioningCalculatorAdapterTest {
             
             // Mock repository to return known AP
             WifiAccessPoint ap = createTestAP(macAddress, 37.7750 + (i * 0.0001), -122.4195 + (i * 0.0001), 12.5 + i);
-            when(accessPointRepository.findByMacAddress(macAddress)).thenReturn(List.of(ap));
+            when(accessPointRepository.findByMacAddress(macAddress)).thenReturn(Optional.of(ap));
         }
 
         // Mock calculator to return a positioning result
@@ -267,7 +283,7 @@ class GPSPositioningCalculatorAdapterTest {
             
             // Mock repository to return known AP
             WifiAccessPoint ap = createTestAP(macAddress, 37.7750 + (i * 0.0001), -122.4195 + (i * 0.0001), 12.5 + i);
-            when(accessPointRepository.findByMacAddress(macAddress)).thenReturn(List.of(ap));
+            when(accessPointRepository.findByMacAddress(macAddress)).thenReturn(Optional.of(ap));
         }
 
         // Mock calculator to return a positioning result with multiple weighted algorithms

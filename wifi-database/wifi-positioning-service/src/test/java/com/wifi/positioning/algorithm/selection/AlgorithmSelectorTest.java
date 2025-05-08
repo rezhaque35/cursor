@@ -74,7 +74,7 @@ class AlgorithmSelectorTest {
         void singleAPDisqualification() {
             // Setup
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -65.0, 2412, "test")
+                WifiScanResult.of("AP1", -65.0, 2412, "test")
             );
             
             Map<String, WifiAccessPoint> apMap = new HashMap<>();
@@ -150,8 +150,8 @@ class AlgorithmSelectorTest {
         void twoAPDisqualification() {
             // Setup
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -65.0, 2412, "test"),
-                new WifiScanResult("AP2", -68.0, 5180, "test")
+                WifiScanResult.of("AP1", -65.0, 2412, "test"),
+                WifiScanResult.of("AP2", -68.0, 5180, "test")
             );
             
             Map<String, WifiAccessPoint> apMap = new HashMap<>();
@@ -221,9 +221,9 @@ class AlgorithmSelectorTest {
         void collinearAPDisqualification() {
             // Setup
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -65.0, 2412, "test"),
-                new WifiScanResult("AP2", -68.0, 5180, "test"),
-                new WifiScanResult("AP3", -70.0, 2412, "test")
+                WifiScanResult.of("AP1", -65.0, 2412, "test"),
+                WifiScanResult.of("AP2", -68.0, 5180, "test"),
+                WifiScanResult.of("AP3", -70.0, 2412, "test")
             );
             
             Map<String, WifiAccessPoint> apMap = new HashMap<>();
@@ -325,9 +325,9 @@ class AlgorithmSelectorTest {
         void extremelyWeakSignalDisqualification() {
             // Setup - use extremely weak signals
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -96.0, 2412, "test"),
-                new WifiScanResult("AP2", -97.0, 5180, "test"),
-                new WifiScanResult("AP3", -99.0, 2437, "test")
+                WifiScanResult.of("AP1", -96.0, 2412, "test"),
+                WifiScanResult.of("AP2", -97.0, 5180, "test"),
+                WifiScanResult.of("AP3", -99.0, 2437, "test")
             );
             
             Map<String, WifiAccessPoint> apMap = new HashMap<>();
@@ -403,9 +403,9 @@ class AlgorithmSelectorTest {
         void extremelyWeakSignalProximityPrioritization() {
             // Setup - use extremely weak signals
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -96.0, 2412, "test"),
-                new WifiScanResult("AP2", -98.0, 5180, "test"),
-                new WifiScanResult("AP3", -99.0, 2437, "test")
+                WifiScanResult.of("AP1", -96.0, 2412, "test"),
+                WifiScanResult.of("AP2", -98.0, 5180, "test"),
+                WifiScanResult.of("AP3", -99.0, 2437, "test")
             );
             
             Map<String, WifiAccessPoint> apMap = new HashMap<>();
@@ -485,10 +485,10 @@ class AlgorithmSelectorTest {
         void fourAPsStrongSignalWeighting() {
             // Setup
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -55.0, 2412, "test"),
-                new WifiScanResult("AP2", -60.0, 5180, "test"),
-                new WifiScanResult("AP3", -58.0, 2437, "test"),
-                new WifiScanResult("AP4", -62.0, 5320, "test")
+                WifiScanResult.of("AP1", -55.0, 2412, "test"),
+                WifiScanResult.of("AP2", -60.0, 5180, "test"),
+                WifiScanResult.of("AP3", -58.0, 2437, "test"),
+                WifiScanResult.of("AP4", -62.0, 5320, "test")
             );
             
             Map<String, WifiAccessPoint> apMap = new HashMap<>();
@@ -555,10 +555,10 @@ class AlgorithmSelectorTest {
         void fourAPsWeakSignalWeighting() {
             // Setup
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -86.0, 2412, "test"),
-                new WifiScanResult("AP2", -88.0, 5180, "test"),
-                new WifiScanResult("AP3", -90.0, 2437, "test"),
-                new WifiScanResult("AP4", -87.0, 5320, "test")
+                WifiScanResult.of("AP1", -86.0, 2412, "test"),
+                WifiScanResult.of("AP2", -88.0, 5180, "test"),
+                WifiScanResult.of("AP3", -90.0, 2437, "test"),
+                WifiScanResult.of("AP4", -87.0, 5320, "test")
             );
             
             Map<String, WifiAccessPoint> apMap = new HashMap<>();
@@ -627,10 +627,10 @@ class AlgorithmSelectorTest {
         void mixedSignalDistributionTest() {
             // Setup - widely distributed signal strengths
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -60.0, 2412, "test"),  // Strong
-                new WifiScanResult("AP2", -75.0, 5180, "test"),  // Medium
-                new WifiScanResult("AP3", -88.0, 2437, "test"),  // Weak
-                new WifiScanResult("AP4", -65.0, 5320, "test")   // Strong
+                WifiScanResult.of("AP1", -60.0, 2412, "test"),  // Strong
+                WifiScanResult.of("AP2", -75.0, 5180, "test"),  // Medium
+                WifiScanResult.of("AP3", -88.0, 2437, "test"),  // Weak
+                WifiScanResult.of("AP4", -65.0, 5320, "test")   // Strong
             );
             
             Map<String, WifiAccessPoint> apMap = new HashMap<>();
@@ -708,9 +708,9 @@ class AlgorithmSelectorTest {
         void poorGeometryAdjustmentTest() {
             // Setup
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -70.0, 2412, "test"),
-                new WifiScanResult("AP2", -72.0, 5180, "test"),
-                new WifiScanResult("AP3", -75.0, 2437, "test")
+                WifiScanResult.of("AP1", -70.0, 2412, "test"),
+                WifiScanResult.of("AP2", -72.0, 5180, "test"),
+                WifiScanResult.of("AP3", -75.0, 2437, "test")
             );
             
             Map<String, WifiAccessPoint> apMap = new HashMap<>();
@@ -776,9 +776,9 @@ class AlgorithmSelectorTest {
             
             // Setup - use extremely weak signals
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -96.0, 2412, "test"),
-                new WifiScanResult("AP2", -98.0, 5180, "test"),
-                new WifiScanResult("AP3", -99.0, 2437, "test")
+                WifiScanResult.of("AP1", -96.0, 2412, "test"),
+                WifiScanResult.of("AP2", -98.0, 5180, "test"),
+                WifiScanResult.of("AP3", -99.0, 2437, "test")
             );
             
             Map<String, WifiAccessPoint> apMap = new HashMap<>();
@@ -847,10 +847,10 @@ class AlgorithmSelectorTest {
         void highWeightSelection() {
             // Setup
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -55.0, 2412, "test"),
-                new WifiScanResult("AP2", -60.0, 5180, "test"),
-                new WifiScanResult("AP3", -58.0, 2437, "test"),
-                new WifiScanResult("AP4", -62.0, 5320, "test")
+                WifiScanResult.of("AP1", -55.0, 2412, "test"),
+                WifiScanResult.of("AP2", -60.0, 5180, "test"),
+                WifiScanResult.of("AP3", -58.0, 2437, "test"),
+                WifiScanResult.of("AP4", -62.0, 5320, "test")
             );
             
             Map<String, WifiAccessPoint> apMap = new HashMap<>();
@@ -918,9 +918,9 @@ class AlgorithmSelectorTest {
         void weightThresholdTest() {
             // Setup
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -87.0, 2412, "test"),
-                new WifiScanResult("AP2", -88.0, 5180, "test"),
-                new WifiScanResult("AP3", -90.0, 2437, "test")
+                WifiScanResult.of("AP1", -87.0, 2412, "test"),
+                WifiScanResult.of("AP2", -88.0, 5180, "test"),
+                WifiScanResult.of("AP3", -90.0, 2437, "test")
             );
             
             Map<String, WifiAccessPoint> apMap = new HashMap<>();

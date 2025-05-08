@@ -47,7 +47,7 @@ class RSSIRatioAlgorithmTest {
     }
 
     private WifiScanResult createScan(String mac, double signalStrength) {
-        return new WifiScanResult(mac, signalStrength, 2400, "test-ssid");
+        return WifiScanResult.of(mac, signalStrength, 2400, "test-ssid");
     }
 
     /**

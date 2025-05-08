@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -53,10 +54,33 @@ public class PositioningControllerIntegrationTest {
         WifiAccessPoint ap3 = createTestAP("00:11:22:33:44:03", 37.7751, -122.4196, 15.0, "TriAP_Test");
         WifiAccessPoint ap4 = createTestAP("00:11:22:33:44:04", 37.7752, -122.4197, 18.0, "MultiAP_Test");
         
-        when(accessPointRepository.findByMacAddress("00:11:22:33:44:01")).thenReturn(List.of(ap1));
-        when(accessPointRepository.findByMacAddress("00:11:22:33:44:02")).thenReturn(List.of(ap2));
-        when(accessPointRepository.findByMacAddress("00:11:22:33:44:03")).thenReturn(List.of(ap3));
-        when(accessPointRepository.findByMacAddress("00:11:22:33:44:04")).thenReturn(List.of(ap4));
+        // Mock individual lookups
+        when(accessPointRepository.findByMacAddress("00:11:22:33:44:01")).thenReturn(Optional.of(ap1));
+        when(accessPointRepository.findByMacAddress("00:11:22:33:44:02")).thenReturn(Optional.of(ap2));
+        when(accessPointRepository.findByMacAddress("00:11:22:33:44:03")).thenReturn(Optional.of(ap3));
+        when(accessPointRepository.findByMacAddress("00:11:22:33:44:04")).thenReturn(Optional.of(ap4));
+        
+        // Mock batch lookups - this is crucial for the integration test
+        when(accessPointRepository.findByMacAddresses(org.mockito.ArgumentMatchers.anySet()))
+            .thenAnswer(invocation -> {
+                java.util.Set<String> macAddresses = invocation.getArgument(0);
+                java.util.Map<String, WifiAccessPoint> result = new java.util.HashMap<>();
+                
+                if (macAddresses.contains("00:11:22:33:44:01")) {
+                    result.put("00:11:22:33:44:01", ap1);
+                }
+                if (macAddresses.contains("00:11:22:33:44:02")) {
+                    result.put("00:11:22:33:44:02", ap2);
+                }
+                if (macAddresses.contains("00:11:22:33:44:03")) {
+                    result.put("00:11:22:33:44:03", ap3);
+                }
+                if (macAddresses.contains("00:11:22:33:44:04")) {
+                    result.put("00:11:22:33:44:04", ap4);
+                }
+                
+                return result;
+            });
     }
 
     @Test

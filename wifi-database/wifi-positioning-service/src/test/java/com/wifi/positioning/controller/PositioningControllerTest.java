@@ -3,7 +3,7 @@ package com.wifi.positioning.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wifi.positioning.dto.PositionRequestDto;
 import com.wifi.positioning.dto.PositionResponseDto;
-import com.wifi.positioning.dto.WifiScanResultDto;
+import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.exception.PositioningException;
 import com.wifi.positioning.service.PositioningService;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,9 +46,9 @@ class PositioningControllerTest {
 
     @BeforeEach
     void setUp() {
-        WifiScanResultDto scanResult = new WifiScanResultDto(
+        WifiScanResult scanResult = new WifiScanResult(
                 "00:11:22:33:44:55",
-                -65,
+                -65.0,
                 2437,
                 "test-ssid",
                 54,

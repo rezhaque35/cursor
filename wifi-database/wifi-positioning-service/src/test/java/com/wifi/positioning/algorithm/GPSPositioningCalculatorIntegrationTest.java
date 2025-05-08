@@ -53,10 +53,10 @@ class GPSPositioningCalculatorIntegrationTest {
                 WifiAccessPoint.builder().macAddress("AP4").latitude(2.0).longitude(2.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build()
             );
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -50.0, 2412, "test"),
-                new WifiScanResult("AP2", -52.0, 2412, "test"),
-                new WifiScanResult("AP3", -51.0, 2412, "test"),
-                new WifiScanResult("AP4", -53.0, 2412, "test")
+                WifiScanResult.of("AP1", -50.0, 2412, "test"),
+                WifiScanResult.of("AP2", -52.0, 2412, "test"),
+                WifiScanResult.of("AP3", -51.0, 2412, "test"),
+                WifiScanResult.of("AP4", -53.0, 2412, "test")
             );
             GPSPositioningCalculator.PositioningResult result = calculator.calculatePosition(scans, aps);
             assertNotNull(result);
@@ -89,10 +89,10 @@ class GPSPositioningCalculatorIntegrationTest {
                 WifiAccessPoint.builder().macAddress("AP4").latitude(2.0).longitude(2.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build()
             );
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -85.0, 2412, "test"),
-                new WifiScanResult("AP2", -88.0, 2412, "test"),
-                new WifiScanResult("AP3", -90.0, 2412, "test"),
-                new WifiScanResult("AP4", -87.0, 2412, "test")
+                WifiScanResult.of("AP1", -85.0, 2412, "test"),
+                WifiScanResult.of("AP2", -88.0, 2412, "test"),
+                WifiScanResult.of("AP3", -90.0, 2412, "test"),
+                WifiScanResult.of("AP4", -87.0, 2412, "test")
             );
             GPSPositioningCalculator.PositioningResult result = calculator.calculatePosition(scans, aps);
             assertNotNull(result);
@@ -120,10 +120,10 @@ class GPSPositioningCalculatorIntegrationTest {
             );
             // Mixed signal quality - some strong, some weak
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -55.0, 2412, "test"),  // Strong
-                new WifiScanResult("AP2", -58.0, 2412, "test"),  // Strong
-                new WifiScanResult("AP3", -82.0, 2412, "test"),  // Weak
-                new WifiScanResult("AP4", -86.0, 2412, "test")   // Weak
+                WifiScanResult.of("AP1", -55.0, 2412, "test"),  // Strong
+                WifiScanResult.of("AP2", -58.0, 2412, "test"),  // Strong
+                WifiScanResult.of("AP3", -82.0, 2412, "test"),  // Weak
+                WifiScanResult.of("AP4", -86.0, 2412, "test")   // Weak
             );
             GPSPositioningCalculator.PositioningResult result = calculator.calculatePosition(scans, aps);
             assertNotNull(result);
@@ -152,9 +152,9 @@ class GPSPositioningCalculatorIntegrationTest {
                 WifiAccessPoint.builder().macAddress("AP3").latitude(1.0).longitude(3.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build()
             );
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -65.0, 2412, "test"),
-                new WifiScanResult("AP2", -60.0, 2412, "test"),
-                new WifiScanResult("AP3", -70.0, 2412, "test")
+                WifiScanResult.of("AP1", -65.0, 2412, "test"),
+                WifiScanResult.of("AP2", -60.0, 2412, "test"),
+                WifiScanResult.of("AP3", -70.0, 2412, "test")
             );
             GPSPositioningCalculator.PositioningResult result = calculator.calculatePosition(scans, aps);
             // We don't require a non-null result since some algorithms may reject collinear APs
@@ -185,10 +185,10 @@ class GPSPositioningCalculatorIntegrationTest {
                 WifiAccessPoint.builder().macAddress("AP4").latitude(0.99).longitude(1.02).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build()
             );
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -60.0, 2412, "test"),
-                new WifiScanResult("AP2", -62.0, 2412, "test"),
-                new WifiScanResult("AP3", -64.0, 2412, "test"),
-                new WifiScanResult("AP4", -61.0, 2412, "test")
+                WifiScanResult.of("AP1", -60.0, 2412, "test"),
+                WifiScanResult.of("AP2", -62.0, 2412, "test"),
+                WifiScanResult.of("AP3", -64.0, 2412, "test"),
+                WifiScanResult.of("AP4", -61.0, 2412, "test")
             );
             GPSPositioningCalculator.PositioningResult result = calculator.calculatePosition(scans, aps);
             assertNotNull(result);
@@ -234,7 +234,7 @@ class GPSPositioningCalculatorIntegrationTest {
                 } else if (i % 2 == 0) { // corner APs
                     signal = -75.0; // weaker signal
                 }
-                scans.add(new WifiScanResult("AP" + i, signal, 2412, "test"));
+                scans.add(WifiScanResult.of("AP" + i, signal, 2412, "test"));
             }
             
             GPSPositioningCalculator.PositioningResult result = calculator.calculatePosition(scans, aps);
@@ -272,10 +272,10 @@ class GPSPositioningCalculatorIntegrationTest {
                 WifiAccessPoint.builder().macAddress("AP4").latitude(2.0).longitude(2.0).altitude(10.0).confidence(0.95).status(WifiAccessPoint.STATUS_ACTIVE).build()
             );
             List<WifiScanResult> scans = Arrays.asList(
-                new WifiScanResult("AP1", -55.0, 2412, "test"),
-                new WifiScanResult("AP2", -58.0, 2412, "test"),
-                new WifiScanResult("AP3", -57.0, 2412, "test"),
-                new WifiScanResult("AP4", -59.0, 2412, "test")
+                WifiScanResult.of("AP1", -55.0, 2412, "test"),
+                WifiScanResult.of("AP2", -58.0, 2412, "test"),
+                WifiScanResult.of("AP3", -57.0, 2412, "test"),
+                WifiScanResult.of("AP4", -59.0, 2412, "test")
             );
             
             GPSPositioningCalculator.PositioningResult result = calculator.calculatePosition(scans, aps);

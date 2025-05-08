@@ -1,0 +1,134 @@
+package com.wifi.positioning.repository;
+
+import com.wifi.positioning.model.WifiAccessPoint;
+import com.wifi.positioning.repository.impl.InMemoryWifiAccessPointRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Tests for the batch operations in WifiAccessPointRepository.
+ * Uses the InMemoryWifiAccessPointRepository for testing.
+ */
+@DisplayName("WifiAccessPointRepository Batch Operations Tests")
+class WifiAccessPointRepositoryBatchTest {
+
+    private TestWifiAccessPointRepository repository;
+    
+    // Test constants
+    private static final String MAC_1 = "00:11:22:33:44:55";
+    private static final String MAC_2 = "AA:BB:CC:DD:EE:FF";
+    private static final String MAC_3 = "11:22:33:44:55:66";
+    private static final String VERSION_1 = "1.0";
+    private static final String VERSION_2 = "2.0";
+    private static final String NONEXISTENT_MAC = "99:99:99:99:99:99";
+
+    @BeforeEach
+    void setUp() {
+        repository = new InMemoryWifiAccessPointRepository();
+        
+        // Add test access points
+        WifiAccessPoint ap1 = WifiAccessPoint.builder()
+                .macAddress(MAC_1)
+                .version(VERSION_1)
+                .latitude(37.7749)
+                .longitude(-122.4194)
+                .build();
+                
+        WifiAccessPoint ap2 = WifiAccessPoint.builder()
+                .macAddress(MAC_2)
+                .version(VERSION_1)
+                .latitude(37.7750)
+                .longitude(-122.4195)
+                .build();
+                
+        WifiAccessPoint ap3 = WifiAccessPoint.builder()
+                .macAddress(MAC_3)
+                .version(VERSION_1)
+                .latitude(37.7751)
+                .longitude(-122.4196)
+                .build();
+                
+        repository.save(ap1);
+        repository.save(ap2);
+        repository.save(ap3);
+    }
+    
+    @Test
+    @DisplayName("Batch find by MAC addresses returns correct results")
+    void batchFindByMacAddressesReturnsCorrectResults() {
+        // Prepare test data
+        Set<String> macAddresses = new HashSet<>(Arrays.asList(MAC_1, MAC_2, NONEXISTENT_MAC));
+        
+        // Execute the batch find
+        Map<String, WifiAccessPoint> results = repository.findByMacAddresses(macAddresses);
+        
+        // Verify
+        assertNotNull(results);
+        assertEquals(2, results.size()); // Only the existing MAC addresses should be in the result
+        
+        // MAC_1 should have one access point
+        assertTrue(results.containsKey(MAC_1));
+        assertEquals(MAC_1, results.get(MAC_1).getMacAddress());
+        
+        // MAC_2 should have one access point
+        assertTrue(results.containsKey(MAC_2));
+        assertEquals(MAC_2, results.get(MAC_2).getMacAddress());
+        
+        // NONEXISTENT_MAC should not be in the results
+        assertFalse(results.containsKey(NONEXISTENT_MAC));
+    }
+    
+    @Test
+    @DisplayName("Batch find with empty set returns empty map")
+    void batchFindWithEmptySetReturnsEmptyMap() {
+        // Execute the batch find with empty set
+        Map<String, WifiAccessPoint> results = repository.findByMacAddresses(Collections.emptySet());
+        
+        // Verify
+        assertNotNull(results);
+        assertTrue(results.isEmpty());
+    }
+    
+    @Test
+    @DisplayName("Batch find with null returns empty map")
+    void batchFindWithNullReturnsEmptyMap() {
+        // Execute the batch find with null
+        Map<String, WifiAccessPoint> results = repository.findByMacAddresses(null);
+        
+        // Verify
+        assertNotNull(results);
+        assertTrue(results.isEmpty());
+    }
+    
+    @Test
+    @DisplayName("Batch find with multiple versions takes the first version")
+    void batchFindWithMultipleVersions() {
+        // Add another version of the first AP
+        WifiAccessPoint ap1v2 = WifiAccessPoint.builder()
+                .macAddress(MAC_1)
+                .version(VERSION_2)
+                .latitude(37.7752)
+                .longitude(-122.4197)
+                .build();
+        repository.save(ap1v2);
+        
+        // Execute the batch find
+        Map<String, WifiAccessPoint> results = repository.findByMacAddresses(
+                new HashSet<>(Arrays.asList(MAC_1)));
+        
+        // Verify
+        assertNotNull(results);
+        assertEquals(1, results.size());
+        assertTrue(results.containsKey(MAC_1));
+        
+        // Verify one of the versions is returned (depending on implementation)
+        WifiAccessPoint ap = results.get(MAC_1);
+        assertEquals(MAC_1, ap.getMacAddress());
+        assertTrue(VERSION_1.equals(ap.getVersion()) || VERSION_2.equals(ap.getVersion()));
+    }
+} 

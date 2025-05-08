@@ -3,7 +3,7 @@ package com.wifi.positioning.service.impl;
 import com.wifi.positioning.algorithm.GPSPositioningCalculatorAdapter;
 import com.wifi.positioning.dto.PositionRequestDto;
 import com.wifi.positioning.dto.PositionResponseDto;
-import com.wifi.positioning.dto.WifiScanResultDto;
+import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.exception.PositioningException;
 import com.wifi.positioning.mapper.WifiScanResultMapper;
 import com.wifi.positioning.service.PositioningService;
@@ -108,9 +108,9 @@ public class PositioningServiceImpl implements PositioningService {
     }
     
     /**
-     * Converts a list of WifiScanResultDto objects to a map format used by the positioning calculator.
+     * Converts a list of WifiScanResult objects to a map format used by the positioning calculator.
      */
-    private Map<String, Map<String, Object>> convertScanResults(List<WifiScanResultDto> scanResults) {
+    private Map<String, Map<String, Object>> convertScanResults(List<WifiScanResult> scanResults) {
         return WifiScanResultMapper.toCalculatorMap(scanResults);
     }
 } 

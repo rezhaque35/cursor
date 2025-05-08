@@ -56,7 +56,7 @@ class TrilaterationAlgorithmTest {
     }
 
     private WifiScanResult createScan(String mac, double signalStrength) {
-        return new WifiScanResult(mac, signalStrength, 2400, "test-ssid");
+        return WifiScanResult.of(mac, signalStrength, 2400, "test-ssid");
     }
 
     /**
@@ -399,9 +399,9 @@ class TrilaterationAlgorithmTest {
             );
 
             // Create custom WifiScanResult objects with different frequencies
-            WifiScanResult scan1 = new WifiScanResult("AP1", -65.0, 2400, "test-ssid");
-            WifiScanResult scan2 = new WifiScanResult("AP2", -65.0, 5000, "test-ssid");
-            WifiScanResult scan3 = new WifiScanResult("AP3", -65.0, 6000, "test-ssid");
+            WifiScanResult scan1 = WifiScanResult.of("AP1", -65.0, 2400, "test-ssid");
+            WifiScanResult scan2 = WifiScanResult.of("AP2", -65.0, 5000, "test-ssid");
+            WifiScanResult scan3 = WifiScanResult.of("AP3", -65.0, 6000, "test-ssid");
 
             List<WifiScanResult> scans = Arrays.asList(scan1, scan2, scan3);
 

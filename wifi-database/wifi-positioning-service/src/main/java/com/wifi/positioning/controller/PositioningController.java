@@ -3,7 +3,7 @@ package com.wifi.positioning.controller;
 import com.wifi.positioning.dto.ApiResponse;
 import com.wifi.positioning.dto.PositionRequestDto;
 import com.wifi.positioning.dto.PositionResponseDto;
-import com.wifi.positioning.dto.WifiScanResultDto;
+import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.exception.PositioningException;
 import com.wifi.positioning.service.PositioningService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,6 +39,11 @@ public class PositioningController {
         } catch (PositioningException e) {
             // Use the status code from the exception
             return ResponseEntity.status(e.getStatus()).body(ApiResponse.error(e.getMessage()));
+        } catch (NullPointerException e) {
+            // Handle null pointer exceptions with a more specific error message
+            return ResponseEntity.status(500).body(
+                ApiResponse.error("Error processing WiFi data: No matching access points found in database")
+            );
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }

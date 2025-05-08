@@ -1,87 +1,29 @@
 package com.wifi.positioning.mapper;
 
 import com.wifi.positioning.dto.WifiScanResult;
-import com.wifi.positioning.dto.WifiScanResultDto;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
- * Mapper class for converting between WifiScanResult and WifiScanResultDto objects.
+ * Mapper class for converting WifiScanResult objects to and from map formats
+ * used by the calculator.
  */
 public class WifiScanResultMapper {
 
     /**
-     * Converts a WifiScanResultDto to a WifiScanResult.
-     *
-     * @param dto The WifiScanResultDto to convert
-     * @return A new WifiScanResult object
-     */
-    public static WifiScanResult toModel(WifiScanResultDto dto) {
-        return new WifiScanResult(
-            dto.macAddress(),
-            dto.signalStrength().doubleValue(), // Convert Integer to Double
-            dto.frequency(),
-            dto.ssid()
-        );
-    }
-
-    /**
-     * Converts a list of WifiScanResultDto objects to a list of WifiScanResult objects.
-     *
-     * @param dtos The list of WifiScanResultDto objects to convert
-     * @return A list of WifiScanResult objects
-     */
-    public static List<WifiScanResult> toModelList(List<WifiScanResultDto> dtos) {
-        return dtos.stream()
-            .map(WifiScanResultMapper::toModel)
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * Creates a minimal WifiScanResultDto from a WifiScanResult.
-     * Note: The returned DTO will not have linkSpeed and channelWidth values.
-     *
-     * @param model The WifiScanResult to convert
-     * @return A new WifiScanResultDto object
-     */
-    public static WifiScanResultDto toDto(WifiScanResult model) {
-        return new WifiScanResultDto(
-            model.macAddress(),
-            model.signalStrength().intValue(), // Convert Double to Integer
-            model.frequency(),
-            model.ssid(),
-            null, // linkSpeed
-            null  // channelWidth
-        );
-    }
-
-    /**
-     * Converts a list of WifiScanResult objects to a list of WifiScanResultDto objects.
-     *
-     * @param models The list of WifiScanResult objects to convert
-     * @return A list of WifiScanResultDto objects
-     */
-    public static List<WifiScanResultDto> toDtoList(List<WifiScanResult> models) {
-        return models.stream()
-            .map(WifiScanResultMapper::toDto)
-            .collect(Collectors.toList());
-    }
-    
-    /**
-     * Converts a list of WifiScanResultDto objects to a map format used by the positioning calculator.
+     * Converts a list of WifiScanResult objects to a map format used by the positioning calculator.
      * The map uses MAC addresses as keys and contains all available properties from the DTO.
      *
-     * @param dtos The list of WifiScanResultDto objects to convert
+     * @param dtos The list of WifiScanResult objects to convert
      * @return A map where keys are MAC addresses and values are maps of properties
      */
-    public static Map<String, Map<String, Object>> toCalculatorMap(List<WifiScanResultDto> dtos) {
+    public static Map<String, Map<String, Object>> toCalculatorMap(List<WifiScanResult> dtos) {
         Map<String, Map<String, Object>> resultMap = new HashMap<>();
         
-        for (WifiScanResultDto dto : dtos) {
+        for (WifiScanResult dto : dtos) {
             Map<String, Object> apData = new HashMap<>();
             apData.put("signalStrength", dto.signalStrength());
             if (dto.frequency() != null) apData.put("frequency", dto.frequency());
@@ -117,12 +59,16 @@ public class WifiScanResultMapper {
                 
                 Integer frequency = getIntValue(data, "frequency");
                 String ssid = (String) data.get("ssid");
+                Integer linkSpeed = getIntValue(data, "linkSpeed");
+                Integer channelWidth = getIntValue(data, "channelWidth");
                 
                 results.add(new WifiScanResult(
                     macAddress,
                     signalStrength,
                     frequency,
-                    ssid
+                    ssid,
+                    linkSpeed,
+                    channelWidth
                 ));
             } catch (IllegalArgumentException e) {
                 // Skip invalid entries

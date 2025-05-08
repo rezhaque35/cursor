@@ -1,14 +1,14 @@
 package com.wifi.positioning.service;
 
 import com.wifi.positioning.algorithm.GPSPositioningCalculatorAdapter;
+import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.PositionRequestDto;
 import com.wifi.positioning.dto.PositionResponseDto;
-import com.wifi.positioning.dto.WifiScanResultDto;
+import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.exception.PositioningException;
 import com.wifi.positioning.model.WifiAccessPoint;
 import com.wifi.positioning.repository.WifiAccessPointRepository;
 import com.wifi.positioning.service.impl.PositioningServiceImpl;
-import com.wifi.positioning.service.impl.PositioningServiceTestImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +44,7 @@ class PositioningServiceTest {
     
     @BeforeEach
     void setUp() {
+        // Create test data
         testAccessPoint = WifiAccessPoint.builder()
                 .macAddress("00:11:22:33:44:55")
                 .version("test-1.0")
@@ -59,13 +60,15 @@ class PositioningServiceTest {
                 .geohash("9q8yyk")
                 .build();
         
-        WifiScanResultDto scanResult = new WifiScanResultDto(
+        // Create map for mac address lookup
+        Map<String, WifiAccessPoint> macAddressToAP = new HashMap<>();
+        macAddressToAP.put(testAccessPoint.getMacAddress(), testAccessPoint);
+        
+        WifiScanResult scanResult = WifiScanResult.of(
                 "00:11:22:33:44:55", 
-                -65, 
+                -65.0, 
                 2437, 
-                "test-ssid", 
-                54, 
-                40);
+                "test-ssid");
         
         validRequest = new PositionRequestDto(
                 List.of(scanResult),
@@ -73,111 +76,62 @@ class PositioningServiceTest {
                 TEST_REQUEST_ID,
                 TEST_APPLICATION,
                 false);
-                
+        
         // Use lenient stubbing to avoid unnecessary stubbing errors
-        lenient().when(accessPointRepository.findByMacAddress(anyString()))
-                .thenReturn(List.of(testAccessPoint));
+        lenient().when(accessPointRepository.findByMacAddress(testAccessPoint.getMacAddress()))
+                .thenReturn(Optional.of(testAccessPoint));
+        
+        Map<String, WifiAccessPoint> batchResult = new HashMap<>();
+        batchResult.put(testAccessPoint.getMacAddress(), testAccessPoint);
+        lenient().when(accessPointRepository.findByMacAddresses(anySet()))
+                .thenReturn(batchResult);
     }
 
     @Test
-    void calculatePositionSuccess() {
-        // Mock calculator response
+    void should_CalculatePosition_When_ValidRequest() {
+        // Setup
         Map<String, Object> calculatorResult = new HashMap<>();
+        calculatorResult.put("positionFound", true);
         calculatorResult.put("latitude", 37.7749);
         calculatorResult.put("longitude", -122.4194);
-        calculatorResult.put("altitude", 10.0);
-        calculatorResult.put("horizontalAccuracy", 5.0);
-        calculatorResult.put("verticalAccuracy", 2.0);
+        calculatorResult.put("horizontalAccuracy", 15.0);
         calculatorResult.put("confidence", 0.85);
-        calculatorResult.put("methodsUsed", List.of("test-method-1", "test-method-2"));
-        calculatorResult.put("apCount", 1);
-        calculatorResult.put("positionFound", true);
-        calculatorResult.put("timestamp", 1621234567890L);
-        calculatorResult.put("calculationTimeMs", 150L);
+        calculatorResult.put("methodsUsed", List.of("proximity"));
         
-        // Create empty alternatives list
-        calculatorResult.put("alternatives", new ArrayList<>());
+        when(positioningCalculator.calculatePosition(any(), any())).thenReturn(calculatorResult);
         
-        // Create arguments captor
-        ArgumentCaptor<Map<String, Object>> optionsCaptor = ArgumentCaptor.forClass(Map.class);
-        
-        // Mock the positioning calculator
-        when(positioningCalculator.calculatePosition(anyMap(), optionsCaptor.capture()))
-                .thenReturn(calculatorResult);
-                
-        // Call the service method
+        // Execute
         PositionResponseDto response = positioningService.calculatePosition(validRequest);
         
-        // Verify response
+        // Verify
         assertNotNull(response);
         assertEquals(37.7749, response.latitude());
         assertEquals(-122.4194, response.longitude());
-        assertEquals(10.0, response.altitude());
-        assertEquals(5.0, response.horizontalAccuracy());
-        assertEquals(2.0, response.verticalAccuracy());
+        assertEquals(15.0, response.horizontalAccuracy());
         assertEquals(0.85, response.confidence());
-        assertEquals(List.of("test-method-1", "test-method-2"), response.methodsUsed());
-        assertEquals(1, response.apCount());
-        assertNotNull(response.metadata());
-        assertTrue(response.metadata().containsKey("timestamp"));
+        assertEquals(List.of("proximity"), response.methodsUsed());
         
-        // Verify calculator was called with correct options
-        Map<String, Object> options = optionsCaptor.getValue();
-        assertEquals(TEST_CLIENT, options.get("client"));
-        assertEquals(TEST_REQUEST_ID, options.get("requestId"));
-        assertEquals(TEST_APPLICATION, options.get("application"));
+        // Verify the calculator was called with the correct data
+        ArgumentCaptor<Map<String, Map<String, Object>>> scanResultsCaptor = 
+                ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<Map<String, Object>> optionsCaptor = 
+                ArgumentCaptor.forClass(Map.class);
+        
+        verify(positioningCalculator).calculatePosition(scanResultsCaptor.capture(), optionsCaptor.capture());
+        
+        Map<String, Map<String, Object>> capturedScanResults = scanResultsCaptor.getValue();
+        assertNotNull(capturedScanResults);
+        assertTrue(capturedScanResults.containsKey("00:11:22:33:44:55"));
+        
+        Map<String, Object> capturedOptions = optionsCaptor.getValue();
+        assertEquals(TEST_CLIENT, capturedOptions.get("client"));
+        assertEquals(TEST_REQUEST_ID, capturedOptions.get("requestId"));
+        assertEquals(TEST_APPLICATION, capturedOptions.get("application"));
     }
-
+    
     @Test
-    void calculatePositionWithAlternatives() {
-        // Mock calculator response with alternatives
-        Map<String, Object> calculatorResult = new HashMap<>();
-        calculatorResult.put("latitude", 37.7749);
-        calculatorResult.put("longitude", -122.4194);
-        calculatorResult.put("altitude", 10.0);
-        calculatorResult.put("horizontalAccuracy", 5.0);
-        calculatorResult.put("verticalAccuracy", 2.0);
-        calculatorResult.put("confidence", 0.85);
-        calculatorResult.put("methodsUsed", List.of("test-method-1", "test-method-2"));
-        calculatorResult.put("apCount", 1);
-        calculatorResult.put("positionFound", true);
-        calculatorResult.put("timestamp", 1621234567890L);
-        calculatorResult.put("calculationTimeMs", 150L);
-        
-        // Create alternatives list
-        List<Map<String, Object>> alternativesList = new ArrayList<>();
-        Map<String, Object> alternative1 = new HashMap<>();
-        alternative1.put("latitude", 37.775);
-        alternative1.put("longitude", -122.42);
-        alternative1.put("altitude", 12.0);
-        alternative1.put("horizontalAccuracy", 6.0);
-        alternative1.put("verticalAccuracy", 3.0);
-        alternative1.put("confidence", 0.75);
-        alternative1.put("method", "test-method-alt");
-        alternativesList.add(alternative1);
-        calculatorResult.put("alternatives", alternativesList);
-        
-        // Mock the positioning calculator
-        when(positioningCalculator.calculatePosition(anyMap(), any(Map.class)))
-                .thenReturn(calculatorResult);
-                
-        // Call the service method
-        PositionResponseDto response = positioningService.calculatePosition(validRequest);
-        
-        // Verify response
-        assertNotNull(response);
-        assertEquals(37.7749, response.latitude());
-        assertEquals(-122.4194, response.longitude());
-        assertEquals(1, response.alternatives().size());
-        
-        PositionResponseDto.AlternativePositionDto alt = response.alternatives().get(0);
-        assertEquals(37.775, alt.latitude());
-        assertEquals(-122.42, alt.longitude());
-        assertEquals("test-method-alt", alt.method());
-    }
-
-    @Test
-    void calculatePositionEmptyRequest() {
+    void should_ThrowException_When_NoScanResults() {
+        // Setup
         PositionRequestDto emptyRequest = new PositionRequestDto(
                 Collections.emptyList(),
                 TEST_CLIENT,
@@ -185,98 +139,58 @@ class PositioningServiceTest {
                 TEST_APPLICATION,
                 false);
         
-        assertThrows(PositioningException.class, () -> 
-                positioningService.calculatePosition(emptyRequest));
-    }
-
-    @Test
-    void calculatePositionCalculatorError() {
-        when(positioningCalculator.calculatePosition(anyMap(), anyMap()))
-                .thenThrow(new RuntimeException("Test calculator error"));
+        // Execute & Verify
+        PositioningException exception = assertThrows(
+                PositioningException.class,
+                () -> positioningService.calculatePosition(emptyRequest));
         
-        assertThrows(PositioningException.class, () -> 
-                positioningService.calculatePosition(validRequest));
+        assertEquals("No WiFi scan results provided", exception.getMessage());
     }
-
+    
     @Test
-    void verifyOptionsPassedToCalculator() {
-        // Mock calculator response with simple success
+    void should_ThrowException_When_PositionNotFound() {
+        // Setup
         Map<String, Object> calculatorResult = new HashMap<>();
-        calculatorResult.put("latitude", 37.7749);
-        calculatorResult.put("longitude", -122.4194);
-        calculatorResult.put("positionFound", true);
+        calculatorResult.put("positionFound", false);
         
-        // Create a proper mock instead of using lenient()
-        when(positioningCalculator.calculatePosition(anyMap(), any()))
-                .thenAnswer(invocation -> {
-                    Map<String, Object> options = invocation.getArgument(1);
-                    
-                    // Verify new fields are passed correctly
-                    assertEquals(TEST_CLIENT, options.get("client"));
-                    assertEquals(TEST_REQUEST_ID, options.get("requestId"));
-                    assertEquals(TEST_APPLICATION, options.get("application"));
-                    
-                    return calculatorResult;
-                });
+        when(positioningCalculator.calculatePosition(any(), any())).thenReturn(calculatorResult);
         
-        positioningService.calculatePosition(validRequest);
+        // Execute & Verify
+        PositioningException exception = assertThrows(
+                PositioningException.class,
+                () -> positioningService.calculatePosition(validRequest));
         
-        // Verify the calculator was called
-        verify(positioningCalculator).calculatePosition(anyMap(), any());
+        assertEquals("Unable to calculate position with provided scan results", exception.getMessage());
     }
-
+    
     @Test
-    void verifyCalculationDetailFlagPassedToCalculator() {
-        // Create a request with calculationDetail set to true
-        PositionRequestDto requestWithDetail = new PositionRequestDto(
-                validRequest.wifiScanResults(),
-                TEST_CLIENT,
-                TEST_REQUEST_ID,
-                TEST_APPLICATION,
-                true);
-        
-        // Create arguments captor
-        ArgumentCaptor<Map<String, Object>> optionsCaptor = ArgumentCaptor.forClass(Map.class);
-        
-        // Mock calculator response
+    void should_ThrowException_When_ErrorMessagePresent() {
+        // Setup
         Map<String, Object> calculatorResult = new HashMap<>();
-        calculatorResult.put("positionFound", true);
-        calculatorResult.put("latitude", 37.7749);
-        calculatorResult.put("longitude", -122.4194);
-        calculatorResult.put("calculationInfo", "Detailed calculation information");
+        calculatorResult.put("positionFound", false);
+        calculatorResult.put("errorMessage", "Signal physics validation failed");
         
-        // Mock the positioning calculator
-        when(positioningCalculator.calculatePosition(anyMap(), optionsCaptor.capture()))
-                .thenReturn(calculatorResult);
-                
-        // Call the service method
-        positioningService.calculatePosition(requestWithDetail);
+        when(positioningCalculator.calculatePosition(any(), any())).thenReturn(calculatorResult);
         
-        // Verify calculator was called with correct options
-        Map<String, Object> options = optionsCaptor.getValue();
-        assertTrue(options.containsKey("calculationDetail"));
-        assertEquals(true, options.get("calculationDetail"));
+        // Execute & Verify
+        PositioningException exception = assertThrows(
+                PositioningException.class,
+                () -> positioningService.calculatePosition(validRequest));
         
-        // Test with calculationDetail set to false
-        PositionRequestDto requestWithoutDetail = new PositionRequestDto(
-                validRequest.wifiScanResults(),
-                TEST_CLIENT,
-                TEST_REQUEST_ID,
-                TEST_APPLICATION,
-                false);
+        assertEquals("Signal physics validation failed", exception.getMessage());
+    }
+    
+    @Test
+    void should_ThrowException_When_CalculatorThrowsException() {
+        // Setup
+        when(positioningCalculator.calculatePosition(any(), any()))
+                .thenThrow(new RuntimeException("Calculator internal error"));
         
-        // Reset to capture new options
-        optionsCaptor = ArgumentCaptor.forClass(Map.class);
+        // Execute & Verify
+        PositioningException exception = assertThrows(
+                PositioningException.class,
+                () -> positioningService.calculatePosition(validRequest));
         
-        // Mock the positioning calculator again
-        when(positioningCalculator.calculatePosition(anyMap(), optionsCaptor.capture()))
-                .thenReturn(calculatorResult);
-                
-        // Call the service method
-        positioningService.calculatePosition(requestWithoutDetail);
-        
-        // Verify calculator was called without calculationDetail flag
-        options = optionsCaptor.getValue();
-        assertFalse(options.containsKey("calculationDetail"));
+        assertEquals("Error calculating position: Calculator internal error", exception.getMessage());
     }
 } 

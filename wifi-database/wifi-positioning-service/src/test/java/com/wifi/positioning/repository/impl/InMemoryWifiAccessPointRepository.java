@@ -2,10 +2,8 @@ package com.wifi.positioning.repository.impl;
 
 import com.wifi.positioning.model.WifiAccessPoint;
 import com.wifi.positioning.repository.TestWifiAccessPointRepository;
-import com.wifi.positioning.repository.WifiAccessPointRepository;
 import org.springframework.context.annotation.Profile;
 
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -21,8 +19,33 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
     private final Map<String, List<WifiAccessPoint>> dataStore = new ConcurrentHashMap<>();
     
     @Override
-    public List<WifiAccessPoint> findByMacAddress(String macAddress) {
-        return dataStore.getOrDefault(macAddress, Collections.emptyList());
+    public Optional<WifiAccessPoint> findByMacAddress(String macAddress) {
+        List<WifiAccessPoint> accessPoints = dataStore.getOrDefault(macAddress, Collections.emptyList());
+        return accessPoints.isEmpty() ? Optional.empty() : Optional.of(accessPoints.get(0));
+    }
+    
+    /**
+     * Find multiple access points by their MAC addresses in a single batch operation.
+     * This in-memory implementation maps each MAC address to its corresponding access point.
+     * 
+     * @param macAddresses Set of MAC addresses to look up
+     * @return Map of MAC addresses to matching access points
+     */
+    @Override
+    public Map<String, WifiAccessPoint> findByMacAddresses(Set<String> macAddresses) {
+        if (macAddresses == null || macAddresses.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        
+        Map<String, WifiAccessPoint> result = new HashMap<>();
+        
+        // Lookup each MAC address and add to the result map
+        for (String macAddress : macAddresses) {
+            Optional<WifiAccessPoint> accessPoint = findByMacAddress(macAddress);
+            accessPoint.ifPresent(ap -> result.put(macAddress, ap));
+        }
+        
+        return result;
     }
     
     /**
@@ -185,7 +208,7 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
     public void loadProximityDetectionScenario() {
         WifiAccessPoint ap = WifiAccessPoint.builder()
                 .macAddress("00:11:22:33:44:01")
-                .version("20240411-120000")
+                .version("v1.0")
                 .latitude(37.7749)
                 .longitude(-122.4194)
                 .altitude(10.5)
@@ -206,9 +229,9 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
      * Loads test data for the "Two APs - RSSI Ratio Method" scenario
      */
     public void loadRssiRatioScenario() {
-        WifiAccessPoint ap = WifiAccessPoint.builder()
+        WifiAccessPoint ap1 = WifiAccessPoint.builder()
                 .macAddress("00:11:22:33:44:02")
-                .version("20240411-120100")
+                .version("v1.0")
                 .latitude(37.7750)
                 .longitude(-122.4195)
                 .altitude(12.5)
@@ -222,57 +245,125 @@ public class InMemoryWifiAccessPointRepository implements TestWifiAccessPointRep
                 .status(WifiAccessPoint.STATUS_ACTIVE)
                 .build();
         
-        addAccessPoint(ap);
+        WifiAccessPoint ap2 = WifiAccessPoint.builder()
+                .macAddress("00:11:22:33:44:03")
+                .version("v1.0")
+                .latitude(37.7752)
+                .longitude(-122.4198)
+                .altitude(15.0)
+                .horizontalAccuracy(30.0)
+                .verticalAccuracy(7.0)
+                .confidence(0.75)
+                .ssid("DualAP_Test")
+                .frequency(2437)
+                .vendor("Cisco")
+                .geohash("9q8yyk")
+                .status(WifiAccessPoint.STATUS_ACTIVE)
+                .build();
+        
+        addAccessPoint(ap1);
+        addAccessPoint(ap2);
     }
     
     /**
      * Loads test data for the "Three APs - Trilateration" scenario
      */
     public void loadTrilaterationScenario() {
-        WifiAccessPoint ap = WifiAccessPoint.builder()
-                .macAddress("00:11:22:33:44:03")
-                .version("20240411-120200")
-                .latitude(37.7751)
-                .longitude(-122.4196)
-                .altitude(15.0)
-                .horizontalAccuracy(8.5)
-                .verticalAccuracy(3.0)
+        WifiAccessPoint ap1 = WifiAccessPoint.builder()
+                .macAddress("00:11:22:33:44:04")
+                .version("v1.0")
+                .latitude(37.7753)
+                .longitude(-122.4190)
+                .altitude(18.0)
+                .horizontalAccuracy(20.0)
+                .verticalAccuracy(5.0)
                 .confidence(0.92)
                 .ssid("TriAP_Test")
-                .frequency(2462)
-                .vendor("Ubiquiti")
+                .frequency(2437)
+                .vendor("Meraki")
                 .geohash("9q8yyk")
                 .status(WifiAccessPoint.STATUS_ACTIVE)
                 .build();
         
-        addAccessPoint(ap);
+        WifiAccessPoint ap2 = WifiAccessPoint.builder()
+                .macAddress("00:11:22:33:44:05")
+                .version("v1.0")
+                .latitude(37.7755)
+                .longitude(-122.4192)
+                .altitude(19.0)
+                .horizontalAccuracy(18.0)
+                .verticalAccuracy(4.0)
+                .confidence(0.94)
+                .ssid("TriAP_Test")
+                .frequency(2437)
+                .vendor("Meraki")
+                .geohash("9q8yyk")
+                .status(WifiAccessPoint.STATUS_ACTIVE)
+                .build();
+                
+        WifiAccessPoint ap3 = WifiAccessPoint.builder()
+                .macAddress("00:11:22:33:44:06")
+                .version("v1.0")
+                .latitude(37.7758)
+                .longitude(-122.4195)
+                .altitude(20.0)
+                .horizontalAccuracy(15.0)
+                .verticalAccuracy(3.0)
+                .confidence(0.95)
+                .ssid("TriAP_Test")
+                .frequency(2437)
+                .vendor("Meraki")
+                .geohash("9q8yyk")
+                .status(WifiAccessPoint.STATUS_ACTIVE)
+                .build();
+                
+        addAccessPoint(ap1);
+        addAccessPoint(ap2);
+        addAccessPoint(ap3);
     }
     
     /**
-     * Loads test data for the "Weak Signals" scenario
+     * Loads test data for weak signals scenario
      */
     public void loadWeakSignalsScenario() {
-        WifiAccessPoint ap = WifiAccessPoint.builder()
-                .macAddress("00:11:22:33:44:05")
-                .version("20240411-120400")
-                .latitude(37.7753)
-                .longitude(-122.4198)
-                .altitude(20.0)
-                .horizontalAccuracy(35.0)
+        WifiAccessPoint ap1 = WifiAccessPoint.builder()
+                .macAddress("00:11:22:33:44:07")
+                .version("v1.0")
+                .latitude(37.7760)
+                .longitude(-122.4200)
+                .altitude(25.0)
+                .horizontalAccuracy(40.0)
                 .verticalAccuracy(10.0)
-                .confidence(0.45)
-                .ssid("WeakSignal_Test")
-                .frequency(2412)
-                .vendor("Netgear")
+                .confidence(0.65)
+                .ssid("WeakTest")
+                .frequency(2437)
+                .vendor("Ruckus")
                 .geohash("9q8yyk")
-                .status(WifiAccessPoint.STATUS_WARNING)
+                .status(WifiAccessPoint.STATUS_ACTIVE)
                 .build();
-        
-        addAccessPoint(ap);
+                
+        WifiAccessPoint ap2 = WifiAccessPoint.builder()
+                .macAddress("00:11:22:33:44:08")
+                .version("v1.0")
+                .latitude(37.7762)
+                .longitude(-122.4203)
+                .altitude(26.0)
+                .horizontalAccuracy(45.0)
+                .verticalAccuracy(12.0)
+                .confidence(0.60)
+                .ssid("WeakTest")
+                .frequency(2437)
+                .vendor("Ruckus")
+                .geohash("9q8yyk")
+                .status(WifiAccessPoint.STATUS_ACTIVE)
+                .build();
+                
+        addAccessPoint(ap1);
+        addAccessPoint(ap2);
     }
     
     /**
-     * Loads test data for all scenarios
+     * Loads all test scenarios data
      */
     public void loadAllTestScenarios() {
         loadProximityDetectionScenario();

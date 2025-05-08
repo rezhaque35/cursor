@@ -10,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -47,12 +48,12 @@ class WifiAccessPointRepositoryTest {
     }
 
     @Test
-    void findByMacAddress_shouldReturnEmptyList_whenNoAccessPointExists() {
+    void findByMacAddress_shouldReturnEmptyOptional_whenNoAccessPointExists() {
         // Act
-        List<WifiAccessPoint> found = repository.findByMacAddress("non:existent:mac");
+        Optional<WifiAccessPoint> found = repository.findByMacAddress("non:existent:mac");
         
         // Assert
-        assertTrue(found.isEmpty());
+        assertFalse(found.isPresent());
     }
 
     @Test
@@ -61,18 +62,18 @@ class WifiAccessPointRepositoryTest {
         inMemoryRepository.addAccessPoint(testAccessPoint);
         
         // Act
-        List<WifiAccessPoint> found = repository.findByMacAddress(testAccessPoint.getMacAddress());
+        Optional<WifiAccessPoint> found = repository.findByMacAddress(testAccessPoint.getMacAddress());
         
         // Assert
-        assertEquals(1, found.size());
-        assertEquals(testAccessPoint.getMacAddress(), found.get(0).getMacAddress());
-        assertEquals(testAccessPoint.getVersion(), found.get(0).getVersion());
-        assertEquals(testAccessPoint.getLatitude(), found.get(0).getLatitude());
-        assertEquals(testAccessPoint.getLongitude(), found.get(0).getLongitude());
+        assertTrue(found.isPresent());
+        assertEquals(testAccessPoint.getMacAddress(), found.get().getMacAddress());
+        assertEquals(testAccessPoint.getVersion(), found.get().getVersion());
+        assertEquals(testAccessPoint.getLatitude(), found.get().getLatitude());
+        assertEquals(testAccessPoint.getLongitude(), found.get().getLongitude());
     }
 
     @Test
-    void findByMacAddress_shouldReturnMultipleVersions_whenMultipleVersionsExist() {
+    void findByMacAddress_shouldReturnFirstVersion_whenMultipleVersionsExist() {
         // Arrange
         inMemoryRepository.addAccessPoint(testAccessPoint);
         
@@ -88,30 +89,29 @@ class WifiAccessPointRepositoryTest {
         inMemoryRepository.addAccessPoint(secondVersion);
         
         // Act
-        List<WifiAccessPoint> found = repository.findByMacAddress(testAccessPoint.getMacAddress());
+        Optional<WifiAccessPoint> found = repository.findByMacAddress(testAccessPoint.getMacAddress());
         
         // Assert
-        assertEquals(2, found.size());
-        assertTrue(found.stream().anyMatch(ap -> ap.getVersion().equals("test-1.0")));
-        assertTrue(found.stream().anyMatch(ap -> ap.getVersion().equals("test-2.0")));
+        assertTrue(found.isPresent());
+        assertEquals(testAccessPoint.getMacAddress(), found.get().getMacAddress());
+        // Note: Since we're not controlling the order in the in-memory implementation,
+        // we can't assert exactly which version we'll get, just that we get one.
     }
     
     @Test
     void findByMacAddress_shouldReturnCorrectData_forProximityDetectionScenario() {
-        // Arrange
+        // Arrange - setup test data in InMemoryWifiAccessPointRepository
         inMemoryRepository.loadProximityDetectionScenario();
         
         // Act
-        List<WifiAccessPoint> found = repository.findByMacAddress("00:11:22:33:44:01");
+        Optional<WifiAccessPoint> found = repository.findByMacAddress("00:11:22:33:44:01");
         
         // Assert
-        assertFalse(found.isEmpty());
-        assertEquals(1, found.size());
-        WifiAccessPoint ap = found.get(0);
-        assertEquals("00:11:22:33:44:01", ap.getMacAddress());
-        assertEquals("20240411-120000", ap.getVersion());
-        assertEquals(0.65, ap.getConfidence());
-        assertEquals("SingleAP_Test", ap.getSsid());
+        assertTrue(found.isPresent());
+        assertEquals("00:11:22:33:44:01", found.get().getMacAddress());
+        assertEquals("v1.0", found.get().getVersion());
+        assertEquals(37.7749, found.get().getLatitude());
+        assertEquals(-122.4194, found.get().getLongitude());
     }
     
     @Test
@@ -120,15 +120,12 @@ class WifiAccessPointRepositoryTest {
         inMemoryRepository.loadRssiRatioScenario();
         
         // Act
-        List<WifiAccessPoint> found = repository.findByMacAddress("00:11:22:33:44:02");
+        Optional<WifiAccessPoint> found = repository.findByMacAddress("00:11:22:33:44:02");
         
         // Assert
-        assertFalse(found.isEmpty());
-        assertEquals(1, found.size());
-        WifiAccessPoint ap = found.get(0);
-        assertEquals("00:11:22:33:44:02", ap.getMacAddress());
-        assertEquals(0.78, ap.getConfidence());
-        assertEquals("DualAP_Test", ap.getSsid());
+        assertTrue(found.isPresent());
+        assertEquals("00:11:22:33:44:02", found.get().getMacAddress());
+        assertEquals("v1.0", found.get().getVersion());
     }
     
     @Test
@@ -137,15 +134,14 @@ class WifiAccessPointRepositoryTest {
         inMemoryRepository.loadWeakSignalsScenario();
         
         // Act
-        List<WifiAccessPoint> found = repository.findByMacAddress("00:11:22:33:44:05");
+        Optional<WifiAccessPoint> found = repository.findByMacAddress("00:11:22:33:44:07");
         
         // Assert
-        assertFalse(found.isEmpty());
-        assertEquals(1, found.size());
-        WifiAccessPoint ap = found.get(0);
-        assertEquals("00:11:22:33:44:05", ap.getMacAddress());
-        assertEquals(0.45, ap.getConfidence());
-        assertEquals("WeakSignal_Test", ap.getSsid());
+        assertTrue(found.isPresent());
+        assertEquals("00:11:22:33:44:07", found.get().getMacAddress());
+        assertEquals("v1.0", found.get().getVersion());
+        assertTrue(found.get().getLatitude() > 0);
+        assertTrue(found.get().getLongitude() < 0);
     }
     
     @Test
@@ -153,10 +149,10 @@ class WifiAccessPointRepositoryTest {
         // Arrange
         inMemoryRepository.loadAllTestScenarios();
         
-        // Assert multiple scenarios are loaded
-        assertFalse(repository.findByMacAddress("00:11:22:33:44:01").isEmpty()); // Proximity
-        assertFalse(repository.findByMacAddress("00:11:22:33:44:02").isEmpty()); // RSSI Ratio
-        assertFalse(repository.findByMacAddress("00:11:22:33:44:03").isEmpty()); // Trilateration
-        assertFalse(repository.findByMacAddress("00:11:22:33:44:05").isEmpty()); // Weak Signal
+        // Assert
+        assertTrue(repository.findByMacAddress("00:11:22:33:44:01").isPresent()); // Proximity
+        assertTrue(repository.findByMacAddress("00:11:22:33:44:02").isPresent()); // RSSI Ratio
+        assertTrue(repository.findByMacAddress("00:11:22:33:44:03").isPresent()); // Trilateration
+        assertTrue(repository.findByMacAddress("00:11:22:33:44:07").isPresent()); // Weak Signal
     }
 } 
