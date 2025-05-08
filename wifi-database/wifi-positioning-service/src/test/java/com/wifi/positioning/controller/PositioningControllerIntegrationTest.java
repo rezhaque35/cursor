@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
@@ -41,6 +42,9 @@ public class PositioningControllerIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    private static final String TEST_CLIENT = "integration-test-client";
+    private static final String TEST_APPLICATION = "integration-test-app";
+
     @BeforeEach
     void setUp() {
         // Set up mock responses
@@ -56,8 +60,8 @@ public class PositioningControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Single AP Test - HTTP Response should contain valid algorithm name for bestMethod")
-    void singleAPHttpResponseShouldUseProximityAlgorithmName() throws Exception {
+    @DisplayName("Single AP Test - HTTP Response should contain valid methods used")
+    void singleAPHttpResponseShouldContainMethodsUsed() throws Exception {
         // Create test payload
         String requestBody = "{\n" +
                 "  \"wifiScanResults\": [\n" +
@@ -68,8 +72,9 @@ public class PositioningControllerIntegrationTest {
                 "      \"frequency\": 2437\n" +
                 "    }\n" +
                 "  ],\n" +
-                "  \"preferHighAccuracy\": false,\n" +
-                "  \"returnAllMethods\": true\n" +
+                "  \"client\": \"" + TEST_CLIENT + "\",\n" +
+                "  \"requestId\": \"" + UUID.randomUUID() + "\",\n" +
+                "  \"application\": \"" + TEST_APPLICATION + "\"\n" +
                 "}";
 
         // Send request and verify response
@@ -83,22 +88,18 @@ public class PositioningControllerIntegrationTest {
         JsonNode jsonResponse = objectMapper.readTree(result.getResponse().getContentAsString());
         JsonNode data = jsonResponse.get("data");
         
-        // Verify algorithm name exists (could be any valid algorithm including proximity, trilateration, etc.)
-        assertNotNull(data);
-        assertNotNull(data.get("bestMethod"));
-        
         // Verify methodsUsed is an array that contains at least one algorithm
+        assertNotNull(data);
         assertTrue(data.get("methodsUsed").isArray());
         assertTrue(data.get("methodsUsed").size() > 0);
         
         // Print the actual algorithms used for debugging purposes
-        System.out.println("Best method: " + data.get("bestMethod").asText());
         System.out.println("Methods used: " + data.get("methodsUsed").toString());
     }
 
     @Test
-    @DisplayName("Multiple APs Test - HTTP Response should contain correct algorithm name based on count")
-    void multipleAPsHttpResponseShouldUseCorrectAlgorithmName() throws Exception {
+    @DisplayName("Multiple APs Test - HTTP Response should contain correct methods used based on count")
+    void multipleAPsHttpResponseShouldUseCorrectMethods() throws Exception {
         // Create test payload with 3 APs that are collinear, leading to weighted_centroid algorithm selection
         String requestBody = "{\n" +
                 "  \"wifiScanResults\": [\n" +
@@ -121,8 +122,9 @@ public class PositioningControllerIntegrationTest {
                 "      \"frequency\": 5240\n" +
                 "    }\n" +
                 "  ],\n" +
-                "  \"preferHighAccuracy\": true,\n" +
-                "  \"returnAllMethods\": true\n" +
+                "  \"client\": \"" + TEST_CLIENT + "\",\n" +
+                "  \"requestId\": \"" + UUID.randomUUID() + "\",\n" +
+                "  \"application\": \"" + TEST_APPLICATION + "\"\n" +
                 "}";
 
         // Send request and verify response
@@ -136,16 +138,11 @@ public class PositioningControllerIntegrationTest {
         JsonNode jsonResponse = objectMapper.readTree(result.getResponse().getContentAsString());
         JsonNode data = jsonResponse.get("data");
         
-        // Verify algorithm name (for 3 APs with high accuracy, should be weighted_centroid based on current implementation)
-        assertNotNull(data);
-        assertEquals("weighted_centroid", data.get("bestMethod").asText());
-        
         // Verify methods used array contains expected algorithm names
+        assertNotNull(data);
         assertTrue(data.get("methodsUsed").isArray());
         String methodsUsed = data.get("methodsUsed").toString();
         assertTrue(methodsUsed.contains("weighted_centroid"));
-        // Don't check for maximum_likelihood as it's not included in the response
-        // assertTrue(methodsUsed.contains("maximum_likelihood"));
     }
 
     /**

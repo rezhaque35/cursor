@@ -1,5 +1,9 @@
 package com.wifi.positioning.algorithm;
 
+import com.wifi.positioning.algorithm.factor.APCountFactor;
+import com.wifi.positioning.algorithm.factor.GeometricQualityFactor;
+import com.wifi.positioning.algorithm.factor.SignalDistributionFactor;
+import com.wifi.positioning.algorithm.factor.SignalQualityFactor;
 import com.wifi.positioning.algorithm.impl.*;
 import com.wifi.positioning.algorithm.selection.AlgorithmSelector;
 import com.wifi.positioning.algorithm.selection.ContextBuilder;
@@ -197,7 +201,7 @@ class GPSPositioningCalculatorTest {
             assertEquals(expectedPosition.latitude(), result.position().latitude(), 0.0001);
             assertEquals(expectedPosition.longitude(), result.position().longitude(), 0.0001);
             assertEquals(expectedPosition.confidence(), result.position().confidence(), 0.0001);
-            assertEquals(proximityAlgorithm, result.bestAlgorithm());
+            // Best algorithm assertion removed - field no longer exists
         }
 
         @Test
@@ -227,7 +231,7 @@ class GPSPositioningCalculatorTest {
             assertNotNull(result);
             assertEquals(expectedPosition.latitude(), result.position().latitude(), 0.0001);
             assertEquals(expectedPosition.confidence(), result.position().confidence(), 0.0001);
-            assertEquals(rssiRatioAlgorithm, result.bestAlgorithm());
+            // Best algorithm assertion removed - field no longer exists
         }
 
         @Test
@@ -257,7 +261,7 @@ class GPSPositioningCalculatorTest {
             // Assert
             assertNotNull(result);
             assertNotNull(result.position());
-            assertEquals(weightedCentroidAlgorithm, result.bestAlgorithm());
+            // Best algorithm assertion removed - field no longer exists
             
             // Check that at least one algorithm was used
             assertNotNull(result.algorithmWeights());
@@ -291,7 +295,7 @@ class GPSPositioningCalculatorTest {
             assertNotNull(result);
             assertEquals(expectedPosition.latitude(), result.position().latitude(), 0.0001);
             assertTrue(result.position().confidence() >= 0.85);
-            assertEquals(maximumLikelihoodAlgorithm, result.bestAlgorithm());
+            // Best algorithm assertion removed - field no longer exists
         }
 
         @Test
@@ -321,7 +325,7 @@ class GPSPositioningCalculatorTest {
             assertNotNull(result);
             assertEquals(expectedPosition.latitude(), result.position().latitude(), 0.0001);
             assertEquals(expectedPosition.confidence(), result.position().confidence(), 0.0001);
-            assertEquals(proximityAlgorithm, result.bestAlgorithm());
+            // Best algorithm assertion removed - field no longer exists
         }
     }
 
@@ -358,7 +362,7 @@ class GPSPositioningCalculatorTest {
             assertNotNull(result);
             assertEquals(expectedPosition.latitude(), result.position().latitude(), 0.0001);
             assertEquals(expectedPosition.confidence(), result.position().confidence(), 0.0001);
-            assertEquals(weightedCentroidAlgorithm, result.bestAlgorithm());
+            // Best algorithm assertion removed - field no longer exists
         }
     }
 
@@ -394,7 +398,7 @@ class GPSPositioningCalculatorTest {
             assertNotNull(result.position());
             assertTrue(result.position().confidence() >= 0.85);
             assertTrue(result.position().accuracy() <= 15.0);
-            assertEquals(maximumLikelihoodAlgorithm, result.bestAlgorithm());
+            // Best algorithm assertion removed - field no longer exists
         }
     }
 
@@ -438,13 +442,8 @@ class GPSPositioningCalculatorTest {
             assertTrue(result.position().confidence() >= 0.5 && result.position().confidence() <= 0.9);
             
             // Verify that an algorithm was selected as the best algorithm
-            assertNotNull(result.bestAlgorithm());
-            // Verify that the selected algorithm is one of the expected algorithms
-            assertTrue(
-                result.bestAlgorithm().equals(logDistanceAlgorithm) || 
-                result.bestAlgorithm().equals(maximumLikelihoodAlgorithm),
-                "Best algorithm should be either logDistanceAlgorithm or maximumLikelihoodAlgorithm"
-            );
+            assertFalse(result.algorithmWeights().isEmpty());
+            // Best algorithm assertions removed - field no longer exists
         }
     }
 
@@ -532,6 +531,57 @@ class GPSPositioningCalculatorTest {
             assertTrue(maxLatDiff < 0.01, "Latitude shouldn't change drastically between measurements");
             assertTrue(maxLonDiff < 0.01, "Longitude shouldn't change drastically between measurements");
         }
+    }
+
+    @Test
+    @DisplayName("getCalculationInfo should return detailed calculation information")
+    void getCalculationInfoShouldReturnDetailedInfo() {
+        // Create a simple selection context
+        SelectionContext context = SelectionContext.builder()
+            .apCountFactor(APCountFactor.TWO_APS)
+            .signalQuality(SignalQualityFactor.STRONG_SIGNAL)
+            .signalDistribution(SignalDistributionFactor.UNIFORM_SIGNALS)
+            .geometricQuality(GeometricQualityFactor.GOOD_GDOP)
+            .isCollinear(false)
+            .build();
+        
+        // Create weighted algorithms map
+        Map<PositioningAlgorithm, Double> weightedAlgorithms = new HashMap<>();
+        weightedAlgorithms.put(proximityAlgorithm, 0.8);
+        weightedAlgorithms.put(rssiRatioAlgorithm, 0.6);
+        
+        // Create selection reasons map
+        Map<PositioningAlgorithm, List<String>> selectionReasons = new HashMap<>();
+        selectionReasons.put(proximityAlgorithm, List.of("Primary algorithm for this scenario", "Good signal strength"));
+        selectionReasons.put(rssiRatioAlgorithm, List.of("Secondary algorithm as backup"));
+        
+        // Create a position
+        Position position = new Position(37.7749, -122.4194, 10.0, 5.0, 0.85);
+        
+        // Create positioning result
+        GPSPositioningCalculator.PositioningResult result = 
+            new GPSPositioningCalculator.PositioningResult(position, weightedAlgorithms, selectionReasons, context);
+        
+        // Get calculation info
+        String calculationInfo = result.getCalculationInfo();
+        
+        // Verify that the calculation info includes all required information
+        assertNotNull(calculationInfo);
+        assertTrue(calculationInfo.contains("Selection Context:"));
+        assertTrue(calculationInfo.contains("AP Count: TWO_APS"));
+        assertTrue(calculationInfo.contains("Signal Quality: STRONG_SIGNAL"));
+        assertTrue(calculationInfo.contains("Signal Distribution: UNIFORM_SIGNALS"));
+        assertTrue(calculationInfo.contains("Geometric Quality: GOOD_GDOP"));
+        assertTrue(calculationInfo.contains("Collinear APs: false"));
+        
+        assertTrue(calculationInfo.contains("Algorithm Selection Reasons:"));
+        assertTrue(calculationInfo.contains("Primary algorithm for this scenario"));
+        assertTrue(calculationInfo.contains("Good signal strength"));
+        assertTrue(calculationInfo.contains("Secondary algorithm as backup"));
+        
+        // Check algorithm weights are included
+        assertTrue(calculationInfo.contains("proximity (weight: 0.80)"));
+        assertTrue(calculationInfo.contains("rssi_ratio (weight: 0.60)"));
     }
 
     /**

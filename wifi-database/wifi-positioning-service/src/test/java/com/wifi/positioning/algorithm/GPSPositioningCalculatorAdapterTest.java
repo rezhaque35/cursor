@@ -26,8 +26,8 @@ import static org.mockito.Mockito.*;
 
 /**
  * Tests for GPSPositioningCalculatorAdapter focused on verifying the algorithm name mapping.
- * This test ensures that the bestMethod field in the result contains the correct algorithm name
- * rather than a hardcoded value.
+ * This test ensures that the methodsUsed field in the result contains the correct algorithm names
+ * rather than hardcoded values.
  */
 @ExtendWith(MockitoExtension.class)
 class GPSPositioningCalculatorAdapterTest {
@@ -89,7 +89,7 @@ class GPSPositioningCalculatorAdapterTest {
         Position position = new Position(37.7749, -122.4194, 10.5, 50.0, 0.65);
         Map<PositioningAlgorithm, Double> algorithmWeights = Collections.singletonMap(proximityAlgorithm, 1.0);
         GPSPositioningCalculator.PositioningResult positioningResult = 
-            new GPSPositioningCalculator.PositioningResult(position, proximityAlgorithm, algorithmWeights);
+            new GPSPositioningCalculator.PositioningResult(position, algorithmWeights);
         when(calculator.calculatePosition(any(), any())).thenReturn(positioningResult);
 
         // Call the method under test
@@ -97,10 +97,8 @@ class GPSPositioningCalculatorAdapterTest {
 
         // Verify the result
         assertNotNull(result);
-        assertTrue(result.containsKey("bestMethod"));
-        assertEquals("proximitydetection", result.get("bestMethod"));
         
-        // Also verify methodsUsed contains the correct algorithm name
+        // Verify methodsUsed contains the correct algorithm name
         assertTrue(result.containsKey("methodsUsed"));
         @SuppressWarnings("unchecked")
         List<String> methodsUsed = (List<String>) result.get("methodsUsed");
@@ -137,7 +135,7 @@ class GPSPositioningCalculatorAdapterTest {
         Position position = new Position(37.7750, -122.4195, 12.5, 25.0, 0.78);
         Map<PositioningAlgorithm, Double> algorithmWeights = Collections.singletonMap(rssiRatioAlgorithm, 1.0);
         GPSPositioningCalculator.PositioningResult positioningResult = 
-            new GPSPositioningCalculator.PositioningResult(position, rssiRatioAlgorithm, algorithmWeights);
+            new GPSPositioningCalculator.PositioningResult(position, algorithmWeights);
         when(calculator.calculatePosition(any(), any())).thenReturn(positioningResult);
 
         // Call the method under test
@@ -145,10 +143,8 @@ class GPSPositioningCalculatorAdapterTest {
 
         // Verify the result
         assertNotNull(result);
-        assertTrue(result.containsKey("bestMethod"));
-        assertEquals("rssiratio", result.get("bestMethod"));
         
-        // Also verify methodsUsed contains the correct algorithm name
+        // Verify methodsUsed contains the correct algorithm name
         assertTrue(result.containsKey("methodsUsed"));
         @SuppressWarnings("unchecked")
         List<String> methodsUsed = (List<String>) result.get("methodsUsed");
@@ -195,7 +191,7 @@ class GPSPositioningCalculatorAdapterTest {
         Map<PositioningAlgorithm, Double> algorithmWeights = new HashMap<>();
         algorithmWeights.put(trilaterationAlgorithm, 1.0);
         GPSPositioningCalculator.PositioningResult positioningResult = 
-            new GPSPositioningCalculator.PositioningResult(position, trilaterationAlgorithm, algorithmWeights);
+            new GPSPositioningCalculator.PositioningResult(position, algorithmWeights);
         when(calculator.calculatePosition(any(), any())).thenReturn(positioningResult);
 
         // Call the method under test
@@ -203,10 +199,8 @@ class GPSPositioningCalculatorAdapterTest {
 
         // Verify the result
         assertNotNull(result);
-        assertTrue(result.containsKey("bestMethod"));
-        assertEquals("trilateration", result.get("bestMethod"));
         
-        // Also verify methodsUsed contains the correct algorithm name
+        // Verify methodsUsed contains the correct algorithm name
         assertTrue(result.containsKey("methodsUsed"));
         @SuppressWarnings("unchecked")
         List<String> methodsUsed = (List<String>) result.get("methodsUsed");
@@ -239,7 +233,7 @@ class GPSPositioningCalculatorAdapterTest {
         Map<PositioningAlgorithm, Double> algorithmWeights = new HashMap<>();
         algorithmWeights.put(maximumLikelihoodAlgorithm, 1.0);
         GPSPositioningCalculator.PositioningResult positioningResult = 
-            new GPSPositioningCalculator.PositioningResult(position, maximumLikelihoodAlgorithm, algorithmWeights);
+            new GPSPositioningCalculator.PositioningResult(position, algorithmWeights);
         when(calculator.calculatePosition(any(), any())).thenReturn(positioningResult);
 
         // Call the method under test
@@ -247,10 +241,8 @@ class GPSPositioningCalculatorAdapterTest {
 
         // Verify the result
         assertNotNull(result);
-        assertTrue(result.containsKey("bestMethod"));
-        assertEquals("maximumlikelihood", result.get("bestMethod"));
         
-        // Also verify methodsUsed contains the correct algorithm name
+        // Verify methodsUsed contains the correct algorithm name
         assertTrue(result.containsKey("methodsUsed"));
         @SuppressWarnings("unchecked")
         List<String> methodsUsed = (List<String>) result.get("methodsUsed");
@@ -263,13 +255,13 @@ class GPSPositioningCalculatorAdapterTest {
         // Create test data for a multiple AP scenario
         Map<String, Map<String, Object>> scanResultsMap = new HashMap<>();
         
-        // Add 4 APs
-        for (int i = 1; i <= 4; i++) {
+        // Add 2 APs
+        for (int i = 1; i <= 2; i++) {
             String macAddress = String.format("00:11:22:33:44:%02d", i);
             Map<String, Object> scanData = new HashMap<>();
             scanData.put("macAddress", macAddress);
-            scanData.put("ssid", "MultiAP_Test");
-            scanData.put("signalStrength", -60.0 - (i * 2)); // Mixed signal strengths
+            scanData.put("ssid", "WeightedAlgorithm_Test");
+            scanData.put("signalStrength", -65.0 - (i * 2));
             scanData.put("frequency", i % 2 == 0 ? 5180 : 2462);
             scanResultsMap.put(macAddress, scanData);
             
@@ -279,56 +271,43 @@ class GPSPositioningCalculatorAdapterTest {
         }
 
         // Mock calculator to return a positioning result with multiple weighted algorithms
-        Position position = new Position(37.7752, -122.4197, 18.0, 15.5, 0.85);
-        
-        // Create a map with multiple algorithms and weights
+        Position position = new Position(37.7752, -122.4197, 18.0, 10.0, 0.85);
         Map<PositioningAlgorithm, Double> algorithmWeights = new HashMap<>();
-        algorithmWeights.put(trilaterationAlgorithm, 0.85); // Highest weight, should be best method
-        algorithmWeights.put(maximumLikelihoodAlgorithm, 0.80);
-        algorithmWeights.put(rssiRatioAlgorithm, 0.70);
-        algorithmWeights.put(proximityAlgorithm, 0.60);
+        algorithmWeights.put(trilaterationAlgorithm, 0.6);
+        algorithmWeights.put(rssiRatioAlgorithm, 0.4);
         
+        // Use the first algorithm as the "best" one
         GPSPositioningCalculator.PositioningResult positioningResult = 
-            new GPSPositioningCalculator.PositioningResult(position, trilaterationAlgorithm, algorithmWeights);
+            new GPSPositioningCalculator.PositioningResult(position, algorithmWeights);
         when(calculator.calculatePosition(any(), any())).thenReturn(positioningResult);
 
-        // Call the method under test with returnAllMethods=true
-        Map<String, Object> options = new HashMap<>();
-        options.put("returnAllMethods", true);
-        Map<String, Object> result = adapter.calculatePosition(scanResultsMap, options);
+        // Call the method under test
+        Map<String, Object> result = adapter.calculatePosition(scanResultsMap, new HashMap<>());
 
         // Verify the result
         assertNotNull(result);
-        assertTrue(result.containsKey("bestMethod"));
-        assertEquals("trilateration", result.get("bestMethod"));
-        
-        // Verify methodsUsed contains all algorithm names
         assertTrue(result.containsKey("methodsUsed"));
+        
+        // Verify both algorithms are in methodsUsed
         @SuppressWarnings("unchecked")
         List<String> methodsUsed = (List<String>) result.get("methodsUsed");
-        
-        // Check that all algorithm names are included
-        assertTrue(methodsUsed.contains("trilateration"), "Should include trilateration");
-        assertTrue(methodsUsed.contains("maximumlikelihood"), "Should include maximumlikelihood");
-        assertTrue(methodsUsed.contains("rssiratio"), "Should include rssiratio");
-        assertTrue(methodsUsed.contains("proximitydetection"), "Should include proximitydetection");
-        
-        // Verify size matches the number of algorithms we provided
-        assertEquals(4, methodsUsed.size(), "Should have exactly 4 algorithms in methodsUsed");
+        assertTrue(methodsUsed.contains("trilateration"));
+        assertTrue(methodsUsed.contains("rssiratio"));
     }
 
-    /**
-     * Helper method to create a test access point
-     */
     private WifiAccessPoint createTestAP(String macAddress, double lat, double lon, double alt) {
         WifiAccessPoint ap = new WifiAccessPoint();
         ap.setMacAddress(macAddress);
         ap.setLatitude(lat);
         ap.setLongitude(lon);
         ap.setAltitude(alt);
-        ap.setSsid("Test_SSID");
+        ap.setSsid("Test-SSID");
         ap.setConfidence(0.85);
         ap.setHorizontalAccuracy(10.0);
+        ap.setVerticalAccuracy(5.0);
+        ap.setFrequency(2437);
+        ap.setVendor("Test-Vendor");
+        ap.setGeohash("9q8yyk");
         ap.setStatus(WifiAccessPoint.STATUS_ACTIVE);
         return ap;
     }

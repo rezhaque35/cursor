@@ -25,6 +25,17 @@ import java.util.*;
 public class PositioningServiceImpl implements PositioningService {
 
     private static final Logger logger = LoggerFactory.getLogger(PositioningServiceImpl.class);
+    
+    /**
+     * Default high accuracy setting for backward compatibility
+     */
+    private static final boolean DEFAULT_HIGH_ACCURACY = false;
+    
+    /**
+     * Default return all methods setting for backward compatibility
+     */
+    private static final boolean DEFAULT_RETURN_ALL_METHODS = false;
+    
     private final GPSPositioningCalculatorAdapter positioningCalculator;
     
     @Autowired
@@ -34,7 +45,8 @@ public class PositioningServiceImpl implements PositioningService {
     
     @Override
     public PositionResponseDto calculatePosition(PositionRequestDto request) {
-        logger.info("Calculating position for {} WiFi scan results", request.wifiScanResults().size());
+        logger.info("Calculating position for {} WiFi scan results from client {} with requestId {}", 
+                request.wifiScanResults().size(), request.client(), request.requestId());
         
         // Check if we have any scan results
         if (request.wifiScanResults().isEmpty()) {
@@ -45,17 +57,11 @@ public class PositioningServiceImpl implements PositioningService {
             // Convert DTOs to the input format expected by the calculator
             Map<String, Map<String, Object>> scanResultsMap = convertScanResults(request.wifiScanResults());
             
-            // Create options map
-            Map<String, Object> options = new HashMap<>();
-            options.put("preferHighAccuracy", request.preferHighAccuracy());
-            options.put("returnAllMethods", request.returnAllMethods());
-            if (request.sessionId() != null) {
-                options.put("sessionId", request.sessionId());
-            }
-            options.put("timestamp", Instant.now().toEpochMilli());
-            
-            // Calculate position
-            Map<String, Object> result = positioningCalculator.calculatePosition(scanResultsMap, options);
+            // Create options map and calculate position
+            Map<String, Object> result = positioningCalculator.calculatePosition(
+                scanResultsMap, 
+                createOptionsMap(request)
+            );
             
             if (result == null || result.isEmpty() || Boolean.FALSE.equals(result.get("positionFound"))) {
                 if (result.containsKey("errorMessage")) {
@@ -71,6 +77,34 @@ public class PositioningServiceImpl implements PositioningService {
             }
             throw new PositioningException("Error calculating position: " + e.getMessage(), e);
         }
+    }
+    
+    /**
+     * Creates an options map for the positioning calculator with client information and timestamp.
+     *
+     * @param request The position request DTO containing client information
+     * @return A map of options for the positioning calculator
+     */
+    private Map<String, Object> createOptionsMap(PositionRequestDto request) {
+        Map<String, Object> options = new HashMap<>();
+        
+        // Add client information
+        options.put("client", request.client());
+        options.put("requestId", request.requestId());
+        
+        if (request.application() != null) {
+            options.put("application", request.application());
+        }
+        
+        // Add timestamp
+        options.put("timestamp", Instant.now().toEpochMilli());
+        
+        // Add calculationDetail flag if it's true
+        if (Boolean.TRUE.equals(request.calculationDetail())) {
+            options.put("calculationDetail", true);
+        }
+        
+        return options;
     }
     
     /**

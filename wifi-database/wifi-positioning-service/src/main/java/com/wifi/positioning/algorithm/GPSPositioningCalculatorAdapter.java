@@ -86,13 +86,7 @@ public class GPSPositioningCalculatorAdapter {
                 return new HashMap<>();
             }
             
-            // Special handling for Test Case 39
-            if (isTestCase39(scanResults)) {
-                logger.warn("Detected Test Case 39 with physically impossible signal relationships");
-                return createErrorResponse("Physically impossible signal strength relationships", options);
-            }
-            
-            // Check first if the signal physics is valid
+            // Check if the signal physics is valid
             if (!signalPhysicsValidator.isPhysicallyPossible(scanResults)) {
                 logger.warn("Physically impossible signal strength relationships detected");
                 return createErrorResponse("Physically impossible signal strength relationships", options);
@@ -118,8 +112,7 @@ public class GPSPositioningCalculatorAdapter {
                 return createPositionNotFoundResponse(scanResults.size(), options);
             }
             
-            // Get the best method and methods used from the positioning result
-            String bestMethod = getBestMethodName(positioningResult);
+            // Get methods used from the positioning result
             List<String> methodsUsed = getMethodsUsedNames(positioningResult);
             
             // Convert position to result map
@@ -127,29 +120,26 @@ public class GPSPositioningCalculatorAdapter {
                 positioningResult.position(), 
                 scanResults.size(), 
                 calculationTime, 
-                options, 
-                bestMethod, 
+                options,
                 methodsUsed
             );
+            
+            // Add calculation info if requested
+            if (options != null && Boolean.TRUE.equals(options.get("calculationDetail"))) {
+                String calculationInfo = positioningResult.getCalculationInfo();
+                if (calculationInfo != null && !calculationInfo.isEmpty()) {
+                    logger.info("Adding calculation info to the response, size: {}", calculationInfo.length());
+                    result.put("calculationInfo", calculationInfo);
+                } else {
+                    logger.warn("No calculation info available despite calculationDetail flag being true");
+                }
+            }
+            
             return result;
         } catch (Exception e) {
             logger.error("Error calculating position", e);
             return createErrorResponse(e.getMessage(), options);
         }
-    }
-    
-    /**
-     * Get the name of the best method from the positioning result
-     * 
-     * @param positioningResult The positioning result containing the best algorithm
-     * @return The name of the best method
-     */
-    private String getBestMethodName(GPSPositioningCalculator.PositioningResult positioningResult) {
-        if (positioningResult.bestAlgorithm() == null) {
-            // Fallback to hybrid if no best algorithm is available
-            return FALLBACK_ALGORITHM_NAME;
-        }
-        return positioningResult.bestAlgorithm().getName().toLowerCase();
     }
     
     /**
@@ -163,35 +153,6 @@ public class GPSPositioningCalculatorAdapter {
             .filter(algorithm -> algorithm != null)
             .map(algorithm -> algorithm.getName().toLowerCase())
             .collect(Collectors.toList());
-    }
-    
-    /**
-     * Specifically detect Test Case 39 by its exact signal configuration
-     */
-    private boolean isTestCase39(List<WifiScanResult> scanResults) {
-        if (scanResults.size() != 3) {
-            return false;
-        }
-        
-        // Check if we have MAC addresses matching the test case
-        boolean hasTestCase39MacAddresses = scanResults.stream()
-            .anyMatch(scan -> scan.macAddress().equals("00:11:22:33:44:39") || 
-                              scan.macAddress().equals("00:11:22:33:44:40") || 
-                              scan.macAddress().equals("00:11:22:33:44:41"));
-        
-        if (!hasTestCase39MacAddresses) {
-            return false;
-        }
-        
-        // Look for the characteristic strong signal with weak signals pattern
-        boolean hasStrongSignal = scanResults.stream()
-            .anyMatch(scan -> scan.signalStrength() >= -50.0 && scan.signalStrength() <= -30.0);
-            
-        boolean hasWeakSignals = scanResults.stream()
-            .filter(scan -> scan.signalStrength() <= -85.0)
-            .count() >= 2;
-            
-        return hasStrongSignal && hasWeakSignals;
     }
     
     /**
@@ -266,7 +227,7 @@ public class GPSPositioningCalculatorAdapter {
      * Convert a Position object to a map containing all position data
      */
     private Map<String, Object> positionToResultMap(Position position, int apCount, long calculationTime, 
-                                                   Map<String, Object> options, String bestMethod, List<String> methodsUsed) {
+                                                   Map<String, Object> options, List<String> methodsUsed) {
         Map<String, Object> result = new HashMap<>();
         
         if (position != null) {
@@ -278,7 +239,6 @@ public class GPSPositioningCalculatorAdapter {
             result.put("horizontalAccuracy", position.accuracy());
             result.put("verticalAccuracy", DEFAULT_VERTICAL_ACCURACY);
             result.put("confidence", position.confidence());
-            result.put("bestMethod", bestMethod);
             result.put("methodsUsed", methodsUsed);
             result.put("apCount", apCount);
             result.put("calculationTimeMs", calculationTime);

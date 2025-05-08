@@ -63,7 +63,7 @@ class GPSPositioningCalculatorIntegrationTest {
             assertNotNull(result.position());
             
             // Verify that algorithms were selected
-            assertNotNull(result.bestAlgorithm());
+            // Best algorithm assertion removed - field no longer exists
             assertFalse(result.algorithmWeights().isEmpty());
             
             // Accuracy: Empirically observed range for strong, well-distributed APs in hybrid system
@@ -242,7 +242,7 @@ class GPSPositioningCalculatorIntegrationTest {
             assertNotNull(result.position());
             
             // Verify that algorithms were selected
-            assertNotNull(result.bestAlgorithm());
+            // Best algorithm assertion removed - field no longer exists
             assertFalse(result.algorithmWeights().isEmpty());
             
             // Latitude/Longitude: Should be within the grid, and near the center AP (empirically within 0.3 of 1.5)
@@ -282,21 +282,7 @@ class GPSPositioningCalculatorIntegrationTest {
             assertNotNull(result);
             assertNotNull(result.position());
             
-            // Verify that the bestAlgorithm is set correctly
-            assertNotNull(result.bestAlgorithm(), "bestAlgorithm should not be null");
-            
-            // The exact algorithm selected might vary based on implementation details
-            // But it should be one of the algorithms with strong weights for 4 APs with strong signal
-            String bestAlgorithmName = result.bestAlgorithm().getName().toLowerCase();
-            
-            // For our new framework, with 4 strong APs, the maximum likelihood algorithm
-            // should be selected as the best algorithm, or trilateration as a backup
-            assertTrue(
-                bestAlgorithmName.contains("maximum") || 
-                bestAlgorithmName.contains("trilateration") ||
-                bestAlgorithmName.contains("weighted"),
-                "Best algorithm should be one of the expected algorithms for 4 strong APs, got: " + bestAlgorithmName
-            );
+            // Best algorithm assertion removed - field no longer exists
             
             // Verify that algorithmWeights contains multiple algorithms
             assertFalse(result.algorithmWeights().isEmpty(), "Algorithm weights should not be empty");
@@ -307,14 +293,7 @@ class GPSPositioningCalculatorIntegrationTest {
             assertTrue(result.algorithmWeights().size() >= 1, 
                 "Expected at least 1 algorithm to be selected, got " + result.algorithmWeights().size());
             
-            // Verify that the best algorithm has the highest weight
-            double bestWeight = result.algorithmWeights().get(result.bestAlgorithm());
-            for (Map.Entry<PositioningAlgorithm, Double> entry : result.algorithmWeights().entrySet()) {
-                if (!entry.getKey().equals(result.bestAlgorithm())) {
-                    assertTrue(bestWeight >= entry.getValue(), 
-                        "Best algorithm should have the highest weight");
-                }
-            }
+            // Best algorithm weight comparison removed - field no longer exists
         }
     }
 } 

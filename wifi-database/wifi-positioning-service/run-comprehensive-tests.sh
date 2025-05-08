@@ -173,8 +173,9 @@ run_test '{
         "signalStrength": -65.0,
         "frequency": 2437
     }],
-    "preferHighAccuracy": false,
-    "returnAllMethods": true
+    "client": "test-client",
+    "requestId": "test-request-1",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"SUCCESS"' 45 55 0.35 0.55 "proximity"
 
 # Test Case 2: Two APs - RSSI Ratio Method
@@ -201,8 +202,9 @@ run_test '{
             "ssid": "TriAP_Test"
         }
     ],
-    "preferHighAccuracy": true,
-    "returnAllMethods": true
+    "client": "test-client",
+    "requestId": "test-request-2",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"SUCCESS"' 55 70 0.40 0.60 "weighted_centroid rssi ratio"
 
 # Test Case 3: Three APs - Trilateration
@@ -234,8 +236,9 @@ run_test '{
             "ssid": "WeakSignal_Test"
         }
     ],
-    "preferHighAccuracy": true,
-    "returnAllMethods": true
+    "client": "test-client",
+    "requestId": "test-request-3",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"SUCCESS"' 90 105 0.35 0.55 "weighted_centroid rssi ratio"
 
 # Test Case 4: Multiple APs - Maximum Likelihood
@@ -266,8 +269,9 @@ run_test '{
             "ssid": "Collinear_Test_07"
         }
     ],
-    "preferHighAccuracy": true,
-    "returnAllMethods": true
+    "client": "test-client",
+    "requestId": "test-request-4",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"SUCCESS"' 135 150 0.35 0.55 "weighted_centroid rssi ratio"
 
 # Test Case 5: Weak Signals
@@ -285,8 +289,9 @@ run_test '{
             "ssid": "WeakSignal_Test"
         }
     ],
-    "preferHighAccuracy": false,
-    "returnAllMethods": true
+    "client": "test-client",
+    "requestId": "test-request-5",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"SUCCESS"' 30 80 0.05 0.15 "proximity"
 
 echo -e "\n${BLUE}SECTION 2: ADVANCED SCENARIO TEST CASES${NC}"
@@ -315,8 +320,9 @@ run_test '{
             "ssid": "Collinear_Test_08"
         }
     ],
-    "preferHighAccuracy": true,
-    "returnAllMethods": true
+    "client": "test-client",
+    "requestId": "test-request-6-10",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"ERROR"'
 
 # Test Case 11-15: High Density AP Cluster
@@ -354,8 +360,9 @@ run_test '{
             "ssid": "HighDensity_Test_14"
         }
     ],
-    "preferHighAccuracy": true,
-    "returnAllMethods": true
+    "client": "test-client",
+    "requestId": "test-request-11-15",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"SUCCESS"' 50 60 0.35 0.55 "weighted_centroid maximum_likelihood"
 
 # Test Case 16-20: Mixed Signal Quality
@@ -387,8 +394,9 @@ run_test '{
             "ssid": "MixedSignal_Test_18"
         }
     ],
-    "preferHighAccuracy": true,
-    "returnAllMethods": true
+    "client": "test-client",
+    "requestId": "test-request-16-20",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"SUCCESS"' 60 75 0.35 0.55 "weighted_centroid rssi ratio"
 
 echo -e "\n${BLUE}SECTION 3: TEMPORAL AND ENVIRONMENTAL TEST CASES${NC}"
@@ -416,8 +424,9 @@ run_test '{
             "ssid": "TimeSeries_Test"
         }
     ],
-    "preferHighAccuracy": true,
-    "returnAllMethods": true
+    "client": "test-client",
+    "requestId": "test-request-21-25",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"SUCCESS"' 45 60 0.35 0.55 "weighted_centroid rssi ratio"
 
 # Test Case 26-30: Log-Distance Path Loss
@@ -442,8 +451,9 @@ run_test '{
             "ssid": "PathLoss_Test_27"
         }
     ],
-    "preferHighAccuracy": true,
-    "returnAllMethods": true
+    "client": "test-client",
+    "requestId": "test-request-26-30",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"SUCCESS"' 20 35 0.40 0.60 "weighted_centroid rssi ratio"
 
 # Test Case 31-35: Stable Signal Quality
@@ -469,8 +479,9 @@ run_test '{
             "ssid": "StableSignal_Test"
         }
     ],
-    "preferHighAccuracy": true,
-    "returnAllMethods": true
+    "client": "test-client",
+    "requestId": "test-request-31-35",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"SUCCESS"' 5 15 0.65 0.80 "weighted_centroid rssi ratio"
 
 echo -e "\n${BLUE}SECTION 4: ERROR AND EDGE CASES${NC}"
@@ -485,7 +496,10 @@ run_test '{
             "frequency": 2412,
             "ssid": "ErrorCase_invalid_coordinates"
         }
-    ]
+    ],
+    "client": "test-client",
+    "requestId": "test-request-36",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"ERROR"'
 
 # Test Case 38: Very Weak Signal (Single AP)
@@ -502,7 +516,10 @@ run_test '{
         "ssid": "TestAP1",
         "signalStrength": -99.9,
         "frequency": 2412
-    }]
+    }],
+    "client": "test-client",
+    "requestId": "test-request-38",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"SUCCESS"' 5 15 0.0 0.1 "proximity"
 
 # Test Case 39: Algorithm Failure
@@ -526,7 +543,10 @@ run_test '{
             "signalStrength": -95,
             "frequency": 2412
         }
-    ]
+    ],
+    "client": "test-client",
+    "requestId": "test-request-39",
+    "application": "wifi-positioning-test-suite"
 }' '"result":"ERROR"'
 
 # Print test summary

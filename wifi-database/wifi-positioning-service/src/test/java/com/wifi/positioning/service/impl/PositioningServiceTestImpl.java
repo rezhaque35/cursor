@@ -73,10 +73,11 @@ public class PositioningServiceTestImpl implements PositioningService {
                 }
             }
 
-            // Calculate position
-            Map<String, Object> options = new HashMap<>();
-            options.put("knownAccessPoints", knownAPs);
-            Map<String, Object> result = positioningCalculator.calculatePosition(scanResults, options);
+            // Calculate position using the created options map
+            Map<String, Object> result = positioningCalculator.calculatePosition(
+                scanResults, 
+                createOptionsMap(request, knownAPs)
+            );
 
             // Build response
             return new PositionResponseDto(
@@ -86,7 +87,6 @@ public class PositioningServiceTestImpl implements PositioningService {
                     (Double) result.get("horizontalAccuracy"),
                     (Double) result.get("verticalAccuracy"),
                     (Double) result.get("confidence"),
-                    (String) result.get("bestMethod"),
                     ((List<?>) result.get("methodsUsed")).stream()
                             .map(Object::toString)
                             .collect(Collectors.toList()),
@@ -124,5 +124,35 @@ public class PositioningServiceTestImpl implements PositioningService {
                         (String) alt.get("method")
                 ))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Creates an options map for the positioning calculator with client information, 
+     * known access points, and timestamp.
+     *
+     * @param request The position request DTO containing client information
+     * @param knownAPs The map of known access points
+     * @return A map of options for the positioning calculator
+     */
+    private Map<String, Object> createOptionsMap(PositionRequestDto request, Map<String, Map<String, Object>> knownAPs) {
+        Map<String, Object> options = new HashMap<>();
+        
+        // Add known access points
+        options.put("knownAccessPoints", knownAPs);
+        
+        // Add client information
+        options.put("client", request.client());
+        options.put("requestId", request.requestId());
+        
+        if (request.application() != null) {
+            options.put("application", request.application());
+        }
+        
+        // Add backward compatibility fields with default values
+        options.put("preferHighAccuracy", false);
+        options.put("returnAllMethods", false);
+        options.put("timestamp", Instant.now().toEpochMilli());
+        
+        return options;
     }
 } 

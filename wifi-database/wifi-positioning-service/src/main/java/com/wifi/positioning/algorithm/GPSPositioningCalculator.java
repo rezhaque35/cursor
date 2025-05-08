@@ -33,23 +33,73 @@ public class GPSPositioningCalculator {
 
     /**
      * Result of positioning calculation containing the calculated position,
-     * information about algorithms used, and reasons for algorithm selection.
+     * information about algorithms used, reasons for algorithm selection, and selection context.
      */
     public record PositioningResult(
         Position position,
-        PositioningAlgorithm bestAlgorithm,
         Map<PositioningAlgorithm, Double> algorithmWeights,
-        Map<PositioningAlgorithm, List<String>> selectionReasons
+        Map<PositioningAlgorithm, List<String>> selectionReasons,
+        SelectionContext selectionContext
     ) {
         /**
-         * Constructor that doesn't require selection reasons for backward compatibility.
+         * Constructor that doesn't require selection reasons and context for backward compatibility.
          */
         public PositioningResult(
             Position position,
-            PositioningAlgorithm bestAlgorithm,
             Map<PositioningAlgorithm, Double> algorithmWeights
         ) {
-            this(position, bestAlgorithm, algorithmWeights, Map.of());
+            this(position, algorithmWeights, Map.of(), null);
+        }
+        
+        /**
+         * Constructor that doesn't require selection context for backward compatibility.
+         */
+        public PositioningResult(
+            Position position,
+            Map<PositioningAlgorithm, Double> algorithmWeights,
+            Map<PositioningAlgorithm, List<String>> selectionReasons
+        ) {
+            this(position, algorithmWeights, selectionReasons, null);
+        }
+        
+        /**
+         * Returns a detailed string representation of the calculation information
+         * combining the selection context and algorithm selection reasons.
+         * 
+         * @return A string with detailed calculation information
+         */
+        public String getCalculationInfo() {
+            StringBuilder info = new StringBuilder();
+            
+            // Add selection context information if available
+            if (selectionContext != null) {
+                info.append("Selection Context:\n");
+                info.append("  AP Count: ").append(selectionContext.getApCountFactor()).append("\n");
+                info.append("  Signal Quality: ").append(selectionContext.getSignalQuality()).append("\n");
+                info.append("  Signal Distribution: ").append(selectionContext.getSignalDistribution()).append("\n");
+                info.append("  Geometric Quality: ").append(selectionContext.getGeometricQuality()).append("\n");
+                info.append("  Collinear APs: ").append(selectionContext.isCollinear()).append("\n\n");
+            }
+            
+            // Add algorithm weights information
+            if (algorithmWeights != null && !algorithmWeights.isEmpty()) {
+                info.append("Algorithm Weights:\n");
+                algorithmWeights.forEach((algorithm, weight) -> {
+                    info.append(String.format("  %s (weight: %.2f)\n", algorithm.getName().toLowerCase(), weight));
+                });
+                info.append("\n");
+            }
+            
+            // Add algorithm selection reasons if available
+            if (selectionReasons != null && !selectionReasons.isEmpty()) {
+                info.append("Algorithm Selection Reasons:\n");
+                selectionReasons.forEach((algorithm, reasons) -> {
+                    info.append("  ").append(algorithm.getName()).append(":\n");
+                    reasons.forEach(reason -> info.append("    - ").append(reason).append("\n"));
+                });
+            }
+            
+            return info.toString();
         }
     }
 
@@ -154,13 +204,7 @@ public class GPSPositioningCalculator {
             return null;
         }
         
-        // 5. Determine the best algorithm (highest weight)
-        PositioningAlgorithm bestAlgorithm = weightedAlgorithms.entrySet().stream()
-            .max(Map.Entry.comparingByValue())
-            .map(Map.Entry::getKey)
-            .orElse(null);
-            
-        return new PositioningResult(combinedPosition, bestAlgorithm, weightedAlgorithms, selectionReasons);
+        return new PositioningResult(combinedPosition, weightedAlgorithms, selectionReasons, context);
     }
 
     private Map<String, WifiAccessPoint> createAPMap(List<WifiAccessPoint> knownAPs) {

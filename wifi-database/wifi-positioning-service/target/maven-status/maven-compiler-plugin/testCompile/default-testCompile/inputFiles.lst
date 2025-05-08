@@ -10,6 +10,7 @@
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/algorithm/impl/MaximumLikelihoodAlgorithmTest.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/algorithm/impl/RSSIRatioAlgorithmTest.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/controller/PositioningControllerTest.java
+/Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/dto/PositionRequestDtoTest.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/algorithm/impl/ProximityDetectionAlgorithmTest.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/validation/SignalPhysicsValidatorTest.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/algorithm/impl/LogDistancePathLossAlgorithmTest.java
@@ -18,6 +19,7 @@
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/algorithm/GPSPositioningCalculatorTest.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/algorithm/util/GDOPCalculatorTest.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/algorithm/selection/WeightedAveragePositionCombinerTest.java
+/Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/validation/TestSignalPhysicsValidator.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/algorithm/impl/WeightedCentroidAlgorithmTest.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/algorithm/selection/DefaultContextBuilderTest.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/repository/impl/InMemoryWifiAccessPointRepository.java

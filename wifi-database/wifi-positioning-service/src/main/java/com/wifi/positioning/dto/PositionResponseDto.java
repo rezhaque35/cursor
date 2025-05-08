@@ -13,7 +13,6 @@ public record PositionResponseDto(
     Double horizontalAccuracy,
     Double verticalAccuracy,
     Double confidence,
-    String bestMethod,
     List<String> methodsUsed,
     Integer apCount,
     Map<String, Object> metadata,
@@ -32,7 +31,6 @@ public record PositionResponseDto(
             (Double) calculationResult.get("horizontalAccuracy"),
             (Double) calculationResult.get("verticalAccuracy"),
             (Double) calculationResult.get("confidence"),
-            (String) calculationResult.get("bestMethod"),
             getMethodsUsedFromMap(calculationResult),
             (Integer) calculationResult.get("apCount"),
             getMetadataFromMap(calculationResult),
@@ -44,10 +42,6 @@ public record PositionResponseDto(
         @SuppressWarnings("unchecked")
         List<String> methodsUsed = (List<String>) calculationResult.get("methodsUsed");
         if (methodsUsed == null) {
-            String bestMethod = (String) calculationResult.get("bestMethod");
-            if (bestMethod != null) {
-                return Collections.singletonList(bestMethod);
-            }
             return Collections.emptyList();
         }
         return methodsUsed;
@@ -67,6 +61,12 @@ public record PositionResponseDto(
             metadata.put("timestamp", timestamp);
         }
         
+        // Explicitly check for calculationInfo field
+        Object calculationInfo = calculationResult.get("calculationInfo");
+        if (calculationInfo != null) {
+            metadata.put("calculationInfo", calculationInfo);
+        }
+        
         // Copy any extra fields that aren't in the main response
         for (Map.Entry<String, Object> entry : calculationResult.entrySet()) {
             String key = entry.getKey();
@@ -81,7 +81,9 @@ public record PositionResponseDto(
     private static boolean isMainResponseField(String key) {
         return switch (key) {
             case "latitude", "longitude", "altitude", "horizontalAccuracy", "verticalAccuracy",
-                 "confidence", "bestMethod", "methodsUsed", "apCount", "alternatives" -> true;
+                 "confidence", "methodsUsed", "apCount", "alternatives" -> true;
+            // Explicitly exclude calculationInfo from main fields so it's included in metadata
+            case "calculationInfo" -> false;
             default -> false;
         };
     }

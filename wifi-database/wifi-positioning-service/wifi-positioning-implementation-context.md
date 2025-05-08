@@ -381,36 +381,51 @@ public PositioningResult validateAndCalculate(List<WifiScanResult> scanResults) 
          * Network topology mapping
          * Historical data matching
 
-2. **preferHighAccuracy** (Optional)
-   - Type: Boolean
-   - Default: false
-   - Role: Controls algorithm selection and processing mode
-   - Impact when true:
-     * Activates maximum likelihood algorithm
-     * Uses more computational resources
-     * Increases position calculation time
-     * Requires minimum 3 strong APs
-     * Higher confidence threshold (0.7)
-   - Impact when false:
-     * Favors faster, simpler algorithms
-     * Optimized for real-time tracking
-     * Accepts lower confidence results (0.5)
-     * Can work with fewer APs
-     * Faster response time
+2. **client** (Required)
+   - Type: String (max 50 characters)
+   - Purpose: Identifies the client system or device making the request
+   - Impact:
+     * Used for logging and analytics
+     * Enables client-specific configurations
+     * Allows for usage tracking and rate limiting
 
-3. **returnAllMethods** (Optional)
+3. **requestId** (Required)
+   - Type: String (max 64 characters)
+   - Purpose: Unique identifier for the request
+   - Impact:
+     * Ensures request traceability
+     * Prevents duplicate request processing
+     * Facilitates troubleshooting and debugging
+     * Can be used to correlate requests across multiple systems
+
+4. **application** (Optional)
+   - Type: String (max 100 characters)
+   - Purpose: Identifies the application making the request
+   - Impact:
+     * Enables application-specific configurations
+     * Used for usage analytics and billing
+     * Helps track feature usage across different applications
+
+### Deprecated Parameters
+
+1. **preferHighAccuracy** (Deprecated)
    - Type: Boolean
    - Default: false
-   - Role: Controls response detail level
+   - Role: Previously controlled algorithm selection and processing mode
    - Impact when true:
-     * Returns results from all applicable algorithms
-     * Includes confidence scores per method
-     * Shows weighted contributions
-     * Provides algorithm selection reasoning
-   - Impact when false:
-     * Returns only best method result
-     * Optimized response size
-     * Faster processing
+     * Activated maximum likelihood algorithm
+     * Used more computational resources
+     * Increased position calculation time
+   - Note: This parameter is no longer used in the API. The system now automatically selects the optimal algorithm based on the input data.
+
+2. **returnAllMethods** (Deprecated)
+   - Type: Boolean
+   - Default: false
+   - Role: Previously controlled response detail level
+   - Impact when true:
+     * Returned results from all applicable algorithms
+     * Included confidence scores per method
+   - Note: This parameter is no longer used in the API. The system now returns a fixed set of data in the response.
 
 ### Response Parameters
 
@@ -422,15 +437,18 @@ public PositioningResult validateAndCalculate(List<WifiScanResult> scanResults) 
    - **verticalAccuracy**: Double (meters, if altitude provided)
    - **confidence**: Double (0.0-1.0)
    - **bestMethod**: String (algorithm used)
-   - **methodsUsed**: Array of strings (when returnAllMethods=true)
-   - **alternatives**: Array of alternative positions (when returnAllMethods=true)
+   - **methodsUsed**: Array of strings
+   - **alternatives**: Array of alternative positions
 
 2. **Quality Metrics**
    - **apCount**: Integer (number of APs used)
    - **metadata**: Object
      * positionFound: Boolean
-     * returnAllMethods: Boolean
-     * preferHighAccuracy: Boolean
+     * client: String (echoed from request)
+     * requestId: String (echoed from request)
+     * application: String (echoed from request, if provided)
+     * calculationTimeMs: Integer
+     * timestamp: Long (epoch milliseconds)
 
 ### Parameter Impact on Algorithm Selection
 
