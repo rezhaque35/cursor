@@ -623,71 +623,124 @@ For remaining eligible algorithms, we apply base weights according to AP count:
 | Good GDOP (2-4) | ×1.0 | ×1.0 | ×1.1 | ×0.9 | ×1.1 | ×1.0 |
 | Fair GDOP (4-6) | ×1.0 | ×0.9 | ×1.2 | ×0.6 | ×0.9 | ×0.8 |
 | Poor GDOP (> 6) | ×1.0 | ×0.8 | ×1.3 | ×0.3 | ×0.7 | ×0.7 |
+| Collinear APs | ×1.0 | ×0.7 | ×1.4 | ×0.0 | ×0.5 | ×0.6 |
 
-### Signal Distribution Adjustments
+### Test Case Examples and Algorithm Selection
 
-| Distribution Pattern | Proximity | RSSI Ratio | Weighted Centroid | Trilateration | Maximum Likelihood | Log Distance |
-|----------------------|-----------|------------|-------------------|---------------|-------------------|--------------|
-| Uniform signal levels | ×1.0 | ×1.2 | ×1.0 | ×1.1 | ×0.9 | ×1.1 |
-| Mixed signal levels | ×0.7 | ×0.9 | ×1.2 | ×0.8 | ×1.3 | ×0.8 |
-| Signal outliers present | ×0.9 | ×0.7 | ×1.4 | ×0.5 | ×1.2 | ×0.8 |
+#### 1. Single AP Test (Test Case 1)
+- **Input**: Single AP with -65.0 dBm signal at 2.4GHz
+- **Base Weights**: 
+  * Proximity: 1.0
+  * Log Distance: 0.4
+- **Adjustments**:
+  * Signal Quality (Strong): ×0.9
+  * GDOP (Poor): ×0.7
+  * Distribution (Uniform): ×1.1
+- **Final Weights**:
+  * Proximity: 1.0 × 0.9 = 0.9 (Selected)
+  * Log Distance: 0.4 × 1.0 × 0.7 × 1.1 = 0.308 (Below threshold)
+- **Expected**: Position with accuracy 45-55m, confidence 0.35-0.55
 
-## 3. Finalist Selection (Combination Phase)
+#### 2. Two APs Test (Test Case 2)
+- **Input**: Two APs with -68.5 dBm and -62.3 dBm
+- **Base Weights**:
+  * RSSI Ratio: 1.0
+  * Weighted Centroid: 0.8
+  * Proximity: 0.4
+  * Log Distance: 0.5
+- **Adjustments**:
+  * Signal Quality (Strong): ×1.0
+  * GDOP (Poor): ×0.8 for RSSI Ratio, ×1.3 for Weighted Centroid
+  * Distribution (Uniform): ×1.2 for RSSI Ratio, ×1.0 for Weighted Centroid
+- **Final Weights**:
+  * Weighted Centroid: 0.8 × 1.0 × 1.3 × 1.0 = 1.04 (Primary)
+  * RSSI Ratio: 1.0 × 1.0 × 0.8 × 1.2 = 0.96 (Secondary)
+  * Log Distance: 0.5 × 1.0 × 0.7 × 1.1 = 0.385 (Below threshold)
+  * Proximity: 0.4 × 0.9 × 1.0 × 1.0 = 0.36 (Below threshold)
+- **Expected**: Accuracy 55-70m, confidence 0.40-0.60
 
-After applying all weights:
+#### 3. Three APs Test (Test Case 3)
+- **Input**: Three APs with varying signal strengths (-62.3, -71.2, -85.5 dBm)
+- **Base Weights**:
+  * Trilateration: 1.0
+  * Weighted Centroid: 0.8
+  * RSSI Ratio: 0.7
+- **Adjustments**:
+  * Signal Quality (Medium): ×0.7
+  * GDOP (Poor): ×0.7 for Trilateration, ×1.3 for Weighted Centroid
+  * Distribution (Signal Outliers): ×0.8 for Trilateration, ×1.0 for Weighted Centroid
+- **Final Weights**:
+  * Weighted Centroid: 0.8 × 0.7 × 1.3 × 1.0 = 0.728 (Primary)
+  * RSSI Ratio: 0.7 × 0.7 × 0.8 × 0.9 = 0.3528 (Secondary)
+  * Trilateration: 1.0 × 0.7 × 0.7 × 0.8 = 0.392 (Below threshold)
+- **Expected**: Accuracy 90-105m, confidence 0.35-0.55
 
-1. **Threshold Filter**: Remove algorithms with final weight < 0.4
-2. **Adaptive Selection**:
-   - If highest-weighted algorithm has weight > 0.8: Use it alone or with one backup
-   - Otherwise: Select top 3 algorithms
+#### 4. Collinear APs Test (Test Cases 6-10)
+- **Input**: Three APs in linear arrangement (-70.0, -68.0, -66.0 dBm)
+- **Base Weights**:
+  * Weighted Centroid: 0.8
+  * RSSI Ratio: 0.7
+- **Adjustments**:
+  * Signal Quality (Medium): ×0.7
+  * GDOP (Collinear): ×1.4 for Weighted Centroid, ×0.7 for RSSI Ratio
+  * Distribution (Collinear): ×1.0 for Weighted Centroid, ×0.9 for RSSI Ratio
+- **Final Weights**:
+  * Weighted Centroid: 0.8 × 0.7 × 1.4 × 1.0 = 0.784 (Primary)
+  * RSSI Ratio: 0.7 × 0.7 × 0.7 × 0.9 = 0.3087 (Secondary)
+  * Trilateration: 0.0 (Disqualified due to collinear geometry)
+- **Expected**: Accuracy 70-85m, confidence 0.35-0.45
 
-## Implementation
+#### 5. High Density Cluster Test (Test Cases 11-15)
+- **Input**: Four APs with strong signals (-65.0 to -60.5 dBm)
+- **Base Weights**:
+  * Maximum Likelihood: 1.0
+  * Trilateration: 0.8
+  * Weighted Centroid: 0.7
+- **Adjustments**:
+  * Signal Quality (Strong): ×0.9
+  * GDOP (Poor): ×0.7 for Maximum Likelihood, ×1.3 for Weighted Centroid
+  * Distribution (Mixed): ×0.8 for Maximum Likelihood, ×1.0 for Weighted Centroid
+- **Final Weights**:
+  * Weighted Centroid: 0.7 × 0.9 × 1.3 × 1.0 = 0.819 (Primary)
+  * Maximum Likelihood: 1.0 × 0.9 × 0.7 × 0.8 = 0.504 (Secondary)
+  * Trilateration: 0.8 × 0.9 × 0.7 × 0.8 = 0.4032 (Below threshold)
+- **Expected**: Accuracy 50-60m, confidence 0.35-0.55
 
-The framework is implemented in the `AlgorithmSelector` class which evaluates each scenario using the selection process described above.
+#### 6. Stable Signal Quality Test (Test Cases 31-35)
+- **Input**: Two APs with identical signal strengths (-68.0 dBm)
+- **Base Weights**:
+  * RSSI Ratio: 1.0
+  * Weighted Centroid: 0.8
+- **Adjustments**:
+  * Signal Quality (Medium): ×0.7
+  * GDOP (Poor): ×0.8 for RSSI Ratio, ×1.3 for Weighted Centroid
+  * Distribution (Stable): ×1.0 for both methods
+- **Final Weights**:
+  * Weighted Centroid: 0.8 × 0.7 × 1.3 × 1.0 = 0.728 (Primary)
+  * RSSI Ratio: 1.0 × 0.7 × 0.8 × 1.0 = 0.560 (Secondary)
+- **Expected**: Accuracy 5-15m, confidence 0.65-0.80
 
-### Example Scenarios
+### Error Cases and Edge Scenarios
 
-#### Example 1: Single AP with Medium Signal
+#### 1. Very Weak Signal Test (Test Case 38)
+- **Input**: Single AP with -99.9 dBm signal
+- **Base Weights**:
+  * Proximity: 1.0
+  * Log Distance: 0.4
+- **Adjustments**:
+  * Signal Quality (Very Weak): ×0.5 for Proximity, ×0.0 for others
+  * GDOP (Poor): ×0.7
+  * Distribution (Uniform): ×1.1
+- **Final Weights**:
+  * Proximity: 1.0 × 0.5 × 0.7 × 1.1 = 0.385 (Selected)
+  * Log Distance: 0.4 × 0.0 = 0.0 (Below threshold)
+- **Expected**: Accuracy 5-15m, confidence 0.0-0.1
 
-- Hard Constraints: Only Proximity and Log Distance remain
-- Base Weights: Proximity = 1.0, Log Distance = 0.4
-- Adjustments:
-  - Proximity: 1.0 × 0.7 = 0.7
-  - Log Distance: 0.4 × 0.8 = 0.32
-- Selection: Use Proximity only (Log Distance below threshold)
-
-#### Example 2: Three Collinear APs with Strong Signals
-
-- Hard Constraints: Remove Trilateration (collinear)
-- Base Weights: RSSI Ratio = 0.7, Weighted Centroid = 0.8, Proximity = 0.3, Log Distance = 0.5
-- Adjustments:
-  - RSSI Ratio: 0.7 × 1.0 × 0.8 = 0.56
-  - Weighted Centroid: 0.8 × 1.0 × 1.3 = 1.04
-  - Proximity: 0.3 × 0.9 × 1.0 = 0.27
-  - Log Distance: 0.5 × 1.0 × 0.7 = 0.35
-- Selection: Weighted Centroid (1.04) and RSSI Ratio (0.56); others removed by threshold
-
-#### Example 3: Four APs with Mixed Signal Quality
-
-- Hard Constraints: All algorithms eligible
-- Base Weights: ML = 1.0, Trilateration = 0.8, Weighted Centroid = 0.7, RSSI Ratio = 0.5, Proximity = 0.2, Log Distance = 0.4
-- Adjustments for Mixed Signals:
-  - Maximum Likelihood: 1.0 × 1.3 = 1.3
-  - Trilateration: 0.8 × 0.8 = 0.64
-  - Weighted Centroid: 0.7 × 1.2 = 0.84
-  - RSSI Ratio: 0.5 × 0.9 = 0.45
-  - Proximity: 0.2 × 0.7 = 0.14
-  - Log Distance: 0.4 × 0.8 = 0.32
-- Selection: Maximum Likelihood (1.3), Weighted Centroid (0.84), Trilateration (0.64)
-
-## Benefits of the Framework
-
-1. **Mathematical Validity**: Ensures algorithms are only used when mathematically valid for the given inputs
-2. **Adaptive Selection**: Adjusts weights based on signal quality, geometric distribution, and signal patterns
-3. **Confidence-based Selection**: Uses fewer algorithms with higher confidence when one algorithm is clearly superior
-4. **Graceful Degradation**: Falls back to simpler methods when more complex ones are unsuitable
-5. **Explainable Decisions**: Records reasons for algorithm selection and weight adjustments for transparency
-
+#### 2. Algorithm Failure Test (Test Case 39)
+- **Input**: Three APs with physically impossible signal relationships
+- **Result**: ERROR status
+- **Rationale**: Signal relationships violate physical constraints
+- **Expected**: Error response with appropriate message
 
 ## Conclusion
 

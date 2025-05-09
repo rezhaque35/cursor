@@ -44,14 +44,26 @@ For remaining eligible algorithms, we apply base weights according to AP count:
 | Weak (< -85 dBm) | ×0.4 | ×0.6 | ×0.8 | ×0.3 | ×0.5 | ×0.6 |
 | Very Weak (< -95 dBm) | ×0.5 | ×0.0 | ×0.0 | ×0.0 | ×0.0 | ×0.0 |
 
-### Geometric Quality Adjustments
+### Geometric Quality
 
-| Geometric Quality | Proximity | RSSI Ratio | Weighted Centroid | Trilateration | Maximum Likelihood | Log Distance |
-|-------------------|-----------|------------|-------------------|---------------|-------------------|--------------|
-| Excellent GDOP (< 2) | ×1.0 | ×1.0 | ×1.0 | ×1.3 | ×1.2 | ×1.0 |
-| Good GDOP (2-4) | ×1.0 | ×1.0 | ×1.1 | ×0.9 | ×1.1 | ×1.0 |
-| Fair GDOP (4-6) | ×1.0 | ×0.9 | ×1.2 | ×0.6 | ×0.9 | ×0.8 |
-| Poor GDOP (> 6) | ×1.0 | ×0.8 | ×1.3 | ×0.3 | ×0.7 | ×0.7 |
+| Quality Level | GDOP Range | Description | Impact |
+|---------------|------------|-------------|---------|
+| Excellent | < 2 | APs form a well-distributed pattern | Optimal positioning accuracy |
+| Good | 2-4 | APs form a reasonable pattern | Good positioning accuracy |
+| Fair | 4-6 | APs form a less optimal pattern | Reduced positioning accuracy |
+| Poor | > 6 | APs form a poor pattern | Significantly reduced accuracy |
+| Collinear | N/A | APs are aligned in a straight line | Severely reduced accuracy, especially for trilateration |
+
+### Geometric Quality Impact on Algorithms
+
+| Algorithm | Excellent | Good | Fair | Poor | Collinear |
+|-----------|-----------|------|------|------|-----------|
+| Proximity | ×1.0 | ×1.0 | ×1.0 | ×1.0 | ×1.0 |
+| RSSI Ratio | ×1.0 | ×1.0 | ×0.9 | ×0.8 | ×0.7 |
+| Weighted Centroid | ×1.0 | ×1.1 | ×1.2 | ×1.3 | ×1.4 |
+| Trilateration | ×1.3 | ×0.9 | ×0.6 | ×0.3 | ×0.0 |
+| Maximum Likelihood | ×1.2 | ×1.1 | ×0.9 | ×0.7 | ×0.5 |
+| Log Distance | ×1.0 | ×1.0 | ×0.8 | ×0.7 | ×0.6 |
 
 ### Signal Distribution Adjustments
 
