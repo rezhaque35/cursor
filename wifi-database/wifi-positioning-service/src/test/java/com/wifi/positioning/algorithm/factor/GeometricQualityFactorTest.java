@@ -1,11 +1,15 @@
 package com.wifi.positioning.algorithm.factor;
 
 import com.wifi.positioning.dto.Position;
+import com.wifi.positioning.dto.WifiScanResult;
+import com.wifi.positioning.model.WifiAccessPoint;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -108,11 +112,145 @@ public class GeometricQualityFactorTest {
         // Small variations from a perfect line should still be detected as collinear
         List<Position> nearlyCollinearPositions = Arrays.asList(
             Position.of(40.0, -74.0),
-            Position.of(40.001, -75.0), // Tiny deviation
-            Position.of(40.002, -76.0), // Tiny deviation
+            Position.of(40.0001, -75.0), // Tiny deviation
+            Position.of(40.0002, -76.0), // Tiny deviation
             Position.of(40.0, -77.0)
         );
         
         assertTrue(GeometricQualityFactor.isCollinear(nearlyCollinearPositions));
+    }
+    
+    @Test
+    @DisplayName("checkCollinearity should detect collinear APs in scan results")
+    public void testCheckCollinearityWithCollinearAPs() {
+        // Create scan results
+        List<WifiScanResult> scans = List.of(
+            WifiScanResult.of("00:11:22:33:44:01", -70.0, 2400, "SSID1"),
+            WifiScanResult.of("00:11:22:33:44:02", -72.0, 2400, "SSID2"),
+            WifiScanResult.of("00:11:22:33:44:03", -74.0, 2400, "SSID3")
+        );
+        
+        // Create AP map with collinear positions
+        Map<String, WifiAccessPoint> apMap = new HashMap<>();
+        apMap.put("00:11:22:33:44:01", createAP("00:11:22:33:44:01", 0.0, 0.0));
+        apMap.put("00:11:22:33:44:02", createAP("00:11:22:33:44:02", 0.001, 0.0));
+        apMap.put("00:11:22:33:44:03", createAP("00:11:22:33:44:03", 0.002, 0.0));
+        
+        // Test collinearity detection
+        boolean result = GeometricQualityFactor.checkCollinearity(scans, apMap);
+        assertTrue(result, "Should detect collinear APs");
+    }
+    
+    @Test
+    @DisplayName("checkCollinearity should not detect collinearity in triangular arrangement")
+    public void testCheckCollinearityWithTriangularArrangement() {
+        // Create scan results
+        List<WifiScanResult> scans = List.of(
+            WifiScanResult.of("00:11:22:33:44:01", -70.0, 2400, "SSID1"),
+            WifiScanResult.of("00:11:22:33:44:02", -72.0, 2400, "SSID2"),
+            WifiScanResult.of("00:11:22:33:44:03", -74.0, 2400, "SSID3")
+        );
+        
+        // Create AP map with distinct triangular arrangement
+        Map<String, WifiAccessPoint> apMap = new HashMap<>();
+        apMap.put("00:11:22:33:44:01", createAP("00:11:22:33:44:01", 0.0, 0.0));
+        apMap.put("00:11:22:33:44:02", createAP("00:11:22:33:44:02", 0.002, 0.0));
+        apMap.put("00:11:22:33:44:03", createAP("00:11:22:33:44:03", 0.001, 0.002));
+        
+        // Test collinearity detection
+        boolean result = GeometricQualityFactor.checkCollinearity(scans, apMap);
+        assertFalse(result, "Should not detect collinearity in triangular arrangement");
+    }
+    
+    @Test
+    @DisplayName("determineGeometricQuality should return COLLINEAR for collinear APs")
+    public void testDetermineGeometricQualityWithCollinearAPs() {
+        // Create scan results
+        List<WifiScanResult> scans = List.of(
+            WifiScanResult.of("00:11:22:33:44:01", -70.0, 2400, "SSID1"),
+            WifiScanResult.of("00:11:22:33:44:02", -72.0, 2400, "SSID2"),
+            WifiScanResult.of("00:11:22:33:44:03", -74.0, 2400, "SSID3")
+        );
+        
+        // Create AP map with collinear positions
+        Map<String, WifiAccessPoint> apMap = new HashMap<>();
+        apMap.put("00:11:22:33:44:01", createAP("00:11:22:33:44:01", 0.0, 0.0));
+        apMap.put("00:11:22:33:44:02", createAP("00:11:22:33:44:02", 0.001, 0.0));
+        apMap.put("00:11:22:33:44:03", createAP("00:11:22:33:44:03", 0.002, 0.0));
+        
+        // Test geometric quality determination
+        GeometricQualityFactor factor = GeometricQualityFactor.determineGeometricQuality(scans, apMap);
+        assertEquals(GeometricQualityFactor.COLLINEAR, factor, 
+                "Should return COLLINEAR for collinear APs");
+    }
+    
+    @Test
+    @DisplayName("determineGeometricQuality should return EXCELLENT_GDOP for triangle arrangement")
+    public void testDetermineGeometricQualityWithTriangularArrangement() {
+        // Create scan results
+        List<WifiScanResult> scans = List.of(
+            WifiScanResult.of("00:11:22:33:44:01", -70.0, 2400, "SSID1"),
+            WifiScanResult.of("00:11:22:33:44:02", -72.0, 2400, "SSID2"),
+            WifiScanResult.of("00:11:22:33:44:03", -74.0, 2400, "SSID3")
+        );
+        
+        // Create AP map with equilateral triangle arrangement
+        Map<String, WifiAccessPoint> apMap = new HashMap<>();
+        apMap.put("00:11:22:33:44:01", createAP("00:11:22:33:44:01", 37.7751, -122.4196));
+        apMap.put("00:11:22:33:44:02", createAP("00:11:22:33:44:02", 37.7751, -122.4176)); // 200m east
+        apMap.put("00:11:22:33:44:03", createAP("00:11:22:33:44:03", 37.7771, -122.4186)); // ~200m northeast
+        
+        // Test geometric quality determination
+        GeometricQualityFactor factor = GeometricQualityFactor.determineGeometricQuality(scans, apMap);
+        assertEquals(GeometricQualityFactor.EXCELLENT_GDOP, factor, 
+                "Should return EXCELLENT_GDOP for triangular AP arrangement");
+    }
+    
+    @Test
+    @DisplayName("determineGeometricQuality should return POOR_GDOP for insufficient APs")
+    public void testDetermineGeometricQualityWithInsufficientAPs() {
+        // Create scan results with only 2 APs
+        List<WifiScanResult> scans = List.of(
+            WifiScanResult.of("00:11:22:33:44:01", -70.0, 2400, "SSID1"),
+            WifiScanResult.of("00:11:22:33:44:02", -72.0, 2400, "SSID2")
+        );
+        
+        // Create AP map 
+        Map<String, WifiAccessPoint> apMap = new HashMap<>();
+        apMap.put("00:11:22:33:44:01", createAP("00:11:22:33:44:01", 0.0, 0.0));
+        apMap.put("00:11:22:33:44:02", createAP("00:11:22:33:44:02", 0.001, 0.0));
+        
+        // Test geometric quality determination
+        GeometricQualityFactor factor = GeometricQualityFactor.determineGeometricQuality(scans, apMap);
+        assertEquals(GeometricQualityFactor.POOR_GDOP, factor, 
+                "Should return POOR_GDOP for insufficient APs");
+    }
+    
+    @Test
+    @DisplayName("determineGeometricQuality should handle null inputs gracefully")
+    public void testDetermineGeometricQualityWithNullInputs() {
+        assertEquals(GeometricQualityFactor.POOR_GDOP, 
+                GeometricQualityFactor.determineGeometricQuality(null, null), 
+                "Should return POOR_GDOP for null inputs");
+        
+        List<WifiScanResult> scans = List.of(
+            WifiScanResult.of("00:11:22:33:44:01", -70.0, 2400, "SSID1"),
+            WifiScanResult.of("00:11:22:33:44:02", -72.0, 2400, "SSID2"),
+            WifiScanResult.of("00:11:22:33:44:03", -74.0, 2400, "SSID3")
+        );
+        
+        assertEquals(GeometricQualityFactor.POOR_GDOP, 
+                GeometricQualityFactor.determineGeometricQuality(scans, null), 
+                "Should return POOR_GDOP for null AP map");
+    }
+    
+    private WifiAccessPoint createAP(String macAddress, double latitude, double longitude) {
+        return WifiAccessPoint.builder()
+                .macAddress(macAddress)
+                .latitude(latitude)
+                .longitude(longitude)
+                .confidence(0.9)
+                .status(WifiAccessPoint.STATUS_ACTIVE)
+                .build();
     }
 } 

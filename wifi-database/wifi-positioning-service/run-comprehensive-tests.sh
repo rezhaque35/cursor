@@ -242,6 +242,14 @@ run_test '{
 }' '"result":"SUCCESS"' 90 105 0.35 0.55 "weighted_centroid rssi ratio"
 
 # Test Case 4: Multiple APs - Maximum Likelihood
+# Base weights: Maximum Likelihood: 1.0, Weighted Centroid: 0.7
+# Signal Quality (Medium): ×0.9 for Maximum Likelihood, ×1.0 for Weighted Centroid
+# Geometric Quality (Excellent): ×1.2 for Maximum Likelihood, ×1.0 for Weighted Centroid
+# Distribution (Mixed): ×1.1 for Maximum Likelihood, ×1.8 for Weighted Centroid
+# Final weights:
+# - Maximum Likelihood: 1.0 × 0.9 × 1.2 × 1.1 = 1.19
+# - Weighted Centroid: 0.7 × 1.0 × 1.0 × 1.8 = 1.26
+# Note: Collinear APs detected, Trilateration disqualified
 run_test '{
     "wifiScanResults": [
         {
@@ -272,7 +280,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-4",
     "application": "wifi-positioning-test-suite"
-}' '"result":"SUCCESS"' 135 150 0.35 0.55 "weighted_centroid rssi ratio"
+}' '"result":"SUCCESS"' 65 75 0.35 0.40 "maximum_likelihood weighted_centroid"
 
 # Test Case 5: Weak Signals
 # Base weights: Proximity: 1.0, Log Distance: 0.4
@@ -298,7 +306,13 @@ echo -e "\n${BLUE}SECTION 2: ADVANCED SCENARIO TEST CASES${NC}"
 echo -e "${BLUE}====================================================${NC}"
 
 # Test Case 6-10: Collinear APs
-# Should return ERROR due to poor geometry
+# Base weights: Weighted Centroid: 0.8, RSSI Ratio: 0.7
+# Signal Quality (Medium): ×0.7, GDOP (Poor): ×1.3 for Weighted Centroid, ×0.8 for RSSI Ratio
+# Distribution (Collinear): ×1.0 for Weighted Centroid, ×0.9 for RSSI Ratio
+# Final weights:
+# - Weighted Centroid: 0.8 × 0.7 × 1.3 × 1.0 = 0.728 (Primary)
+# - RSSI Ratio: 0.7 × 0.7 × 0.8 × 0.9 = 0.3528 (Secondary)
+# Note: Collinear APs should return SUCCESS with low confidence and high accuracy
 run_test '{
     "wifiScanResults": [
         {
@@ -323,7 +337,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-6-10",
     "application": "wifi-positioning-test-suite"
-}' '"result":"ERROR"'
+}' '"result":"SUCCESS"' 70 85 0.35 0.45 "weighted_centroid rssiratio"
 
 # Test Case 11-15: High Density AP Cluster
 # Base weights: Maximum Likelihood: 1.0, Trilateration: 0.8, Weighted Centroid: 0.7

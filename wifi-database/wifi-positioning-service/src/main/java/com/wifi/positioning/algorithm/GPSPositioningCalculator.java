@@ -78,7 +78,8 @@ public class GPSPositioningCalculator {
                 info.append("  Signal Quality: ").append(selectionContext.getSignalQuality()).append("\n");
                 info.append("  Signal Distribution: ").append(selectionContext.getSignalDistribution()).append("\n");
                 info.append("  Geometric Quality: ").append(selectionContext.getGeometricQuality()).append("\n");
-                info.append("  Collinear APs: ").append(selectionContext.isCollinear()).append("\n\n");
+                // Note: Collinearity is now directly handled by the GeometricQualityFactor.COLLINEAR value
+                info.append("\n");
             }
             
             // Add algorithm weights information

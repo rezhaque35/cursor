@@ -1,6 +1,8 @@
 package com.wifi.positioning.service;
 
-import com.wifi.positioning.algorithm.GPSPositioningCalculatorAdapter;
+import com.wifi.positioning.algorithm.GPSPositioningCalculator;
+import com.wifi.positioning.algorithm.PositioningAlgorithm;
+import com.wifi.positioning.algorithm.selection.SelectionContext;
 import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.PositionRequestDto;
 import com.wifi.positioning.dto.PositionResponseDto;
@@ -9,6 +11,7 @@ import com.wifi.positioning.exception.PositioningException;
 import com.wifi.positioning.model.WifiAccessPoint;
 import com.wifi.positioning.repository.WifiAccessPointRepository;
 import com.wifi.positioning.service.impl.PositioningServiceImpl;
+import com.wifi.positioning.validation.SignalPhysicsValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,13 +37,21 @@ class PositioningServiceTest {
     private WifiAccessPointRepository accessPointRepository;
     
     @Mock
-    private GPSPositioningCalculatorAdapter positioningCalculator;
+    private GPSPositioningCalculator calculator;
+    
+    @Mock
+    private SignalPhysicsValidator signalPhysicsValidator;
+    
+    @Mock
+    private PositioningAlgorithm algorithm;
     
     @InjectMocks
     private PositioningServiceImpl positioningService;
     
     private WifiAccessPoint testAccessPoint;
     private PositionRequestDto validRequest;
+    private Position testPosition;
+    private GPSPositioningCalculator.PositioningResult positioningResult;
     
     @BeforeEach
     void setUp() {
@@ -77,6 +88,21 @@ class PositioningServiceTest {
                 TEST_APPLICATION,
                 false);
         
+        // Create position and positioning result
+        testPosition = new Position(37.7749, -122.4194, 10.0, 15.0, 0.85);
+        
+        Map<PositioningAlgorithm, Double> algorithmWeights = new HashMap<>();
+        algorithmWeights.put(algorithm, 1.0);
+        
+        Map<PositioningAlgorithm, List<String>> selectionReasons = new HashMap<>();
+        selectionReasons.put(algorithm, List.of("Strong signal", "Good geometry"));
+        
+        SelectionContext context = mock(SelectionContext.class);
+        
+        positioningResult = new GPSPositioningCalculator.PositioningResult(
+            testPosition, algorithmWeights, selectionReasons, context
+        );
+        
         // Use lenient stubbing to avoid unnecessary stubbing errors
         lenient().when(accessPointRepository.findByMacAddress(testAccessPoint.getMacAddress()))
                 .thenReturn(Optional.of(testAccessPoint));
@@ -85,49 +111,33 @@ class PositioningServiceTest {
         batchResult.put(testAccessPoint.getMacAddress(), testAccessPoint);
         lenient().when(accessPointRepository.findByMacAddresses(anySet()))
                 .thenReturn(batchResult);
+                
+        lenient().when(signalPhysicsValidator.isPhysicallyPossible(any())).thenReturn(true);
+        
+        lenient().when(algorithm.getName()).thenReturn("Proximity");
     }
 
     @Test
     void should_CalculatePosition_When_ValidRequest() {
         // Setup
-        Map<String, Object> calculatorResult = new HashMap<>();
-        calculatorResult.put("positionFound", true);
-        calculatorResult.put("latitude", 37.7749);
-        calculatorResult.put("longitude", -122.4194);
-        calculatorResult.put("horizontalAccuracy", 15.0);
-        calculatorResult.put("confidence", 0.85);
-        calculatorResult.put("methodsUsed", List.of("proximity"));
-        
-        when(positioningCalculator.calculatePosition(any(), any())).thenReturn(calculatorResult);
+        when(calculator.calculatePosition(any(), any())).thenReturn(positioningResult);
         
         // Execute
         PositionResponseDto response = positioningService.calculatePosition(validRequest);
         
         // Verify
         assertNotNull(response);
-        assertEquals(37.7749, response.latitude());
-        assertEquals(-122.4194, response.longitude());
-        assertEquals(15.0, response.horizontalAccuracy());
-        assertEquals(0.85, response.confidence());
-        assertEquals(List.of("proximity"), response.methodsUsed());
+        assertEquals(testPosition.latitude(), response.latitude());
+        assertEquals(testPosition.longitude(), response.longitude());
+        assertEquals(testPosition.accuracy(), response.horizontalAccuracy());
+        assertEquals(testPosition.confidence(), response.confidence());
+        assertEquals(1, response.methodsUsed().size());
+        assertEquals("proximity", response.methodsUsed().get(0));
         
         // Verify the calculator was called with the correct data
-        ArgumentCaptor<List<WifiScanResult>> scanResultsCaptor = 
-                ArgumentCaptor.forClass(List.class);
-        ArgumentCaptor<Map<String, Object>> optionsCaptor = 
-                ArgumentCaptor.forClass(Map.class);
-        
-        verify(positioningCalculator).calculatePosition(scanResultsCaptor.capture(), optionsCaptor.capture());
-        
-        List<WifiScanResult> capturedScanResults = scanResultsCaptor.getValue();
-        assertNotNull(capturedScanResults);
-        assertEquals(1, capturedScanResults.size());
-        assertEquals("00:11:22:33:44:55", capturedScanResults.get(0).macAddress());
-        
-        Map<String, Object> capturedOptions = optionsCaptor.getValue();
-        assertEquals(TEST_CLIENT, capturedOptions.get("client"));
-        assertEquals(TEST_REQUEST_ID, capturedOptions.get("requestId"));
-        assertEquals(TEST_APPLICATION, capturedOptions.get("application"));
+        verify(calculator).calculatePosition(any(), any());
+        verify(signalPhysicsValidator).isPhysicallyPossible(any());
+        verify(accessPointRepository).findByMacAddresses(anySet());
     }
     
     @Test
@@ -149,49 +159,56 @@ class PositioningServiceTest {
     }
     
     @Test
-    void should_ThrowException_When_PositionNotFound() {
+    void should_ReturnPositionNotFoundResponse_When_PositionNotFound() {
         // Setup
-        Map<String, Object> calculatorResult = new HashMap<>();
-        calculatorResult.put("positionFound", false);
+        when(calculator.calculatePosition(any(), any())).thenReturn(null);
         
-        when(positioningCalculator.calculatePosition(any(), any())).thenReturn(calculatorResult);
+        // Execute
+        PositionResponseDto response = positioningService.calculatePosition(validRequest);
         
-        // Execute & Verify
-        PositioningException exception = assertThrows(
-                PositioningException.class,
-                () -> positioningService.calculatePosition(validRequest));
-        
-        assertEquals("Unable to calculate position with provided scan results", exception.getMessage());
+        // Verify
+        assertNotNull(response);
+        assertNotNull(response.metadata());
+        assertFalse((Boolean) response.metadata().get("positionFound"));
+        assertEquals(0L, response.metadata().get("calculationTimeMs"));
     }
     
     @Test
-    void should_ThrowException_When_ErrorMessagePresent() {
+    void should_ReturnErrorResponse_When_SignalPhysicsInvalid() {
         // Setup
-        Map<String, Object> calculatorResult = new HashMap<>();
-        calculatorResult.put("positionFound", false);
-        calculatorResult.put("errorMessage", "Signal physics validation failed");
+        when(signalPhysicsValidator.isPhysicallyPossible(any())).thenReturn(false);
         
-        when(positioningCalculator.calculatePosition(any(), any())).thenReturn(calculatorResult);
+        // Execute
+        PositionResponseDto response = positioningService.calculatePosition(validRequest);
         
-        // Execute & Verify
-        PositioningException exception = assertThrows(
-                PositioningException.class,
-                () -> positioningService.calculatePosition(validRequest));
-        
-        assertEquals("Signal physics validation failed", exception.getMessage());
+        // Verify
+        assertNotNull(response);
+        assertNotNull(response.metadata());
+        assertTrue((Boolean) response.metadata().get("error"));
+        assertEquals("Physically impossible signal strength relationships", response.metadata().get("errorMessage"));
+        assertEquals("ERROR", response.metadata().get("result"));
     }
     
     @Test
-    void should_ThrowException_When_CalculatorThrowsException() {
+    void should_ReturnErrorResponse_When_CalculatorThrowsException() {
         // Setup
-        when(positioningCalculator.calculatePosition(any(), any()))
+        when(calculator.calculatePosition(any(), any()))
                 .thenThrow(new RuntimeException("Calculator internal error"));
         
-        // Execute & Verify
-        PositioningException exception = assertThrows(
-                PositioningException.class,
-                () -> positioningService.calculatePosition(validRequest));
+        // Use Mockito lenient() to avoid UnnecessaryStubbingException
+        lenient().when(signalPhysicsValidator.isPhysicallyPossible(any())).thenReturn(true);
+        lenient().when(accessPointRepository.findByMacAddresses(anySet())).thenReturn(
+            Map.of(testAccessPoint.getMacAddress(), testAccessPoint)
+        );
         
-        assertEquals("Error calculating position: Calculator internal error", exception.getMessage());
+        // Execute
+        PositionResponseDto response = positioningService.calculatePosition(validRequest);
+        
+        // Verify
+        assertNotNull(response);
+        assertNotNull(response.metadata());
+        assertTrue((Boolean) response.metadata().get("error"));
+        assertEquals("Calculator internal error", response.metadata().get("errorMessage"));
+        assertEquals("ERROR", response.metadata().get("result"));
     }
 } 

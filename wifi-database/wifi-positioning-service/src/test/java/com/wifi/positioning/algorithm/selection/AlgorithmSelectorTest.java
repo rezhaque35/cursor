@@ -90,7 +90,6 @@ class AlgorithmSelectorTest {
                 .signalQuality(SignalQualityFactor.MEDIUM_SIGNAL)
                 .signalDistribution(SignalDistributionFactor.UNIFORM_SIGNALS)
                 .geometricQuality(GeometricQualityFactor.GOOD_GDOP)
-                .isCollinear(false)
                 .build();
             
             // Execute
@@ -172,7 +171,6 @@ class AlgorithmSelectorTest {
                 .signalQuality(SignalQualityFactor.MEDIUM_SIGNAL)
                 .signalDistribution(SignalDistributionFactor.UNIFORM_SIGNALS)
                 .geometricQuality(GeometricQualityFactor.GOOD_GDOP)
-                .isCollinear(false)
                 .build();
             
             // Execute
@@ -248,8 +246,7 @@ class AlgorithmSelectorTest {
                 .apCountFactor(APCountFactor.THREE_APS)
                 .signalQuality(SignalQualityFactor.MEDIUM_SIGNAL)
                 .signalDistribution(SignalDistributionFactor.UNIFORM_SIGNALS)
-                .geometricQuality(GeometricQualityFactor.POOR_GDOP)
-                .isCollinear(true)
+                .geometricQuality(GeometricQualityFactor.COLLINEAR)
                 .build();
             
             // Execute
@@ -353,7 +350,6 @@ class AlgorithmSelectorTest {
                 .signalQuality(SignalQualityFactor.VERY_WEAK_SIGNAL)
                 .signalDistribution(SignalDistributionFactor.UNIFORM_SIGNALS)
                 .geometricQuality(GeometricQualityFactor.GOOD_GDOP)
-                .isCollinear(false)
                 .build();
             
             // Execute
@@ -430,8 +426,7 @@ class AlgorithmSelectorTest {
                 .apCountFactor(APCountFactor.THREE_APS)
                 .signalQuality(SignalQualityFactor.VERY_WEAK_SIGNAL)
                 .signalDistribution(SignalDistributionFactor.UNIFORM_SIGNALS)
-                .geometricQuality(GeometricQualityFactor.POOR_GDOP)
-                .isCollinear(true)
+                .geometricQuality(GeometricQualityFactor.GOOD_GDOP)
                 .build();
             
             // Execute
@@ -519,7 +514,6 @@ class AlgorithmSelectorTest {
                 .signalQuality(SignalQualityFactor.STRONG_SIGNAL)
                 .signalDistribution(SignalDistributionFactor.UNIFORM_SIGNALS)
                 .geometricQuality(GeometricQualityFactor.EXCELLENT_GDOP)
-                .isCollinear(false)
                 .build();
             
             // Execute
@@ -589,7 +583,6 @@ class AlgorithmSelectorTest {
                 .signalQuality(SignalQualityFactor.WEAK_SIGNAL)
                 .signalDistribution(SignalDistributionFactor.UNIFORM_SIGNALS)
                 .geometricQuality(GeometricQualityFactor.GOOD_GDOP)
-                .isCollinear(false)
                 .build();
             
             // Execute
@@ -661,7 +654,6 @@ class AlgorithmSelectorTest {
                 .signalQuality(SignalQualityFactor.MEDIUM_SIGNAL)
                 .signalDistribution(SignalDistributionFactor.MIXED_SIGNALS)
                 .geometricQuality(GeometricQualityFactor.GOOD_GDOP)
-                .isCollinear(false)
                 .build();
             
             // Execute
@@ -733,11 +725,10 @@ class AlgorithmSelectorTest {
                 
             // Properly initialize selection context with poor geometry
             SelectionContext context = SelectionContext.builder()
-                .apCountFactor(APCountFactor.THREE_APS)
-                .signalQuality(SignalQualityFactor.MEDIUM_SIGNAL)
+                .apCountFactor(APCountFactor.FOUR_PLUS_APS)
+                .signalQuality(SignalQualityFactor.STRONG_SIGNAL)
                 .signalDistribution(SignalDistributionFactor.UNIFORM_SIGNALS)
                 .geometricQuality(GeometricQualityFactor.POOR_GDOP)
-                .isCollinear(false)
                 .build();
             
             // Execute
@@ -881,7 +872,6 @@ class AlgorithmSelectorTest {
                 .signalQuality(SignalQualityFactor.STRONG_SIGNAL)
                 .signalDistribution(SignalDistributionFactor.UNIFORM_SIGNALS)
                 .geometricQuality(GeometricQualityFactor.EXCELLENT_GDOP)
-                .isCollinear(false)
                 .build();
             
             // Execute
@@ -944,9 +934,8 @@ class AlgorithmSelectorTest {
             SelectionContext context = SelectionContext.builder()
                 .apCountFactor(APCountFactor.THREE_APS)
                 .signalQuality(SignalQualityFactor.WEAK_SIGNAL)
-                .signalDistribution(SignalDistributionFactor.UNIFORM_SIGNALS)
-                .geometricQuality(GeometricQualityFactor.POOR_GDOP)
-                .isCollinear(false)
+                .signalDistribution(SignalDistributionFactor.SIGNAL_OUTLIERS)
+                .geometricQuality(GeometricQualityFactor.GOOD_GDOP)
                 .build();
             
             // Execute

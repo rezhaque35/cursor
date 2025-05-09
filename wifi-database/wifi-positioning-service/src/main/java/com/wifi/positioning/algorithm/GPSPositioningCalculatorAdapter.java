@@ -39,7 +39,7 @@ public class GPSPositioningCalculatorAdapter {
     
     private static final Logger logger = LoggerFactory.getLogger(GPSPositioningCalculatorAdapter.class);
     
-   
+    
     /**
      * Default value for vertical accuracy when not provided by the positioning algorithms.
      * Set to 0.0 as most algorithms in this system only calculate horizontal accuracy.
@@ -232,7 +232,7 @@ public class GPSPositioningCalculatorAdapter {
         return knownAPs;
     }
     
-
+    
     /**
      * Convert a Position object to a map containing all position data
      */

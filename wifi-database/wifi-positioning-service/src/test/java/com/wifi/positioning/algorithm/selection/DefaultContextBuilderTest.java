@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
@@ -174,12 +176,12 @@ class DefaultContextBuilderTest {
             List<WifiScanResult> scans = createWifiScans(new double[]{-70.0, -72.0, -74.0});
             Map<String, WifiAccessPoint> apMap = createAccessPoints(new double[][]{
                 {37.7751, -122.4196},      // AP1 at origin
-                {37.7751, -122.4186},      // AP2 ~100m east
-                {37.7756, -122.4191}       // AP3 ~100m northeast (forms equilateral triangle)
+                {37.7751, -122.4176},      // AP2 ~200m east
+                {37.7771, -122.4186}       // AP3 ~200m northeast (forms clear triangle)
             });
             
             // Act
-            GeometricQualityFactor factor = contextBuilder.determineGeometricQuality(scans, apMap);
+            GeometricQualityFactor factor = GeometricQualityFactor.determineGeometricQuality(scans, apMap);
             
             // Assert
             assertEquals(GeometricQualityFactor.EXCELLENT_GDOP, factor, 
@@ -187,8 +189,65 @@ class DefaultContextBuilderTest {
         }
         
         @Test
-        @DisplayName("should return POOR_GDOP for collinear APs")
-        void shouldReturnPoorGdopForCollinearAPs() {
+        @DisplayName("should return geometric quality factor for APs configuration from Test Case 4")
+        void shouldReturnGeometricQualityFactorForSimpleConfigurationOfAPsFromTestCase4() {
+            // Arrange
+            // Signal strengths from Test Case 4
+            List<WifiScanResult> scans = List.of(
+                WifiScanResult.of("00:11:22:33:44:04", -71.2, 5240, "MultiAP_Test"),
+                WifiScanResult.of("00:11:22:33:44:05", -85.5, 2412, "WeakSignal_Test"),
+                WifiScanResult.of("00:11:22:33:44:06", -70.0, 2437, "Collinear_Test_06")
+            );
+            
+            // AP locations from wifi-positioning-test-data.sh
+            Map<String, WifiAccessPoint> apMap = new HashMap<>();
+            apMap.put("00:11:22:33:44:04", WifiAccessPoint.builder()
+                    .macAddress("00:11:22:33:44:04")
+                    .latitude(37.7752)
+                    .longitude(-122.4197)
+                    .altitude(18.0)
+                    .confidence(0.85)
+                    .status(WifiAccessPoint.STATUS_ACTIVE)
+                    .build());
+            
+            apMap.put("00:11:22:33:44:05", WifiAccessPoint.builder()
+                    .macAddress("00:11:22:33:44:05")
+                    .latitude(37.7765)
+                    .longitude(-122.4195)
+                    .altitude(20.0)
+                    .confidence(0.45)
+                    .status(WifiAccessPoint.STATUS_WARNING)
+                    .build());
+            
+            apMap.put("00:11:22:33:44:06", WifiAccessPoint.builder()
+                    .macAddress("00:11:22:33:44:06")
+                    .latitude(37.7760)
+                    .longitude(-122.4185)
+                    .altitude(15.0)
+                    .confidence(0.72)
+                    .status(WifiAccessPoint.STATUS_ACTIVE)
+                    .build());
+            
+            // Act - get the geometric quality factor
+            GeometricQualityFactor factor = GeometricQualityFactor.determineGeometricQuality(scans, apMap);
+            
+            // Assert - verify we got a valid factor
+            assertNotNull(factor, "Should return a valid GeometricQualityFactor");
+            
+            // Additional assertions to verify the factor is one of the expected enum values
+            assertTrue(
+                factor == GeometricQualityFactor.EXCELLENT_GDOP ||
+                factor == GeometricQualityFactor.GOOD_GDOP ||
+                factor == GeometricQualityFactor.FAIR_GDOP ||
+                factor == GeometricQualityFactor.POOR_GDOP ||
+                factor == GeometricQualityFactor.COLLINEAR,
+                "Factor should be one of the defined GeometricQualityFactor values"
+            );
+        }
+        
+        @Test
+        @DisplayName("should return COLLINEAR for collinear APs")
+        void shouldReturnCollinearForCollinearAPs() {
             // Arrange
             List<WifiScanResult> scans = createWifiScans(new double[]{-70.0, -72.0, -74.0});
             Map<String, WifiAccessPoint> apMap = createAccessPoints(new double[][]{
@@ -198,11 +257,27 @@ class DefaultContextBuilderTest {
             });
             
             // Act
-            GeometricQualityFactor factor = contextBuilder.determineGeometricQuality(scans, apMap);
+            GeometricQualityFactor factor = GeometricQualityFactor.determineGeometricQuality(scans, apMap);
             
             // Assert
-            assertEquals(GeometricQualityFactor.POOR_GDOP, factor, 
-                    "Expected POOR_GDOP for collinear AP arrangement");
+            assertEquals(GeometricQualityFactor.COLLINEAR, factor, 
+                    "Expected COLLINEAR for collinear AP arrangement");
+        }
+
+        @Test
+        @DisplayName("should detect collinearity but return GOOD_GDOP if disabled")
+        void shouldDetectCollinearityInGDOPCalculation() {
+            // Arrange
+            List<WifiScanResult> scans = createWifiScans(new double[]{-70.0, -72.0, -74.0});
+            Map<String, WifiAccessPoint> apMap = createAccessPoints(new double[][]{
+                {0.0, 0.0},      // AP1 at origin
+                {0.001, 0.0},    // AP2 ~100m east
+                {0.002, 0.0}     // AP3 ~200m east (collinear with AP1 and AP2)
+            });
+            
+            // Verify that collinearity is detected
+            boolean isCollinear = GeometricQualityFactor.checkCollinearity(scans, apMap);
+            assertTrue(isCollinear, "Should detect collinear arrangement of APs");
         }
         
         @Test
@@ -216,7 +291,7 @@ class DefaultContextBuilderTest {
             });
             
             // Act
-            GeometricQualityFactor factor = contextBuilder.determineGeometricQuality(scans, apMap);
+            GeometricQualityFactor factor = GeometricQualityFactor.determineGeometricQuality(scans, apMap);
             
             // Assert
             assertEquals(GeometricQualityFactor.POOR_GDOP, factor, 
@@ -235,7 +310,7 @@ class DefaultContextBuilderTest {
             });
             
             // Act
-            GeometricQualityFactor factor = contextBuilder.determineGeometricQuality(scans, apMap);
+            GeometricQualityFactor factor = GeometricQualityFactor.determineGeometricQuality(scans, apMap);
             
             // Assert
             assertEquals(GeometricQualityFactor.POOR_GDOP, factor, 

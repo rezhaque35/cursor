@@ -726,6 +726,7 @@ public class LogDistancePathLossAlgorithm implements PositioningAlgorithm {
     private static final double LOG_DISTANCE_GOOD_GDOP_MULTIPLIER = 1.0;      // No change for good geometry
     private static final double LOG_DISTANCE_FAIR_GDOP_MULTIPLIER = 0.8;      // Reduced with fair geometry
     private static final double LOG_DISTANCE_POOR_GDOP_MULTIPLIER = 0.7;      // Significant reduction with poor geometry
+    private static final double LOG_DISTANCE_COLLINEAR_MULTIPLIER = 0.3;      // Severe reduction for collinear APs
     
     // Signal distribution multipliers from framework document
     private static final double LOG_DISTANCE_UNIFORM_SIGNALS_MULTIPLIER = 1.1;  // Better with uniform signals
@@ -775,6 +776,8 @@ public class LogDistancePathLossAlgorithm implements PositioningAlgorithm {
                 return LOG_DISTANCE_FAIR_GDOP_MULTIPLIER;
             case POOR_GDOP:
                 return LOG_DISTANCE_POOR_GDOP_MULTIPLIER;
+            case COLLINEAR:
+                return LOG_DISTANCE_COLLINEAR_MULTIPLIER;
             default:
                 return LOG_DISTANCE_GOOD_GDOP_MULTIPLIER;
         }

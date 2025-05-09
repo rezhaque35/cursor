@@ -542,7 +542,6 @@ class GPSPositioningCalculatorTest {
             .signalQuality(SignalQualityFactor.STRONG_SIGNAL)
             .signalDistribution(SignalDistributionFactor.UNIFORM_SIGNALS)
             .geometricQuality(GeometricQualityFactor.GOOD_GDOP)
-            .isCollinear(false)
             .build();
         
         // Create weighted algorithms map
@@ -572,7 +571,6 @@ class GPSPositioningCalculatorTest {
         assertTrue(calculationInfo.contains("Signal Quality: STRONG_SIGNAL"));
         assertTrue(calculationInfo.contains("Signal Distribution: UNIFORM_SIGNALS"));
         assertTrue(calculationInfo.contains("Geometric Quality: GOOD_GDOP"));
-        assertTrue(calculationInfo.contains("Collinear APs: false"));
         
         assertTrue(calculationInfo.contains("Algorithm Selection Reasons:"));
         assertTrue(calculationInfo.contains("Primary algorithm for this scenario"));

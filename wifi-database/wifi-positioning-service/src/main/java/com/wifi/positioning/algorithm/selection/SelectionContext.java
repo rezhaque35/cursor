@@ -16,17 +16,11 @@ import lombok.Data;
  * - AP count: Number of available access points
  * - Signal quality: Overall signal strength (STRONG/MEDIUM/WEAK)
  * - Signal distribution: Variation in signal strengths (UNIFORM/MIXED/OUTLIERS)
- * - Geometric quality: AP arrangement and GDOP
- * - Collinearity: Whether APs are arranged in a line
+ * - Geometric quality: AP arrangement and GDOP, including detection of collinear arrangements
  */
 @Data
 @Builder
 public class SelectionContext {
-    /**
-     * Whether the AP geometry is determined to be collinear
-     */
-    private boolean isCollinear;
-
     /**
      * AP count factor based on the number of available access points.
      * SINGLE_AP: 1 AP
@@ -61,6 +55,7 @@ public class SelectionContext {
      * GOOD_GDOP: GDOP 2.0-4.0
      * FAIR_GDOP: GDOP 4.0-6.0
      * POOR_GDOP: GDOP > 6.0
+     * COLLINEAR: Special case where APs lie approximately on a straight line
      */
     private GeometricQualityFactor geometricQuality;
 } 

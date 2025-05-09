@@ -543,6 +543,7 @@ public class TrilaterationAlgorithm implements PositioningAlgorithm {
     private static final double TRILATERATION_GOOD_GDOP_MULTIPLIER = 0.9;      // Slight reduction for good geometry
     private static final double TRILATERATION_FAIR_GDOP_MULTIPLIER = 0.6;      // Significant reduction for fair geometry
     private static final double TRILATERATION_POOR_GDOP_MULTIPLIER = 0.3;      // Major reduction for poor geometry
+    private static final double TRILATERATION_COLLINEAR_MULTIPLIER = 0.0;      // Zero weight for collinear APs - trilateration is impossible
     
     // Signal distribution multipliers from framework document
     private static final double TRILATERATION_UNIFORM_SIGNALS_MULTIPLIER = 1.1;  // Better with uniform signals
@@ -592,6 +593,8 @@ public class TrilaterationAlgorithm implements PositioningAlgorithm {
                 return TRILATERATION_FAIR_GDOP_MULTIPLIER;
             case POOR_GDOP:
                 return TRILATERATION_POOR_GDOP_MULTIPLIER;
+            case COLLINEAR:
+                return TRILATERATION_COLLINEAR_MULTIPLIER;
             default:
                 return TRILATERATION_GOOD_GDOP_MULTIPLIER;
         }

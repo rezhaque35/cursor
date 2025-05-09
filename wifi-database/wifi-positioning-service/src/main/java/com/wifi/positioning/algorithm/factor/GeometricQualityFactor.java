@@ -1,7 +1,13 @@
 package com.wifi.positioning.algorithm.factor;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import com.wifi.positioning.algorithm.util.GDOPCalculator;
 import com.wifi.positioning.dto.Position;
+import com.wifi.positioning.dto.WifiScanResult;
+import com.wifi.positioning.model.WifiAccessPoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,11 +27,18 @@ public enum GeometricQualityFactor {
     FAIR_GDOP(4.0, 6.0),
     
     /** Poor geometric distribution (GDOP > 6) */
-    POOR_GDOP(6.0, Double.POSITIVE_INFINITY);
+    POOR_GDOP(6.0, Double.POSITIVE_INFINITY),
+    
+    /** Collinear AP arrangement (special case that makes trilateration impossible) */
+    COLLINEAR(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY);
     
     private static final Logger logger = LoggerFactory.getLogger(GeometricQualityFactor.class);
     private final double lowerBound;
     private final double upperBound;
+    
+    // Constants for geometric quality determination
+    private static final double SIGNAL_WEIGHT_FACTOR = 10.0; // Base for signal weight (10^(dBm/10))
+    private static final int MIN_AP_COUNT_FOR_GEOMETRY = 3; // Minimum APs needed for valid geometry
     
     GeometricQualityFactor(double lowerBound, double upperBound) {
         this.lowerBound = lowerBound;
@@ -68,7 +81,7 @@ public enum GeometricQualityFactor {
         }
     }
 
-    private static final double COLLINEARITY_THRESHOLD = 0.002; // Maximum allowed deviation from line of best fit
+    private static final double COLLINEARITY_THRESHOLD = 0.0002; // Maximum allowed deviation from line of best fit
     private static final double AREA_THRESHOLD = 0.0001; // Threshold for area-based check
     private static final double SINGULARITY_THRESHOLD = 1e-10; // Threshold for near-zero values
 
@@ -128,5 +141,116 @@ public enum GeometricQualityFactor {
 
         logger.debug("Max deviation: {}, Slope: {}", maxDeviation, slope);
         return maxDeviation <= COLLINEARITY_THRESHOLD;
+    }
+    
+    /**
+     * Checks if the access points in the valid scans are collinear.
+     * 
+     * @param validScans List of valid WiFi scan results
+     * @param apMap Map of known access points by MAC address
+     * @return true if the access points are collinear, false otherwise
+     */
+    public static boolean checkCollinearity(List<WifiScanResult> validScans, Map<String, WifiAccessPoint> apMap) {
+        if (validScans == null || validScans.size() < 3 || apMap == null) {
+            return false;
+        }
+        
+        return isCollinear(
+            validScans.stream()
+                .map(scan -> apMap.get(scan.macAddress()))
+                .filter(ap -> ap != null && ap.getLatitude() != null && ap.getLongitude() != null)
+                .map(ap -> new Position(ap.getLatitude(), ap.getLongitude(), 0.0, 0.0, 0.0))
+                .collect(Collectors.toList())
+        );
+    }
+
+    /**
+     * Determines the geometric quality factor based on AP positions.
+     * 
+     * This method uses GDOP (Geometric Dilution of Precision) to assess how the
+     * geometric configuration of access points affects position accuracy:
+     * - EXCELLENT_GDOP: GDOP < 2.0 (optimal AP geometry)
+     * - GOOD_GDOP: 2.0 ≤ GDOP < 4.0 (good AP geometry)
+     * - FAIR_GDOP: 4.0 ≤ GDOP < 6.0 (acceptable AP geometry)
+     * - POOR_GDOP: GDOP ≥ 6.0 (poor AP geometry)
+     * - COLLINEAR: Special case where APs lie approximately on a straight line
+     * 
+     * The calculation includes:
+     * 1. Checking if APs are collinear (arranged in a line)
+     * 2. Estimating user position using weighted centroid (weights based on signal strength)
+     * 3. Creating an array of AP coordinates
+     * 4. Computing GDOP using the GDOPCalculator
+     * 5. Mapping the GDOP value to the appropriate GeometricQualityFactor
+     * 
+     * @param wifiScans List of WiFi scan results
+     * @param apMap Map of known access points by MAC address
+     * @return The corresponding GeometricQualityFactor
+     */
+    public static GeometricQualityFactor determineGeometricQuality(List<WifiScanResult> wifiScans, 
+                                                          Map<String, WifiAccessPoint> apMap) {
+        // Check if we have enough APs for a meaningful geometry calculation
+        if (wifiScans == null || wifiScans.size() < MIN_AP_COUNT_FOR_GEOMETRY || apMap == null) {
+            return GeometricQualityFactor.POOR_GDOP;
+        }
+        
+        // First check for collinearity as a special case
+        if (checkCollinearity(wifiScans, apMap)) {
+            return GeometricQualityFactor.COLLINEAR;
+        }
+        
+        // Extract APs with known positions
+        List<WifiAccessPoint> validAPs = wifiScans.stream()
+            .map(scan -> apMap.get(scan.macAddress()))
+            .filter(ap -> ap != null && ap.getLatitude() != null && ap.getLongitude() != null)
+            .collect(Collectors.toList());
+        
+        // Create a map of MAC address to signal strength for weighting
+        Map<String, Double> signalMap = wifiScans.stream()
+            .collect(Collectors.toMap(
+                WifiScanResult::macAddress,
+                WifiScanResult::signalStrength,
+                (a, b) -> a  // If duplicate keys, take the first one
+            ));
+        
+        // Check if we have enough valid APs
+        if (validAPs.size() < MIN_AP_COUNT_FOR_GEOMETRY) {
+            return GeometricQualityFactor.POOR_GDOP;
+        }
+
+        // Calculate weighted centroid based on signal strength as an estimate for user position
+        double totalWeight = 0, weightedLat = 0, weightedLon = 0;
+        
+        for (WifiAccessPoint ap : validAPs) {
+            // Signal strength is negative, so we need to take power(10, signal/10) for proper weighting
+            // Stronger signals (less negative) will have higher weights
+            double signalStrength = signalMap.getOrDefault(ap.getMacAddress(), -80.0);
+            double weight = Math.pow(SIGNAL_WEIGHT_FACTOR, signalStrength / 10.0);
+            
+            weightedLat += ap.getLatitude() * weight;
+            weightedLon += ap.getLongitude() * weight;
+            totalWeight += weight;
+        }
+        
+        // Normalize weighted coordinates
+        double[] estimatedPosition = new double[2];
+        if (totalWeight > 0) {
+            estimatedPosition[0] = weightedLat / totalWeight;
+            estimatedPosition[1] = weightedLon / totalWeight;
+        } else {
+            // If weighting fails, use simple average
+            estimatedPosition[0] = validAPs.stream().mapToDouble(WifiAccessPoint::getLatitude).average().orElse(0);
+            estimatedPosition[1] = validAPs.stream().mapToDouble(WifiAccessPoint::getLongitude).average().orElse(0);
+        }
+        
+        // Create array of AP coordinates for GDOP calculation
+        double[][] apCoordinates = validAPs.stream()
+            .map(ap -> new double[] { ap.getLatitude(), ap.getLongitude() })
+            .toArray(double[][]::new);
+        
+        // Calculate GDOP (include bias term for 2D positioning)
+        double gdop = GDOPCalculator.calculateGDOP(apCoordinates, estimatedPosition, true);
+        
+        // Map GDOP to GeometricQualityFactor
+        return fromGDOP(gdop);
     }
 } 

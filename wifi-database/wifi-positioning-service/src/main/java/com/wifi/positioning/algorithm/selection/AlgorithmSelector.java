@@ -449,7 +449,8 @@ public class AlgorithmSelector {
         logger.debug("Applied AP count constraints for {}", context.getApCountFactor());
         
         // Handle collinearity or poor geometry if needed
-        if (context.isCollinear() || context.getGeometricQuality() == GeometricQualityFactor.POOR_GDOP) {
+        if (context.getGeometricQuality() == GeometricQualityFactor.COLLINEAR || 
+            context.getGeometricQuality() == GeometricQualityFactor.POOR_GDOP) {
             return handleGeometricConstraints(baseSelection, context);
         }
         
@@ -467,7 +468,7 @@ public class AlgorithmSelector {
             SelectedAlgorithms baseSelection,
             SelectionContext context) {
             
-        String reason = context.isCollinear() ? 
+        String reason = context.getGeometricQuality() == GeometricQualityFactor.COLLINEAR ? 
             DISQUALIFIED_COLLINEAR : 
             DISQUALIFIED_POOR_GEOMETRY;
             
@@ -477,8 +478,8 @@ public class AlgorithmSelector {
             reason
         );
         
-        logger.debug("Applied geometric constraints (collinear: {}, GDOP: {})", 
-            context.isCollinear(), context.getGeometricQuality());
+        logger.debug("Applied geometric constraints (geometry quality: {})", 
+            context.getGeometricQuality());
             
         return filteredSelection;
     }
