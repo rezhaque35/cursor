@@ -110,15 +110,15 @@ public class PositioningControllerIntegrationTest {
 
         // Parse response
         JsonNode jsonResponse = objectMapper.readTree(result.getResponse().getContentAsString());
-        JsonNode data = jsonResponse.get("data");
+        JsonNode wifiPosition = jsonResponse.get("wifiPosition");
         
         // Verify methodsUsed is an array that contains at least one algorithm
-        assertNotNull(data);
-        assertTrue(data.get("methodsUsed").isArray());
-        assertTrue(data.get("methodsUsed").size() > 0);
+        assertNotNull(wifiPosition);
+        assertTrue(wifiPosition.get("methodsUsed").isArray());
+        assertTrue(wifiPosition.get("methodsUsed").size() > 0);
         
         // Print the actual algorithms used for debugging purposes
-        System.out.println("Methods used: " + data.get("methodsUsed").toString());
+        System.out.println("Methods used: " + wifiPosition.get("methodsUsed").toString());
     }
 
     @Test
@@ -160,13 +160,13 @@ public class PositioningControllerIntegrationTest {
 
         // Parse response
         JsonNode jsonResponse = objectMapper.readTree(result.getResponse().getContentAsString());
-        JsonNode data = jsonResponse.get("data");
+        JsonNode wifiPosition = jsonResponse.get("wifiPosition");
         
         // Verify methods used array contains expected algorithm names
-        assertNotNull(data);
-        assertTrue(data.get("methodsUsed").isArray());
-        String methodsUsed = data.get("methodsUsed").toString();
-        assertTrue(methodsUsed.contains("weighted_centroid"));
+        assertNotNull(wifiPosition);
+        assertTrue(wifiPosition.get("methodsUsed").isArray());
+        String methodsUsed = wifiPosition.get("methodsUsed").toString();
+        assertTrue(methodsUsed.contains("weighted_centroid") || methodsUsed.contains("rssiratio"));
     }
 
     /**

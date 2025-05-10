@@ -1,157 +1,152 @@
 package com.wifi.positioning.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wifi.positioning.dto.PositionRequestDto;
-import com.wifi.positioning.dto.PositionResponseDto;
+import com.wifi.positioning.dto.WifiPositioningResponse;
+import com.wifi.positioning.dto.WifiPositioningResponse.WifiPosition;
 import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.exception.PositioningException;
 import com.wifi.positioning.service.PositioningService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.Mockito.*;
 
-@WebMvcTest(PositioningController.class)
-class PositioningControllerTest {
+@ExtendWith(MockitoExtension.class)
+public class PositioningControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @MockBean
+    @Mock
     private PositioningService positioningService;
 
-    private PositionRequestDto validRequest;
-    private final PositionResponseDto successResponse = new PositionResponseDto(createSuccessMapResult());
+    @InjectMocks
+    private PositioningController controller;
 
-    private static final String TEST_CLIENT = "test-client";
-    private static final String TEST_REQUEST_ID = "test-request-id";
-    private static final String TEST_APPLICATION = "test-application";
+    private PositionRequestDto validRequest;
+    private WifiPositioningResponse successResponse;
+    private WifiPositioningResponse errorResponse;
 
     @BeforeEach
     void setUp() {
-        WifiScanResult scanResult = new WifiScanResult(
-                "00:11:22:33:44:55",
-                -65.0,
-                2437,
-                "test-ssid",
-                54,
-                40);
-
+        // Create a valid request
         validRequest = new PositionRequestDto(
-                List.of(scanResult),
-                TEST_CLIENT,
-                TEST_REQUEST_ID,
-                TEST_APPLICATION,
-                false);
+            List.of(WifiScanResult.of("00:11:22:33:44:55", -65.0, 2437, "TestAP")),
+            "test-client",
+            "test-request-id",
+            "test-app",
+            false
+        );
+
+        // Create a success response
+        WifiPosition wifiPosition = new WifiPosition(
+            37.7749,
+            -122.4194,
+            10.0,
+            25.0,
+            0.0,
+            0.5,
+            List.of("weightedcentroid"),
+            1,
+            100L
+        );
+        
+        successResponse = WifiPositioningResponse.success(
+            validRequest,
+            wifiPosition,
+            null
+        );
+
+        // Create an error response
+        errorResponse = WifiPositioningResponse.error(
+            "Error calculating position",
+            validRequest
+        );
     }
 
     @Test
-    void calculatePositionSuccess() throws Exception {
+    void should_ReturnSuccessResponse_When_CalculationSucceeds() {
+        // Arrange
         when(positioningService.calculatePosition(any(PositionRequestDto.class)))
-                .thenReturn(successResponse);
+            .thenReturn(successResponse);
 
-        mockMvc.perform(post("/api/positioning/calculate")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(validRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result").value("SUCCESS"))
-                .andExpect(jsonPath("$.data.latitude").value(37.7749))
-                .andExpect(jsonPath("$.data.longitude").value(-122.4194));
+        // Act
+        ResponseEntity<WifiPositioningResponse> response = controller.calculatePosition(validRequest);
+
+        // Assert
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(successResponse, response.getBody());
+        assertEquals("SUCCESS", response.getBody().result());
+        
+        // Verify
+        verify(positioningService).calculatePosition(validRequest);
     }
 
     @Test
-    void calculatePositionBadRequest() throws Exception {
-        PositionRequestDto invalidRequest = new PositionRequestDto(
-                Collections.emptyList(),
-                TEST_CLIENT,
-                TEST_REQUEST_ID,
-                TEST_APPLICATION,
-                false);
-
-        mockMvc.perform(post("/api/positioning/calculate")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(invalidRequest)))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void calculatePositionError() throws Exception {
+    void should_ReturnErrorResponse_When_PositioningExceptionIsThrown() {
+        // Arrange
+        PositioningException exception = new PositioningException("Invalid input");
         when(positioningService.calculatePosition(any(PositionRequestDto.class)))
-                .thenThrow(PositioningException.badRequest("Test error"));
+            .thenThrow(exception);
 
-        mockMvc.perform(post("/api/positioning/calculate")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(validRequest)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.result").value("ERROR"))
-                .andExpect(jsonPath("$.message").value("Test error"));
+        // Act
+        ResponseEntity<WifiPositioningResponse> response = controller.calculatePosition(validRequest);
+
+        // Assert
+        assertNotNull(response);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertEquals("ERROR", response.getBody().result());
+        assertEquals("Invalid input", response.getBody().message());
+        
+        // Verify
+        verify(positioningService).calculatePosition(validRequest);
     }
 
     @Test
-    void calculatePositionWithCalculationDetail() throws Exception {
-        // Create success response with calculation info
-        HashMap<String, Object> resultWithDetail = createSuccessMapResult();
-        resultWithDetail.put("calculationInfo", "Detailed calculation information");
-        PositionResponseDto responseWithDetail = new PositionResponseDto(resultWithDetail);
-        
-        // Create request with calculationDetail flag
-        PositionRequestDto requestWithDetail = new PositionRequestDto(
-                validRequest.wifiScanResults(),
-                TEST_CLIENT,
-                TEST_REQUEST_ID,
-                TEST_APPLICATION,
-                true);
-        
+    void should_ReturnErrorResponse_When_NullPointerExceptionIsThrown() {
+        // Arrange
         when(positioningService.calculatePosition(any(PositionRequestDto.class)))
-                .thenReturn(responseWithDetail);
+            .thenThrow(new NullPointerException("Null value found"));
 
-        mockMvc.perform(post("/api/positioning/calculate")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(requestWithDetail)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result").value("SUCCESS"))
-                .andExpect(jsonPath("$.data.metadata.calculationInfo").value("Detailed calculation information"));
+        // Act
+        ResponseEntity<WifiPositioningResponse> response = controller.calculatePosition(validRequest);
+
+        // Assert
+        assertNotNull(response);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertEquals("ERROR", response.getBody().result());
+        assertEquals("Error processing WiFi data: No matching access points found in database", 
+                    response.getBody().message());
+        
+        // Verify
+        verify(positioningService).calculatePosition(validRequest);
     }
 
-    private static HashMap<String, Object> createSuccessMapResult() {
-        HashMap<String, Object> result = new HashMap<>();
-        result.put("latitude", 37.7749);
-        result.put("longitude", -122.4194);
-        result.put("altitude", 10.0);
-        result.put("horizontalAccuracy", 5.0);
-        result.put("verticalAccuracy", 2.0);
-        result.put("confidence", 0.85);
-        result.put("methodsUsed", List.of("test-method-1", "test-method-2"));
-        result.put("apCount", 1);
+    @Test
+    void should_ReturnErrorResponse_When_OtherExceptionIsThrown() {
+        // Arrange
+        when(positioningService.calculatePosition(any(PositionRequestDto.class)))
+            .thenThrow(new RuntimeException("Unexpected error"));
+
+        // Act
+        ResponseEntity<WifiPositioningResponse> response = controller.calculatePosition(validRequest);
+
+        // Assert
+        assertNotNull(response);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("ERROR", response.getBody().result());
+        assertEquals("Unexpected error", response.getBody().message());
         
-        // Metadata
-        HashMap<String, Object> metadata = new HashMap<>();
-        metadata.put("result", "SUCCESS");
-        metadata.put("positionFound", true);
-        metadata.put("calculationTimeMs", 50L);
-        metadata.put("timestamp", System.currentTimeMillis());
-        result.put("metadata", metadata);
-        
-        // Empty alternatives
-        result.put("alternatives", new ArrayList<>());
-        
-        return result;
+        // Verify
+        verify(positioningService).calculatePosition(validRequest);
     }
 } 

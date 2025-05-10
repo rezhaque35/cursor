@@ -13,6 +13,13 @@ TOTAL_TESTS=0
 PASSED_TESTS=0
 FAILED_TESTS=0
 
+# Check if jq is installed
+if ! command -v jq &> /dev/null; then
+  echo "jq is not installed. Please install it with:"
+  echo "  brew install jq"
+  exit 1
+fi
+
 # Function to check if a value is in range
 check_range() {
     local value=$1
@@ -26,22 +33,30 @@ check_range() {
     fi
 }
 
-# Function to extract value from JSON response - FIXED for nested structure
+# Function to extract value from JSON response using jq
 extract_json_value() {
     local json=$1
     local field=$2
     
-    # Check if field is in top level or inside data object
-    if [[ "$field" == "result" ]]; then
-        # Extract from top level
-        local value=$(echo "$json" | grep -o "\"$field\":\"[^\"]*\"" | cut -d':' -f2 | tr -d '":,')
-        echo "$value"
-    else
-        # Extract from data object
-        local data_section=$(echo "$json" | sed 's/.*"data"://' | sed 's/\}\}/\}\}/' | sed 's/\}\}.*/\}\}/')
-        local value=$(echo "$data_section" | grep -o "\"$field\":[^,}]*" | cut -d':' -f2 | tr -d '", ')
-        echo "$value"
-    fi
+    # Handle different fields based on their location in the JSON
+    case "$field" in
+        # Top-level fields
+        result|message|requestId|client|application|timestamp|calculationInfo)
+            echo "$json" | jq -r ".$field // \"\"" 
+            ;;
+        # Fields in wifiPosition object
+        latitude|longitude|altitude|horizontalAccuracy|verticalAccuracy|confidence|apCount|calculationTimeMs)
+            echo "$json" | jq -r ".wifiPosition.$field // \"\"" 
+            ;;
+        # Handle methodsUsed array
+        methodsUsed)
+            echo "$json" | jq -r ".wifiPosition.methodsUsed | if . == null then \"\" else join(\", \") end"
+            ;;
+        # Default case
+        *)
+            echo "$json" | jq -r ".$field // \"\""
+            ;;
+    esac
 }
 
 # Function to validate response against detailed criteria
@@ -57,8 +72,9 @@ validate_response() {
     local validation_errors=()
     
     # Check for basic SUCCESS/ERROR
-    if [[ "$response" != *"$result_check"* ]]; then
-        validation_errors+=("Expected result:\"$result_check\" not found")
+    local result=$(extract_json_value "$response" "result")
+    if [[ "$result" != "$result_check" ]]; then
+        validation_errors+=("Expected result:\"$result_check\" got:\"$result\"")
     fi
     
     # If we're checking a SUCCESS response, validate the other fields
@@ -84,7 +100,7 @@ validate_response() {
         fi
 
         # Extract and validate methodsUsed
-        local methods_used=$(echo "$response" | grep -o "\"methodsUsed\":\[[^]]*\]" | sed 's/"methodsUsed":\[//' | sed 's/\]//' | tr -d '"')
+        local methods_used=$(extract_json_value "$response" "methodsUsed")
         if [[ -n "$methods_used" ]]; then
             for expected_method in $expected_methods; do
                 if [[ ! "$methods_used" =~ $expected_method ]]; then
@@ -176,7 +192,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-1",
     "application": "wifi-positioning-test-suite"
-}' '"result":"SUCCESS"' 45 55 0.35 0.55 "proximity"
+}' "SUCCESS" 45 55 0.35 0.55 "proximity"
 
 # Test Case 2: Two APs - RSSI Ratio Method
 # Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8, Proximity: 0.4, Log Distance: 0.5
@@ -205,7 +221,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-2",
     "application": "wifi-positioning-test-suite"
-}' '"result":"SUCCESS"' 55 70 0.40 0.60 "weighted_centroid rssi ratio"
+}' "SUCCESS" 55 70 0.40 0.60 "weighted_centroid rssi ratio"
 
 # Test Case 3: Three APs - Trilateration
 # Base weights: Trilateration: 1.0, Weighted Centroid: 0.8, RSSI Ratio: 0.7
@@ -239,7 +255,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-3",
     "application": "wifi-positioning-test-suite"
-}' '"result":"SUCCESS"' 90 105 0.35 0.55 "weighted_centroid rssi ratio"
+}' "SUCCESS" 90 105 0.35 0.55 "weighted_centroid rssi ratio"
 
 # Test Case 4: Multiple APs - Maximum Likelihood
 # Base weights: Maximum Likelihood: 1.0, Weighted Centroid: 0.7
@@ -280,7 +296,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-4",
     "application": "wifi-positioning-test-suite"
-}' '"result":"SUCCESS"' 65 75 0.35 0.40 "maximum_likelihood weighted_centroid"
+}' "SUCCESS" 65 75 0.35 0.40 "maximum_likelihood weighted_centroid"
 
 # Test Case 5: Weak Signals
 # Base weights: Proximity: 1.0, Log Distance: 0.4
@@ -300,7 +316,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-5",
     "application": "wifi-positioning-test-suite"
-}' '"result":"SUCCESS"' 30 80 0.05 0.15 "proximity"
+}' "SUCCESS" 30 80 0.05 0.15 "proximity"
 
 echo -e "\n${BLUE}SECTION 2: ADVANCED SCENARIO TEST CASES${NC}"
 echo -e "${BLUE}====================================================${NC}"
@@ -337,7 +353,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-6-10",
     "application": "wifi-positioning-test-suite"
-}' '"result":"SUCCESS"' 70 85 0.35 0.45 "weighted_centroid rssiratio"
+}' "SUCCESS" 70 85 0.35 0.45 "weighted_centroid rssiratio"
 
 # Test Case 11-15: High Density AP Cluster
 # Base weights: Maximum Likelihood: 1.0, Trilateration: 0.8, Weighted Centroid: 0.7
@@ -377,7 +393,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-11-15",
     "application": "wifi-positioning-test-suite"
-}' '"result":"SUCCESS"' 50 60 0.35 0.55 "weighted_centroid maximum_likelihood"
+}' "SUCCESS" 50 60 0.35 0.55 "weighted_centroid maximum_likelihood"
 
 # Test Case 16-20: Mixed Signal Quality
 # Base weights: Trilateration: 1.0, Weighted Centroid: 0.8, RSSI Ratio: 0.7
@@ -411,7 +427,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-16-20",
     "application": "wifi-positioning-test-suite"
-}' '"result":"SUCCESS"' 60 75 0.35 0.55 "weighted_centroid rssi ratio"
+}' "SUCCESS" 60 75 0.35 0.55 "weighted_centroid rssi ratio"
 
 echo -e "\n${BLUE}SECTION 3: TEMPORAL AND ENVIRONMENTAL TEST CASES${NC}"
 echo -e "${BLUE}====================================================${NC}"
@@ -441,7 +457,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-21-25",
     "application": "wifi-positioning-test-suite"
-}' '"result":"SUCCESS"' 45 60 0.35 0.55 "weighted_centroid rssi ratio"
+}' "SUCCESS" 45 60 0.35 0.55 "weighted_centroid rssi ratio"
 
 # Test Case 26-30: Log-Distance Path Loss
 # Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8
@@ -468,7 +484,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-26-30",
     "application": "wifi-positioning-test-suite"
-}' '"result":"SUCCESS"' 20 35 0.40 0.60 "weighted_centroid rssi ratio"
+}' "SUCCESS" 20 35 0.40 0.60 "weighted_centroid rssi ratio"
 
 # Test Case 31-35: Stable Signal Quality
 # Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8
@@ -496,7 +512,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-31-35",
     "application": "wifi-positioning-test-suite"
-}' '"result":"SUCCESS"' 5 15 0.65 0.80 "weighted_centroid rssi ratio"
+}' "SUCCESS" 5 15 0.65 0.80 "weighted_centroid rssi ratio"
 
 echo -e "\n${BLUE}SECTION 4: ERROR AND EDGE CASES${NC}"
 echo -e "${BLUE}====================================================${NC}"
@@ -514,7 +530,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-36",
     "application": "wifi-positioning-test-suite"
-}' '"result":"ERROR"'
+}' "ERROR"
 
 # Test Case 38: Very Weak Signal (Single AP)
 # According to algorithm selection framework:
@@ -534,7 +550,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-38",
     "application": "wifi-positioning-test-suite"
-}' '"result":"SUCCESS"' 5 15 0.0 0.1 "proximity"
+}' "SUCCESS" 5 15 0.0 0.1 "proximity"
 
 # Test Case 39: Algorithm Failure
 run_test '{
@@ -561,7 +577,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-39",
     "application": "wifi-positioning-test-suite"
-}' '"result":"ERROR"'
+}' "ERROR"
 
 # Print test summary
 echo -e "\n${CYAN}====================================================${NC}"

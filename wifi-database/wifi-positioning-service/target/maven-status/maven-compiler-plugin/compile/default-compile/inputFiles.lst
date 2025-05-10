@@ -29,6 +29,7 @@
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/main/java/com/wifi/positioning/algorithm/PositioningAlgorithm.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/main/java/com/wifi/positioning/algorithm/selection/WeightedAlgorithm.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/main/java/com/wifi/positioning/repository/impl/WifiAccessPointRepositoryImpl.java
+/Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/main/java/com/wifi/positioning/dto/WifiPositioningResponse.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/main/java/com/wifi/positioning/exception/GlobalExceptionHandler.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/main/java/com/wifi/positioning/algorithm/impl/LogDistancePathLossAlgorithm.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/main/java/com/wifi/positioning/exception/PositioningException.java

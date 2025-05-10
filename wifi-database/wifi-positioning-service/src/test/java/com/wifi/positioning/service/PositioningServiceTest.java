@@ -5,7 +5,7 @@ import com.wifi.positioning.algorithm.PositioningAlgorithm;
 import com.wifi.positioning.algorithm.selection.SelectionContext;
 import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.PositionRequestDto;
-import com.wifi.positioning.dto.PositionResponseDto;
+import com.wifi.positioning.dto.WifiPositioningResponse;
 import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.exception.PositioningException;
 import com.wifi.positioning.model.WifiAccessPoint;
@@ -18,7 +18,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.ArgumentCaptor;
 
 import java.util.*;
 
@@ -123,16 +122,25 @@ class PositioningServiceTest {
         when(calculator.calculatePosition(any(), any())).thenReturn(positioningResult);
         
         // Execute
-        PositionResponseDto response = positioningService.calculatePosition(validRequest);
+        WifiPositioningResponse response = positioningService.calculatePosition(validRequest);
         
         // Verify
         assertNotNull(response);
-        assertEquals(testPosition.latitude(), response.latitude());
-        assertEquals(testPosition.longitude(), response.longitude());
-        assertEquals(testPosition.accuracy(), response.horizontalAccuracy());
-        assertEquals(testPosition.confidence(), response.confidence());
-        assertEquals(1, response.methodsUsed().size());
-        assertEquals("proximity", response.methodsUsed().get(0));
+        assertEquals("SUCCESS", response.result());
+        assertEquals("Request processed successfully", response.message());
+        assertEquals(TEST_REQUEST_ID, response.requestId());
+        assertEquals(TEST_CLIENT, response.client());
+        assertEquals(TEST_APPLICATION, response.application());
+        assertNotNull(response.timestamp());
+        
+        // Verify position data
+        assertNotNull(response.wifiPosition());
+        assertEquals(testPosition.latitude(), response.wifiPosition().latitude());
+        assertEquals(testPosition.longitude(), response.wifiPosition().longitude());
+        assertEquals(testPosition.accuracy(), response.wifiPosition().horizontalAccuracy());
+        assertEquals(testPosition.confidence(), response.wifiPosition().confidence());
+        assertEquals(1, response.wifiPosition().methodsUsed().size());
+        assertEquals("proximity", response.wifiPosition().methodsUsed().get(0));
         
         // Verify the calculator was called with the correct data
         verify(calculator).calculatePosition(any(), any());
@@ -164,13 +172,16 @@ class PositioningServiceTest {
         when(calculator.calculatePosition(any(), any())).thenReturn(null);
         
         // Execute
-        PositionResponseDto response = positioningService.calculatePosition(validRequest);
+        WifiPositioningResponse response = positioningService.calculatePosition(validRequest);
         
         // Verify
         assertNotNull(response);
-        assertNotNull(response.metadata());
-        assertFalse((Boolean) response.metadata().get("positionFound"));
-        assertEquals(0L, response.metadata().get("calculationTimeMs"));
+        assertEquals("ERROR", response.result());
+        assertEquals("Position calculation failed: no position could be determined", response.message());
+        assertEquals(TEST_REQUEST_ID, response.requestId());
+        assertEquals(TEST_CLIENT, response.client());
+        assertEquals(TEST_APPLICATION, response.application());
+        assertNull(response.wifiPosition());
     }
     
     @Test
@@ -179,14 +190,16 @@ class PositioningServiceTest {
         when(signalPhysicsValidator.isPhysicallyPossible(any())).thenReturn(false);
         
         // Execute
-        PositionResponseDto response = positioningService.calculatePosition(validRequest);
+        WifiPositioningResponse response = positioningService.calculatePosition(validRequest);
         
         // Verify
         assertNotNull(response);
-        assertNotNull(response.metadata());
-        assertTrue((Boolean) response.metadata().get("error"));
-        assertEquals("Physically impossible signal strength relationships", response.metadata().get("errorMessage"));
-        assertEquals("ERROR", response.metadata().get("result"));
+        assertEquals("ERROR", response.result());
+        assertEquals("Physically impossible signal strength relationships", response.message());
+        assertEquals(TEST_REQUEST_ID, response.requestId());
+        assertEquals(TEST_CLIENT, response.client());
+        assertEquals(TEST_APPLICATION, response.application());
+        assertNull(response.wifiPosition());
     }
     
     @Test
@@ -202,13 +215,15 @@ class PositioningServiceTest {
         );
         
         // Execute
-        PositionResponseDto response = positioningService.calculatePosition(validRequest);
+        WifiPositioningResponse response = positioningService.calculatePosition(validRequest);
         
         // Verify
         assertNotNull(response);
-        assertNotNull(response.metadata());
-        assertTrue((Boolean) response.metadata().get("error"));
-        assertEquals("Calculator internal error", response.metadata().get("errorMessage"));
-        assertEquals("ERROR", response.metadata().get("result"));
+        assertEquals("ERROR", response.result());
+        assertEquals("Calculator internal error", response.message());
+        assertEquals(TEST_REQUEST_ID, response.requestId());
+        assertEquals(TEST_CLIENT, response.client());
+        assertEquals(TEST_APPLICATION, response.application());
+        assertNull(response.wifiPosition());
     }
 } 

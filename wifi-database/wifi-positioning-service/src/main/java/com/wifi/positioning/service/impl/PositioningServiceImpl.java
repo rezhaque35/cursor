@@ -3,7 +3,8 @@ package com.wifi.positioning.service.impl;
 import com.wifi.positioning.algorithm.GPSPositioningCalculator;
 import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.PositionRequestDto;
-import com.wifi.positioning.dto.PositionResponseDto;
+import com.wifi.positioning.dto.WifiPositioningResponse;
+import com.wifi.positioning.dto.WifiPositioningResponse.WifiPosition;
 import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.exception.PositioningException;
 import com.wifi.positioning.model.WifiAccessPoint;
@@ -69,7 +70,7 @@ public class PositioningServiceImpl implements PositioningService {
     }
     
     @Override
-    public PositionResponseDto calculatePosition(PositionRequestDto request) {
+    public WifiPositioningResponse calculatePosition(PositionRequestDto request) {
         logger.info("Calculating position for {} WiFi scan results from client {} with requestId {}", 
                 request.wifiScanResults().size(), request.client(), request.requestId());
         
@@ -80,13 +81,14 @@ public class PositioningServiceImpl implements PositioningService {
         
         try {
             List<WifiScanResult> scanResults = request.wifiScanResults();
-            Map<String, Object> options = createOptionsMap(request);
             
             // Check if the signal physics is valid
             if (!signalPhysicsValidator.isPhysicallyPossible(scanResults)) {
                 logger.warn("Physically impossible signal strength relationships detected");
-                Map<String, Object> errorResponse = createErrorResponse("Physically impossible signal strength relationships", options);
-                return new PositionResponseDto(errorResponse);
+                return WifiPositioningResponse.error(
+                    "Physically impossible signal strength relationships", 
+                    request
+                );
             }
             
             // Lookup known APs using their MAC addresses
@@ -96,8 +98,7 @@ public class PositioningServiceImpl implements PositioningService {
             
             if (knownAPs.isEmpty()) {
                 logger.warn("No known access points found in database");
-                Map<String, Object> notFoundResponse = createPositionNotFoundResponse(scanResults.size(), options);
-                return new PositionResponseDto(notFoundResponse);
+                return createPositionNotFoundResponse(scanResults.size(), request);
             }
             
             // Calculate position
@@ -107,8 +108,7 @@ public class PositioningServiceImpl implements PositioningService {
             
             if (positioningResult == null || positioningResult.position() == null) {
                 logger.warn("Position calculation failed");
-                Map<String, Object> notFoundResponse = createPositionNotFoundResponse(scanResults.size(), options);
-                return new PositionResponseDto(notFoundResponse);
+                return createPositionNotFoundResponse(scanResults.size(), request);
             }
 
             // Validate position coordinates
@@ -116,34 +116,31 @@ public class PositioningServiceImpl implements PositioningService {
             if (position.latitude() == null || position.longitude() == null || 
                 Double.isNaN(position.latitude()) || Double.isNaN(position.longitude())) {
                 logger.warn("Invalid coordinates in position result");
-                Map<String, Object> notFoundResponse = createPositionNotFoundResponse(scanResults.size(), options);
-                return new PositionResponseDto(notFoundResponse);
+                return createPositionNotFoundResponse(scanResults.size(), request);
             }
             
             // Get methods used from the positioning result
             List<String> methodsUsed = positioningResult.getMethodsUsedNames();
             
-            // Convert position to result map
-            Map<String, Object> result = positionToResultMap(
-                positioningResult.position(), 
-                scanResults.size(), 
-                calculationTime, 
-                options,
-                methodsUsed
+            // Convert position to WifiPosition object
+            WifiPosition wifiPosition = WifiPosition.fromPosition(
+                position,
+                methodsUsed,
+                scanResults.size(),
+                calculationTime
             );
             
             // Add calculation info if requested
+            String calculationInfo = null;
             if (Boolean.TRUE.equals(request.calculationDetail())) {
-                String calculationInfo = positioningResult.getCalculationInfo();
-                if (calculationInfo != null && !calculationInfo.isEmpty()) {
-                    logger.info("Adding calculation info to the response, size: {}", calculationInfo.length());
-                    result.put("calculationInfo", calculationInfo);
-                } else {
+                calculationInfo = positioningResult.getCalculationInfo();
+                if (calculationInfo == null || calculationInfo.isEmpty()) {
                     logger.warn("No calculation info available despite calculationDetail flag being true");
                 }
             }
             
-            return new PositionResponseDto(result);
+            return WifiPositioningResponse.success(request, wifiPosition, calculationInfo);
+            
         } catch (Exception e) {
             if (e instanceof PositioningException) {
                 // For specific handled exceptions, propagate them
@@ -151,45 +148,16 @@ public class PositioningServiceImpl implements PositioningService {
             }
             // For unhandled exceptions, return an error response
             logger.error("Error calculating position", e);
-            Map<String, Object> options = createOptionsMap(request);
-            Map<String, Object> errorResponse = createErrorResponse(e.getMessage(), options);
-            return new PositionResponseDto(errorResponse);
+            return WifiPositioningResponse.error(e.getMessage(), request);
         }
     }
     
     /**
-     * Create a response map when position calculation fails
+     * Create a response when position calculation fails
      */
-    private Map<String, Object> createPositionNotFoundResponse(int apCount, Map<String, Object> options) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("positionFound", false);
-        result.put("result", "ERROR");
-        result.put("apCount", apCount);
-        result.put("calculationTimeMs", 0L);
-        
-        // Include any additional options
-        if (options != null) {
-            result.putAll(options);
-        }
-        
-        return result;
-    }
-    
-    /**
-     * Create a response map when an error occurs
-     */
-    private Map<String, Object> createErrorResponse(String errorMessage, Map<String, Object> options) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("error", true);
-        result.put("errorMessage", errorMessage);
-        result.put("result", "ERROR");
-        
-        // Include any additional options
-        if (options != null) {
-            result.putAll(options);
-        }
-        
-        return result;
+    private WifiPositioningResponse createPositionNotFoundResponse(int apCount, PositionRequestDto request) {
+        String message = "Position calculation failed: no position could be determined";
+        return WifiPositioningResponse.error(message, request);
     }
     
     /**
@@ -253,62 +221,5 @@ public class PositioningServiceImpl implements PositioningService {
         }
         
         return knownAPs;
-    }
-    
-    /**
-     * Convert a Position object to a map containing all position data
-     */
-    private Map<String, Object> positionToResultMap(Position position, int apCount, long calculationTime, 
-                                                   Map<String, Object> options, List<String> methodsUsed) {
-        Map<String, Object> result = new HashMap<>();
-        
-        if (position != null) {
-            result.put("positionFound", true);
-            result.put("result", "SUCCESS");
-            result.put("latitude", position.latitude());
-            result.put("longitude", position.longitude());
-            result.put("altitude", position.altitude());
-            result.put("horizontalAccuracy", position.accuracy());
-            result.put("verticalAccuracy", DEFAULT_VERTICAL_ACCURACY);
-            result.put("confidence", position.confidence());
-            result.put("methodsUsed", methodsUsed);
-            result.put("apCount", apCount);
-            result.put("calculationTimeMs", calculationTime);
-            
-            // Include any additional options
-            if (options != null) {
-                result.putAll(options);
-            }
-        }
-        
-        return result;
-    }
-    
-    /**
-     * Creates an options map for the positioning calculator with client information and timestamp.
-     *
-     * @param request The position request DTO containing client information
-     * @return A map of options for the positioning calculator
-     */
-    private Map<String, Object> createOptionsMap(PositionRequestDto request) {
-        Map<String, Object> options = new HashMap<>();
-        
-        // Add client information
-        options.put("client", request.client());
-        options.put("requestId", request.requestId());
-        
-        if (request.application() != null) {
-            options.put("application", request.application());
-        }
-        
-        // Add timestamp
-        options.put("timestamp", Instant.now().toEpochMilli());
-        
-        // Add calculationDetail flag if it's true
-        if (Boolean.TRUE.equals(request.calculationDetail())) {
-            options.put("calculationDetail", true);
-        }
-        
-        return options;
     }
 } 

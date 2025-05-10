@@ -19,6 +19,7 @@ com/wifi/positioning/algorithm/util/GDOPCalculator.class
 com/wifi/positioning/dto/ApiResponse.class
 com/wifi/positioning/algorithm/selection/SelectionContext.class
 com/wifi/positioning/exception/GlobalExceptionHandler.class
+com/wifi/positioning/dto/WifiPositioningResponse.class
 com/wifi/positioning/config/DynamoDBConfig.class
 com/wifi/positioning/algorithm/selection/AlgorithmSelector$WeightedAlgorithm.class
 com/wifi/positioning/algorithm/selection/SelectionContext$SelectionContextBuilder.class
@@ -34,6 +35,7 @@ com/wifi/positioning/algorithm/selection/PositionCombiner$WeightedPosition.class
 com/wifi/positioning/service/impl/PositioningServiceImpl.class
 com/wifi/positioning/algorithm/factor/APCountFactor.class
 com/wifi/positioning/algorithm/selection/WeightedAveragePositionCombiner.class
+com/wifi/positioning/dto/WifiPositioningResponse$WifiPosition.class
 com/wifi/positioning/dto/PositionResponseDto$AlternativePositionDto.class
 com/wifi/positioning/algorithm/GPSPositioningCalculator$PositioningResult.class
 com/wifi/positioning/algorithm/impl/WeightedCentroidAlgorithm.class

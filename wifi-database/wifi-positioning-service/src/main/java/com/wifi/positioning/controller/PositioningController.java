@@ -1,9 +1,7 @@
 package com.wifi.positioning.controller;
 
-import com.wifi.positioning.dto.ApiResponse;
 import com.wifi.positioning.dto.PositionRequestDto;
-import com.wifi.positioning.dto.PositionResponseDto;
-import com.wifi.positioning.dto.WifiScanResult;
+import com.wifi.positioning.dto.WifiPositioningResponse;
 import com.wifi.positioning.exception.PositioningException;
 import com.wifi.positioning.service.PositioningService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,8 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/positioning")
@@ -31,21 +27,25 @@ public class PositioningController {
     
     @PostMapping("/calculate")
     @Operation(summary = "Calculate position", description = "Calculate position based on WiFi scan results")
-    public ResponseEntity<ApiResponse<PositionResponseDto>> calculatePosition(
+    public ResponseEntity<WifiPositioningResponse> calculatePosition(
             @Valid @RequestBody PositionRequestDto request) {
         try {
-            PositionResponseDto position = positioningService.calculatePosition(request);
-            return ResponseEntity.ok(ApiResponse.success(position));
+            WifiPositioningResponse response = positioningService.calculatePosition(request);
+            return ResponseEntity.ok(response);
         } catch (PositioningException e) {
             // Use the status code from the exception
-            return ResponseEntity.status(e.getStatus()).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(e.getStatus())
+                .body(WifiPositioningResponse.error(e.getMessage(), request));
         } catch (NullPointerException e) {
             // Handle null pointer exceptions with a more specific error message
-            return ResponseEntity.status(500).body(
-                ApiResponse.error("Error processing WiFi data: No matching access points found in database")
-            );
+            return ResponseEntity.status(500)
+                .body(WifiPositioningResponse.error(
+                    "Error processing WiFi data: No matching access points found in database", 
+                    request
+                ));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest()
+                .body(WifiPositioningResponse.error(e.getMessage(), request));
         }
     }
 } 

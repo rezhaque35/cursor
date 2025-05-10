@@ -450,6 +450,43 @@ public PositioningResult validateAndCalculate(List<WifiScanResult> scanResults) 
      * calculationTimeMs: Integer
      * timestamp: Long (epoch milliseconds)
 
+### Updated Response Format
+
+The service response format has been updated to a flattened structure that combines API response metadata and positioning data for easier consumption:
+
+```json
+{
+  "result": "SUCCESS",  // or "ERROR"
+  "message": "Request processed successfully",  // or error message
+  "requestId": "test-request-39",  // echoed from request 
+  "client": "test-client",  // echoed from request
+  "application": "wifi-positioning-test-suite",  // echoed from request if provided
+  "timestamp": 1746821320281,  // response timestamp
+
+  "wifiPosition": {  // null in error scenarios
+    "latitude": 37.7749,
+    "longitude": -122.4194,
+    "altitude": 10.0,
+    "horizontalAccuracy": 25.0,
+    "verticalAccuracy": 0.0,
+    "confidence": 0.5,
+    "methodsUsed": ["weighted_centroid", "rssi_ratio"],
+    "apCount": 3,
+    "calculationTimeMs": 42
+  },
+  "calculationInfo": "Detailed calculation information"  // present only when calculationDetail=true
+}
+```
+
+This structure provides several benefits:
+1. Single level nesting for easier parsing
+2. Consistent top-level metadata across all responses
+3. Clear separation between general response metadata and positioning data
+4. Simplified error handling with standardized result and message fields
+5. Reduced need for nested metadata objects and multiple parsing steps
+6. Direct access to timestamp and calculation time information
+7. Removal of redundant fields previously repeated in multiple locations
+
 ### Parameter Impact on Algorithm Selection
 
 1. **Single AP Scenario**

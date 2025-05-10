@@ -2,7 +2,8 @@ package com.wifi.positioning.service.impl;
 
 import com.wifi.positioning.algorithm.GPSPositioningCalculatorAdapter;
 import com.wifi.positioning.dto.PositionRequestDto;
-import com.wifi.positioning.dto.PositionResponseDto;
+import com.wifi.positioning.dto.WifiPositioningResponse;
+import com.wifi.positioning.dto.WifiPositioningResponse.WifiPosition;
 import com.wifi.positioning.dto.WifiScanResult;
 import com.wifi.positioning.exception.PositioningException;
 import com.wifi.positioning.model.WifiAccessPoint;
@@ -34,7 +35,7 @@ public class PositioningServiceTestImpl implements PositioningService {
     }
 
     @Override
-    public PositionResponseDto calculatePosition(PositionRequestDto request) {
+    public WifiPositioningResponse calculatePosition(PositionRequestDto request) {
         if (request == null || request.wifiScanResults() == null || request.wifiScanResults().isEmpty()) {
             throw new PositioningException("No scan results provided", HttpStatus.BAD_REQUEST);
         }
@@ -63,51 +64,47 @@ public class PositioningServiceTestImpl implements PositioningService {
                 createOptionsMap(request, knownAPs)
             );
 
-            // Build response
-            return new PositionResponseDto(
-                    (Double) result.get("latitude"),
-                    (Double) result.get("longitude"),
-                    (Double) result.get("altitude"),
-                    (Double) result.get("horizontalAccuracy"),
-                    (Double) result.get("verticalAccuracy"),
-                    (Double) result.get("confidence"),
-                    ((List<?>) result.get("methodsUsed")).stream()
-                            .map(Object::toString)
-                            .collect(Collectors.toList()),
-                    (Integer) result.get("apCount"),
-                    Map.of(
-                            "calculationTimeMs", result.get("calculationTimeMs"),
-                            "timestamp", Instant.now().toString()
-                    ),
-                    buildAlternatives(result)
+            // If no position found, return error response
+            if (result.get("latitude") == null || result.get("longitude") == null) {
+                return WifiPositioningResponse.error(
+                    "Position calculation failed: no position could be determined",
+                    request
+                );
+            }
+
+            // Build position data
+            WifiPosition wifiPosition = new WifiPosition(
+                (Double) result.get("latitude"),
+                (Double) result.get("longitude"),
+                (Double) result.get("altitude"),
+                (Double) result.get("horizontalAccuracy"),
+                (Double) result.get("verticalAccuracy"),
+                (Double) result.get("confidence"),
+                ((List<?>) result.get("methodsUsed")).stream()
+                    .map(Object::toString)
+                    .collect(Collectors.toList()),
+                (Integer) result.get("apCount"),
+                (Long) result.get("calculationTimeMs")
+            );
+            
+            // Extract calculation info if present
+            String calculationInfo = (String) result.get("calculationInfo");
+            
+            // Build success response
+            return WifiPositioningResponse.success(
+                request,
+                wifiPosition,
+                calculationInfo
             );
 
         } catch (PositioningException e) {
             throw e;
         } catch (Exception e) {
-            throw new PositioningException("Error calculating position: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            return WifiPositioningResponse.error(
+                "Error calculating position: " + e.getMessage(),
+                request
+            );
         }
-    }
-
-    private List<PositionResponseDto.AlternativePositionDto> buildAlternatives(Map<String, Object> result) {
-        if (!result.containsKey("alternatives")) {
-            return Collections.emptyList();
-        }
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> alternatives = (List<Map<String, Object>>) result.get("alternatives");
-
-        return alternatives.stream()
-                .map(alt -> new PositionResponseDto.AlternativePositionDto(
-                        (Double) alt.get("latitude"),
-                        (Double) alt.get("longitude"),
-                        (Double) alt.get("altitude"),
-                        (Double) alt.get("horizontalAccuracy"),
-                        (Double) alt.get("verticalAccuracy"),
-                        (Double) alt.get("confidence"),
-                        (String) alt.get("method")
-                ))
-                .collect(Collectors.toList());
     }
 
     /**
@@ -136,6 +133,11 @@ public class PositioningServiceTestImpl implements PositioningService {
         options.put("preferHighAccuracy", false);
         options.put("returnAllMethods", false);
         options.put("timestamp", Instant.now().toEpochMilli());
+        
+        // Add calculation detail flag if it's true
+        if (Boolean.TRUE.equals(request.calculationDetail())) {
+            options.put("calculationDetail", true);
+        }
         
         return options;
     }

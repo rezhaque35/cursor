@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.wifi.positioning.algorithm.selection.WeightedAveragePositionCombinerTest
 -------------------------------------------------------------------------------
-Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.085 s -- in com.wifi.positioning.algorithm.selection.WeightedAveragePositionCombinerTest
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.098 s -- in com.wifi.positioning.algorithm.selection.WeightedAveragePositionCombinerTest
