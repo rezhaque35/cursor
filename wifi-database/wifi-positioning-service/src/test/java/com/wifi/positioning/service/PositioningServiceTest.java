@@ -68,6 +68,7 @@ class PositioningServiceTest {
                 .frequency(2437)
                 .vendor("test-vendor")
                 .geohash("9q8yyk")
+                .status(WifiAccessPoint.STATUS_ACTIVE)
                 .build();
         
         // Create map for mac address lookup

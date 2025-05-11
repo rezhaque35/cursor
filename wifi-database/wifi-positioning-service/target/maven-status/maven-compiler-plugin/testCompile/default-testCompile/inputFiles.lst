@@ -1,5 +1,6 @@
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/repository/WifiAccessPointRepositoryBatchTest.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/service/impl/PositioningServiceImplTest.java
+/Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/dto/PositionTest.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/algorithm/GPSPositioningCalculatorIntegrationTest.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/repository/WifiAccessPointRepositoryImplTest.java
 /Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/src/test/java/com/wifi/positioning/controller/PositioningControllerIntegrationTest.java

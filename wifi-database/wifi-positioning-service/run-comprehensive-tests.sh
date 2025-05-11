@@ -579,6 +579,50 @@ run_test '{
     "application": "wifi-positioning-test-suite"
 }' "ERROR"
 
+echo -e "\n${BLUE}SECTION 5: STATUS FILTERING TESTS${NC}"
+echo -e "${BLUE}====================================================${NC}"
+
+# Test Case: 40 Mixed Status APs Test
+# This test verifies that only APs with active or warning status are used for positioning
+run_test '{
+    "wifiScanResults": [
+        {
+            "macAddress": "00:11:22:33:44:41",
+            "signalStrength": -70.0,
+            "frequency": 2437,
+            "ssid": "StatusTest_41"
+        },
+        {
+            "macAddress": "00:11:22:33:44:42",
+            "signalStrength": -70.0,
+            "frequency": 2437,
+            "ssid": "StatusTest_42"
+        },
+        {
+            "macAddress": "00:11:22:33:44:43",
+            "signalStrength": -70.0,
+            "frequency": 2437,
+            "ssid": "StatusTest_43"
+        },
+        {
+            "macAddress": "00:11:22:33:44:44",
+            "signalStrength": -70.0,
+            "frequency": 2437,
+            "ssid": "StatusTest_44"
+        },
+        {
+            "macAddress": "00:11:22:33:44:45",
+            "signalStrength": -70.0,
+            "frequency": 2437,
+            "ssid": "StatusTest_45"
+        }
+    ],
+    "client": "test-client",
+    "requestId": "test-request-status-filtering",
+    "application": "wifi-positioning-test-suite",
+    "calculationDetail": true
+}' "SUCCESS" 15 25 0.65 0.75 "weighted_centroid rssiratio"
+
 # Print test summary
 echo -e "\n${CYAN}====================================================${NC}"
 echo -e "${CYAN}                TEST SUMMARY${NC}"

@@ -16,7 +16,49 @@ Create a hybrid WiFi positioning system that combines multiple algorithms to pro
    - Optional: Link speed, ssid
    - No environmental/external data available
    - Note: Channel is automatically derived from frequency internally
-
+9. Access point location data is stored in DynamoDB  table wifi_access_points who's schema defination as follows 
+    {
+   "TableName": "wifi_access_points",
+    "AttributeDefinitions": [
+     {
+      "AttributeName": "mac_address",
+      "AttributeType": "S"
+    }
+  ],
+  "KeySchema": [
+    {
+      "AttributeName": "mac_address",
+      "KeyType": "HASH"
+    }
+  ],
+  "BillingMode": "PAY_PER_REQUEST"
+} 
+10. Data store in the wifi_access_points  is in following format. 
+    -     --item '{
+        "mac_addr": {"S": "00:11:22:33:44:01"},
+        "version": {"S": "20240411-120000"},
+        "latitude": {"N": "37.7749"},
+        "longitude": {"N": "-122.4194"},
+        "altitude": {"N": "10.5"},
+        "horizontal_accuracy": {"N": "50.0"},
+        "vertical_accuracy": {"N": "8.0"},
+        "confidence": {"N": "0.65"},
+        "ssid": {"S": "SingleAP_Test"},
+        "frequency": {"N": "2437"},
+        "vendor": {"S": "Cisco"},
+        "geohash": {"S": "9q8yyk"},
+        "status": {"S": "active"}
+    }'
+11.  status feild in database wifi_access_points can have following values 
+    - active
+    - error
+    - expired
+    - warning
+    - wifi-hotspot
+      - 
+12.  Application will only used data with status active or warning for calculation. 
+13.  application will include all the  found Access point location as part of responses calculation info element when flagged to sent in request. 
+   
 ## Algorithm Implementation
 
 ### Primary Algorithms (Using only RSSI and Frequency)

@@ -29,9 +29,10 @@ import java.util.stream.Collectors;
  * 1. Receives WiFi scan results from client devices
  * 2. Performs validation on input data
  * 3. Looks up known access points from the repository using optimized batch operations
- * 4. Delegates positioning calculation to GPSPositioningCalculator
- * 5. Processes the PositioningResult to extract algorithm information
- * 6. Formats the response with algorithm names and positioning data
+ * 4. Filters access points to only use those with active or warning status
+ * 5. Delegates positioning calculation to GPSPositioningCalculator
+ * 6. Processes the PositioningResult to extract algorithm information
+ * 7. Formats the response with algorithm names and positioning data
  */
 @Service
 @Profile("!test")
@@ -55,6 +56,15 @@ public class PositioningServiceImpl implements PositioningService {
      */
     private static final boolean DEFAULT_RETURN_ALL_METHODS = false;
     
+    /**
+     * Valid status values for access points to be used in calculation.
+     * As per requirements, only access points with active or warning status should be used.
+     */
+    private static final List<String> VALID_AP_STATUSES = List.of(
+        WifiAccessPoint.STATUS_ACTIVE,
+        WifiAccessPoint.STATUS_WARNING
+    );
+    
     private final GPSPositioningCalculator calculator;
     private final WifiAccessPointRepository accessPointRepository;
     private final SignalPhysicsValidator signalPhysicsValidator;
@@ -71,8 +81,8 @@ public class PositioningServiceImpl implements PositioningService {
     
     @Override
     public WifiPositioningResponse calculatePosition(PositionRequestDto request) {
-        logger.info("Calculating position for {} WiFi scan results from client {} with requestId {}", 
-                request.wifiScanResults().size(), request.client(), request.requestId());
+        logger.info("Calculating position for {} WiFi scan results from client {} if application {} with requestId {}", 
+                request.wifiScanResults().size(), request.client(), request.application(), request.requestId());
         
         // Check if we have any scan results
         if (request.wifiScanResults().isEmpty()) {
@@ -93,17 +103,23 @@ public class PositioningServiceImpl implements PositioningService {
             
             // Lookup known APs using their MAC addresses
             List<WifiAccessPoint> knownAPs = lookupKnownAccessPoints(scanResults);
-            logger.info("Found {} known access points in database out of {} scan results", 
-                    knownAPs.size(), scanResults.size());
             
             if (knownAPs.isEmpty()) {
                 logger.warn("No known access points found in database");
                 return createPositionNotFoundResponse(scanResults.size(), request);
             }
             
+            // Filter access points by status (only "active" or "warning" status should be used)
+            List<WifiAccessPoint> validStatusAPs = filterAPsByStatus(knownAPs);
+            
+            if (validStatusAPs.isEmpty()) {
+                logger.warn("No access points with valid status (active or warning) found");
+                return createPositionNotFoundResponse(scanResults.size(), request);
+            }
+            
             // Calculate position
             long startTime = System.currentTimeMillis();
-            GPSPositioningCalculator.PositioningResult positioningResult = calculator.calculatePosition(scanResults, knownAPs);
+            GPSPositioningCalculator.PositioningResult positioningResult = calculator.calculatePosition(scanResults, validStatusAPs);
             long calculationTime = System.currentTimeMillis() - startTime;
             
             if (positioningResult == null || positioningResult.position() == null) {
@@ -111,35 +127,7 @@ public class PositioningServiceImpl implements PositioningService {
                 return createPositionNotFoundResponse(scanResults.size(), request);
             }
 
-            // Validate position coordinates
-            Position position = positioningResult.position();
-            if (position.latitude() == null || position.longitude() == null || 
-                Double.isNaN(position.latitude()) || Double.isNaN(position.longitude())) {
-                logger.warn("Invalid coordinates in position result");
-                return createPositionNotFoundResponse(scanResults.size(), request);
-            }
-            
-            // Get methods used from the positioning result
-            List<String> methodsUsed = positioningResult.getMethodsUsedNames();
-            
-            // Convert position to WifiPosition object
-            WifiPosition wifiPosition = WifiPosition.fromPosition(
-                position,
-                methodsUsed,
-                scanResults.size(),
-                calculationTime
-            );
-            
-            // Add calculation info if requested
-            String calculationInfo = null;
-            if (Boolean.TRUE.equals(request.calculationDetail())) {
-                calculationInfo = positioningResult.getCalculationInfo();
-                if (calculationInfo == null || calculationInfo.isEmpty()) {
-                    logger.warn("No calculation info available despite calculationDetail flag being true");
-                }
-            }
-            
-            return WifiPositioningResponse.success(request, wifiPosition, calculationInfo);
+            return createSuccessResponse(positioningResult, scanResults.size(), calculationTime, request, knownAPs);
             
         } catch (Exception e) {
             if (e instanceof PositioningException) {
@@ -150,6 +138,18 @@ public class PositioningServiceImpl implements PositioningService {
             logger.error("Error calculating position", e);
             return WifiPositioningResponse.error(e.getMessage(), request);
         }
+    }
+    
+    /**
+     * Filter access points by status. Only APs with active or warning status should be used.
+     * 
+     * @param allAPs List of all known access points retrieved from the database
+     * @return List of access points with valid status (active or warning)
+     */
+    private List<WifiAccessPoint> filterAPsByStatus(List<WifiAccessPoint> allAPs) {
+        return allAPs.stream()
+                .filter(ap -> ap.getStatus() != null && VALID_AP_STATUSES.contains(ap.getStatus()))
+                .collect(Collectors.toList());
     }
     
     /**
@@ -170,10 +170,6 @@ public class PositioningServiceImpl implements PositioningService {
                 .map(WifiScanResult::macAddress)
                 .collect(Collectors.toSet());
         
-        if (macAddresses.isEmpty()) {
-            logger.warn("No MAC addresses found in scan results");
-            return Collections.emptyList();
-        }
         
         try {
             // Use batch operation to retrieve all access points in a single call
@@ -221,5 +217,74 @@ public class PositioningServiceImpl implements PositioningService {
         }
         
         return knownAPs;
+    }
+
+    /**
+     * Creates a success response from the positioning result.
+     * This method handles:
+     * - Position validation
+     * - Converting position to WifiPosition
+     * - Adding calculation details if requested
+     * 
+     * @param positioningResult The result from the positioning calculation
+     * @param apCount Number of access points used in calculation
+     * @param calculationTime Time taken for calculation in milliseconds
+     * @param request The original position request
+     * @param knownAPs List of all known access points (used for calculation info)
+     * @return A success response with the calculated position
+     */
+    private WifiPositioningResponse createSuccessResponse(
+            GPSPositioningCalculator.PositioningResult positioningResult,
+            int apCount,
+            long calculationTime,
+            PositionRequestDto request,
+            List<WifiAccessPoint> knownAPs) {
+        
+        // Validate position coordinates
+        Position position = positioningResult.position();
+        if (!position.isValid()) {
+            logger.warn("Invalid coordinates in position result");
+            return createPositionNotFoundResponse(apCount, request);
+        }
+        
+        // Get methods used from the positioning result
+        List<String> methodsUsed = positioningResult.getMethodsUsedNames();
+        
+        // Convert position to WifiPosition object
+        WifiPosition wifiPosition = WifiPosition.fromPosition(
+            position,
+            methodsUsed,
+            apCount,
+            calculationTime
+        );
+        
+        // Add calculation info if requested
+        String calculationInfo = null;
+        if (Boolean.TRUE.equals(request.calculationDetail())) {
+            // Append known APs info to the calculation info
+            StringBuilder infoBuilder = new StringBuilder();
+            infoBuilder.append("Access Points Information:\n");
+            
+            for (WifiAccessPoint ap : knownAPs) {
+                infoBuilder.append(String.format("  MAC: %s, Status: %s, Used: %s\n", 
+                    ap.getMacAddress(), 
+                    ap.getStatus(),
+                    VALID_AP_STATUSES.contains(ap.getStatus()) ? "Yes" : "No"));
+            }
+            
+            infoBuilder.append("\n");
+            
+            // Append the positioning result calculation info
+            String resultInfo = positioningResult.getCalculationInfo();
+            if (resultInfo != null && !resultInfo.isEmpty()) {
+                infoBuilder.append(resultInfo);
+            } else {
+                logger.warn("No calculation info available despite calculationDetail flag being true");
+            }
+            
+            calculationInfo = infoBuilder.toString();
+        }
+        
+        return WifiPositioningResponse.success(request, wifiPosition, calculationInfo);
     }
 } 

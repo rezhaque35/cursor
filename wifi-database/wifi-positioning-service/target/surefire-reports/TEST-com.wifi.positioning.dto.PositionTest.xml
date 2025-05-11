@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.wifi.positioning.algorithm.impl.ProximityDetectionAlgorithmTest$WeightFactorTests" time="0.009" tests="5" errors="0" skipped="0" failures="0">
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.wifi.positioning.dto.PositionTest" time="0.096" tests="7" errors="2" skipped="0" failures="0">
   <properties>
     <property name="java.specification.version" value="21"/>
     <property name="sun.jnu.encoding" value="UTF-8"/>
@@ -7,8 +7,6 @@
     <property name="java.vm.vendor" value="Amazon.com Inc."/>
     <property name="sun.arch.data.model" value="64"/>
     <property name="java.vendor.url" value="https://aws.amazon.com/corretto/"/>
-    <property name="user.timezone" value="America/New_York"/>
-    <property name="org.jboss.logging.provider" value="slf4j"/>
     <property name="os.name" value="Mac OS X"/>
     <property name="java.vm.specification.version" value="21"/>
     <property name="sun.java.launcher" value="SUN_STANDARD"/>
@@ -30,8 +28,6 @@
     <property name="line.separator" value="&#10;"/>
     <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
     <property name="java.specification.name" value="Java Platform API Specification"/>
-    <property name="FILE_LOG_CHARSET" value="UTF-8"/>
-    <property name="java.awt.headless" value="true"/>
     <property name="apple.awt.application.name" value="ForkedBooter"/>
     <property name="surefire.real.class.path" value="/Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service/target/surefire/surefirebooter-20250511153303209_3.jar"/>
     <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
@@ -52,8 +48,6 @@
     <property name="user.dir" value="/Users/rezwanulhaque/development/cursor/wifi-database/wifi-positioning-service"/>
     <property name="os.arch" value="x86_64"/>
     <property name="java.vm.specification.name" value="Java Virtual Machine Specification"/>
-    <property name="PID" value="21737"/>
-    <property name="CONSOLE_LOG_CHARSET" value="UTF-8"/>
     <property name="native.encoding" value="UTF-8"/>
     <property name="java.library.path" value="/Users/rezwanulhaque/Library/Java/Extensions:/Library/Java/Extensions:/Network/Library/Java/Extensions:/System/Library/Java/Extensions:/usr/lib/java:."/>
     <property name="java.vm.info" value="mixed mode, sharing"/>
@@ -63,11 +57,28 @@
     <property name="sun.io.unicode.encoding" value="UnicodeBig"/>
     <property name="socksNonProxyHosts" value="local|*.local|169.254/16|*.169.254/16"/>
     <property name="java.class.version" value="65.0"/>
-    <property name="LOGGED_APPLICATION_NAME" value="[wifi-positioning-service-test] "/>
   </properties>
-  <testcase name="shouldReturnCorrectSignalDistributionAdjustments" classname="com.wifi.positioning.algorithm.impl.ProximityDetectionAlgorithmTest$WeightFactorTests" time="0.001"/>
-  <testcase name="shouldCalculateCorrectFinalWeight" classname="com.wifi.positioning.algorithm.impl.ProximityDetectionAlgorithmTest$WeightFactorTests" time="0.003"/>
-  <testcase name="shouldReturnCorrectBaseWeightsForDifferentAPCounts" classname="com.wifi.positioning.algorithm.impl.ProximityDetectionAlgorithmTest$WeightFactorTests" time="0.001"/>
-  <testcase name="shouldReturnCorrectSignalQualityAdjustments" classname="com.wifi.positioning.algorithm.impl.ProximityDetectionAlgorithmTest$WeightFactorTests" time="0.001"/>
-  <testcase name="shouldReturnZeroAdjustmentForGeometricFactors" classname="com.wifi.positioning.algorithm.impl.ProximityDetectionAlgorithmTest$WeightFactorTests" time="0.0"/>
+  <testcase name="isValid_WithNullLatitude_ReturnsFalse" classname="com.wifi.positioning.dto.PositionTest" time="0.031">
+    <error message="Invalid latitude value" type="java.lang.IllegalArgumentException"><![CDATA[java.lang.IllegalArgumentException: Invalid latitude value
+	at com.wifi.positioning.dto.Position.<init>(Position.java:12)
+	at com.wifi.positioning.dto.PositionTest.isValid_WithNullLatitude_ReturnsFalse(PositionTest.java:16)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+]]></error>
+  </testcase>
+  <testcase name="isValid_WithNaNLatitude_ReturnsFalse" classname="com.wifi.positioning.dto.PositionTest" time="0.005"/>
+  <testcase name="isValid_WithValidCoordinatesAndNullAltitude_ReturnsTrue" classname="com.wifi.positioning.dto.PositionTest" time="0.003"/>
+  <testcase name="of_WithValidCoordinates_CreatesValidPosition" classname="com.wifi.positioning.dto.PositionTest" time="0.002"/>
+  <testcase name="isValid_WithValidCoordinates_ReturnsTrue" classname="com.wifi.positioning.dto.PositionTest" time="0.001"/>
+  <testcase name="isValid_WithNaNLongitude_ReturnsFalse" classname="com.wifi.positioning.dto.PositionTest" time="0.002"/>
+  <testcase name="isValid_WithNullLongitude_ReturnsFalse" classname="com.wifi.positioning.dto.PositionTest" time="0.002">
+    <error message="Invalid longitude value" type="java.lang.IllegalArgumentException"><![CDATA[java.lang.IllegalArgumentException: Invalid longitude value
+	at com.wifi.positioning.dto.Position.<init>(Position.java:15)
+	at com.wifi.positioning.dto.PositionTest.isValid_WithNullLongitude_ReturnsFalse(PositionTest.java:22)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+]]></error>
+  </testcase>
 </testsuite>

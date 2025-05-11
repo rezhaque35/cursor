@@ -58,6 +58,7 @@ com/wifi/positioning/algorithm/impl/LogDistancePathLossAlgorithmTest$VendorInfor
 com/wifi/positioning/algorithm/impl/MaximumLikelihoodAlgorithmTest$ErrorHandlingTests.class
 com/wifi/positioning/algorithm/impl/TrilaterationAlgorithmTest$BasicFunctionalityTests.class
 com/wifi/positioning/algorithm/selection/DefaultContextBuilderTest$SignalDistributionFactorTests.class
+com/wifi/positioning/dto/PositionTest.class
 com/wifi/positioning/algorithm/GPSPositioningCalculatorAdapterTest.class
 com/wifi/positioning/validation/SignalPhysicsValidatorTest$SameFrequencyTests.class
 com/wifi/positioning/algorithm/GPSPositioningCalculatorTest.class

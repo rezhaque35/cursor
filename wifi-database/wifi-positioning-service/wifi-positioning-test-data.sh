@@ -306,4 +306,46 @@ for i in {36..40}; do
         }'
 done
 
+# Test Case 41-45: Mixed Status APs (For Status Filtering Tests)
+for i in {41..45}; do
+    case $((i-40)) in
+        1)  # Active status
+            status="active"
+            ;;
+        2)  # Warning status
+            status="warning"
+            ;;
+        3)  # Error status
+            status="error"
+            ;;
+        4)  # Expired status
+            status="expired"
+            ;;
+        5)  # WiFi-Hotspot status
+            status="wifi-hotspot"
+            ;;
+    esac
+
+    aws dynamodb put-item \
+        --table-name wifi_access_points \
+        --endpoint-url http://localhost:8000 \
+        --profile dynamodb-local \
+        --item '{
+            "mac_addr": {"S": "00:11:22:33:44:'$i'"},
+            "version": {"S": "20240411-120'$i'00"},
+            "latitude": {"N": "37.7820"},
+            "longitude": {"N": "-122.4260"},
+            "altitude": {"N": "15.0"},
+            "horizontal_accuracy": {"N": "20.0"},
+            "vertical_accuracy": {"N": "5.0"},
+            "confidence": {"N": "0.75"},
+            "ssid": {"S": "StatusTest_'$i'"},
+            "frequency": {"N": "2437"},
+            "vendor": {"S": "Generic"},
+            "signal_strength_avg": {"N": "-70.0"},
+            "geohash": {"S": "9q8yyk"},
+            "status": {"S": "'$status'"}
+        }'
+done
+
 echo -e "${GREEN}Test data loaded successfully.${NC}" 

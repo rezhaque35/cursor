@@ -24,4 +24,21 @@ public record Position(
     public static Position of(double latitude, double longitude) {
         return new Position(latitude, longitude, null, 1.0, 1.0);
     }
+
+    /**
+     * Validates if the position coordinates are valid.
+     * A position is considered valid if:
+     * - Latitude is not null and not NaN
+     * - Longitude is not null and not NaN
+     * 
+     * Note: This method only checks for null and NaN values. The constructor
+     * already validates the range constraints (-90 to 90 for latitude,
+     * -180 to 180 for longitude).
+     *
+     * @return true if both latitude and longitude are valid numbers, false otherwise
+     */
+    public boolean isValid() {
+        return latitude != null && longitude != null && 
+               !Double.isNaN(latitude) && !Double.isNaN(longitude);
+    }
 } 
