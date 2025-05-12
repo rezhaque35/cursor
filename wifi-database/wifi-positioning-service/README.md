@@ -84,7 +84,8 @@ POST /api/positioning/calculate
   ],
   "client": "test-client",
   "requestId": "test-request-123",
-  "application": "wifi-positioning-test-suite"
+  "application": "wifi-positioning-test-suite",
+  "calculationDetail": true
 }
 ```
 
@@ -249,4 +250,4 @@ Run comprehensive tests (includes algorithm performance tests):
 
 - local: Default profile for local development
 - test: Profile for running tests with in-memory database
-- prod: Production profile (requires AWS credentials) 
+- prod: Production profile (requires AWS credentials)
