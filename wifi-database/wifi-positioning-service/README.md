@@ -2,19 +2,20 @@
 
 A service that provides indoor positioning using WiFi access points. The system uses a hybrid approach combining multiple positioning algorithms to provide the most accurate position estimation based on WiFi scan results.
 
-### Key Features
+## Key Features
 
 - Combines multiple positioning algorithms for optimal results
-- Adapts to different scenarios (signal strength, AP density)
+- Adapts to different scenarios (signal strength, AP density, geometric distribution)
 - Provides accuracy metrics and confidence levels
 - Works with single measurements (no historical data needed)
 - Supports both 2D and 3D positioning
+- GDOP (Geometric Dilution of Precision) implementation for better accuracy estimation
 
-### Architecture
+## Architecture
 
 The service is structured around the following components:
 
-#### Core Components
+### Core Components
 
 1. **Controller Layer**
    - `PositioningController` - Handles HTTP requests/responses for position calculation
@@ -38,7 +39,7 @@ The service is structured around the following components:
    - `WifiAccessPointRepository` - Interface for access point data access
    - `DynamoWifiAccessPointRepository` - DynamoDB implementation
 
-### Database Integration
+## Database Integration
 
 The system uses Amazon DynamoDB to store information about known WiFi access points. When calculating positions, the system:
 
@@ -52,8 +53,10 @@ The access point data is stored with the following structure:
 - Primary Key: `mac_address` (partition key) + `version` (sort key)
 - GSI: `GeohashIndex` - For geographic area searches
 - Other fields include: latitude, longitude, altitude, accuracy, confidence, etc.
+- Status field values: active, error, expired, warning, wifi-hotspot
+  - Only access points with status "active" or "warning" are used for calculations
 
-### API Usage
+## API Usage
 
 The service exposes a single API endpoint:
 
@@ -61,7 +64,7 @@ The service exposes a single API endpoint:
 POST /api/positioning/calculate
 ```
 
-Example request:
+### Request Format
 
 ```json
 {
@@ -79,64 +82,66 @@ Example request:
       "ssid": "MyWiFi5G"
     }
   ],
-  "preferHighAccuracy": true,
-  "returnAllMethods": false
+  "client": "test-client",
+  "requestId": "test-request-123",
+  "application": "wifi-positioning-test-suite"
 }
 ```
 
-Example response:
+### Response Format
 
 ```json
 {
-  "status": "success",
-  "data": {
+  "result": "SUCCESS",
+  "message": "Request processed successfully",
+  "requestId": "test-request-123",
+  "client": "test-client",
+  "application": "wifi-positioning-test-suite",
+  "timestamp": 1746821320281,
+
+  "wifiPosition": {
     "latitude": 37.7749,
     "longitude": -122.4194,
-    "altitude": 10.5,
-    "horizontalAccuracy": 5.2,
-    "verticalAccuracy": 3.1,
-    "confidence": 0.87,
-    "bestMethod": "trilateration",
-    "methodsUsed": ["trilateration", "weightedCentroid"],
-    "apCount": 2,
-    "metadata": {
-      "calculationTimeMs": 45,
-      "timestamp": "2023-04-17T15:23:41.123Z"
-    },
-    "alternatives": [
-      {
-        "latitude": 37.7748,
-        "longitude": -122.4195,
-        "altitude": 10.0,
-        "horizontalAccuracy": 8.1,
-        "verticalAccuracy": 4.2,
-        "confidence": 0.72,
-        "method": "weightedCentroid"
-      }
-    ]
-  }
+    "altitude": 10.0,
+    "horizontalAccuracy": 25.0,
+    "verticalAccuracy": 0.0,
+    "confidence": 0.5,
+    "methodsUsed": ["weighted_centroid", "rssi_ratio"],
+    "apCount": 3,
+    "calculationTimeMs": 42
+  },
+  "calculationInfo": "Detailed calculation information"
 }
 ```
 
-### Algorithm Selection Logic
+Note: `calculationInfo` is only present when `calculationDetail=true` is set in the request.
 
-The system dynamically selects positioning algorithms based on available data:
+## Hybrid Algorithm Selection Framework
 
-- Single AP → Proximity detection
-- Two APs → RSSI ratio method
-- Three+ APs with good geometry → Modified trilateration
-- Multiple APs with poor geometry → Weighted centroid
-- Multiple APs with strong signals → Maximum likelihood
+The system dynamically selects positioning algorithms based on available data through a three-phase process:
 
-Algorithm selection can be influenced by:
+1. **Hard Constraints (Disqualification Phase)**
+   - Single AP → Only Proximity and Log Distance methods
+   - Two APs → Remove Trilateration and Maximum Likelihood
+   - Collinear APs → Remove Trilateration
+   - Very weak signals → Only Proximity method
 
-- Number of visible APs
-- Signal strength quality
-- AP geometric distribution
-- Frequency diversity
-   - Channel width available → Modified Trilateration
+2. **Algorithm Weighting (Ranking Phase)**
+   - Base weights assigned by AP count
+   - Adjustments for signal quality, geometric quality, and distribution
 
-### Development
+3. **Finalist Selection (Combination Phase)**
+   - Final algorithm selection based on adjusted weights
+
+### Algorithm Selection Examples
+
+- Single AP with strong signal → Proximity detection
+- Two APs with good signals → Weighted Centroid and RSSI Ratio methods
+- Three+ APs with good geometry → Modified Trilateration and Weighted Centroid
+- Multiple APs with poor geometry → Weighted Centroid
+- Multiple APs with strong signals → Maximum Likelihood and Weighted Centroid
+
+## Development
 
 To build and run the service:
 
@@ -167,11 +172,21 @@ wifi-positioning-service/
 │   ├── main/
 │   │   ├── java/
 │   │   │   └── com/wifi/positioning/
+│   │   │       ├── controller/
+│   │   │       ├── service/
+│   │   │       ├── algorithm/
+│   │   │       ├── repository/
+│   │   │       ├── model/
+│   │   │       └── util/
 │   │   └── resources/
 │   │       └── application.yml
 │   └── test/
 │       ├── java/
 │       │   └── com/wifi/positioning/
+│       │       ├── controller/
+│       │       ├── service/
+│       │       ├── algorithm/
+│       │       └── repository/
 │       └── resources/
 │           └── application-test.yml
 ├── pom.xml
@@ -218,6 +233,17 @@ Run integration tests:
 ```bash
 mvn verify
 ```
+
+Run comprehensive tests (includes algorithm performance tests):
+```bash
+./run-comprehensive-tests.sh
+```
+
+## Test Coverage
+
+- Unit Tests: 114 tests covering repository, utility, algorithm implementation, and service layers
+- Integration Tests: 14 tests covering basic algorithms, advanced scenarios, and error cases
+- All tests currently passing with 100% success rate
 
 ## Profiles
 
