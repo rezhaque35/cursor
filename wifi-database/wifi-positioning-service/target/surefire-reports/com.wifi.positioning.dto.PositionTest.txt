@@ -1,20 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.wifi.positioning.dto.PositionTest
 -------------------------------------------------------------------------------
-Tests run: 7, Failures: 0, Errors: 2, Skipped: 0, Time elapsed: 0.096 s <<< FAILURE! -- in com.wifi.positioning.dto.PositionTest
-com.wifi.positioning.dto.PositionTest.isValid_WithNullLatitude_ReturnsFalse -- Time elapsed: 0.031 s <<< ERROR!
-java.lang.IllegalArgumentException: Invalid latitude value
-	at com.wifi.positioning.dto.Position.<init>(Position.java:12)
-	at com.wifi.positioning.dto.PositionTest.isValid_WithNullLatitude_ReturnsFalse(PositionTest.java:16)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
-
-com.wifi.positioning.dto.PositionTest.isValid_WithNullLongitude_ReturnsFalse -- Time elapsed: 0.002 s <<< ERROR!
-java.lang.IllegalArgumentException: Invalid longitude value
-	at com.wifi.positioning.dto.Position.<init>(Position.java:15)
-	at com.wifi.positioning.dto.PositionTest.isValid_WithNullLongitude_ReturnsFalse(PositionTest.java:22)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
-
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.022 s -- in com.wifi.positioning.dto.PositionTest

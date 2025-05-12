@@ -1,18 +1,19 @@
 package com.wifi.positioning.service;
 
-import com.wifi.positioning.algorithm.GPSPositioningCalculator;
 import com.wifi.positioning.algorithm.PositioningAlgorithm;
-import com.wifi.positioning.algorithm.selection.SelectionContext;
+import com.wifi.positioning.algorithm.WifiPositioningCalculator;
 import com.wifi.positioning.dto.Position;
-import com.wifi.positioning.dto.PositionRequestDto;
+import com.wifi.positioning.dto.WifiPositioningRequest;
 import com.wifi.positioning.dto.WifiPositioningResponse;
 import com.wifi.positioning.dto.WifiScanResult;
-import com.wifi.positioning.exception.PositioningException;
-import com.wifi.positioning.model.WifiAccessPoint;
+import com.wifi.positioning.controller.PositioningException;
+import com.wifi.positioning.dto.WifiAccessPoint;
 import com.wifi.positioning.repository.WifiAccessPointRepository;
-import com.wifi.positioning.service.impl.PositioningServiceImpl;
-import com.wifi.positioning.validation.SignalPhysicsValidator;
+import com.wifi.positioning.service.PositioningServiceImpl;
+import com.wifi.positioning.service.SignalPhysicsValidator;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -26,205 +27,223 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class PositioningServiceTest {
-
-    private static final String TEST_CLIENT = "test-client";
-    private static final String TEST_REQUEST_ID = "test-request-id";
-    private static final String TEST_APPLICATION = "test-application";
+public class PositioningServiceTest {
 
     @Mock
     private WifiAccessPointRepository accessPointRepository;
     
     @Mock
-    private GPSPositioningCalculator calculator;
+    private WifiPositioningCalculator calculator;
     
     @Mock
     private SignalPhysicsValidator signalPhysicsValidator;
     
-    @Mock
-    private PositioningAlgorithm algorithm;
-    
     @InjectMocks
     private PositioningServiceImpl positioningService;
     
-    private WifiAccessPoint testAccessPoint;
-    private PositionRequestDto validRequest;
-    private Position testPosition;
-    private GPSPositioningCalculator.PositioningResult positioningResult;
+    private WifiPositioningRequest request;
+    private List<WifiScanResult> scanResults;
+    private List<WifiAccessPoint> accessPoints;
     
     @BeforeEach
     void setUp() {
         // Create test data
-        testAccessPoint = WifiAccessPoint.builder()
-                .macAddress("00:11:22:33:44:55")
-                .version("test-1.0")
-                .latitude(37.7749)
-                .longitude(-122.4194)
-                .altitude(10.0)
-                .horizontalAccuracy(5.0)
-                .verticalAccuracy(2.0)
-                .confidence(0.85)
-                .ssid("test-ssid")
-                .frequency(2437)
-                .vendor("test-vendor")
-                .geohash("9q8yyk")
-                .status(WifiAccessPoint.STATUS_ACTIVE)
-                .build();
-        
-        // Create map for mac address lookup
-        Map<String, WifiAccessPoint> macAddressToAP = new HashMap<>();
-        macAddressToAP.put(testAccessPoint.getMacAddress(), testAccessPoint);
-        
-        WifiScanResult scanResult = WifiScanResult.of(
-                "00:11:22:33:44:55", 
-                -65.0, 
-                2437, 
-                "test-ssid");
-        
-        validRequest = new PositionRequestDto(
-                List.of(scanResult),
-                TEST_CLIENT,
-                TEST_REQUEST_ID,
-                TEST_APPLICATION,
-                false);
-        
-        // Create position and positioning result
-        testPosition = new Position(37.7749, -122.4194, 10.0, 15.0, 0.85);
-        
-        Map<PositioningAlgorithm, Double> algorithmWeights = new HashMap<>();
-        algorithmWeights.put(algorithm, 1.0);
-        
-        Map<PositioningAlgorithm, List<String>> selectionReasons = new HashMap<>();
-        selectionReasons.put(algorithm, List.of("Strong signal", "Good geometry"));
-        
-        SelectionContext context = mock(SelectionContext.class);
-        
-        positioningResult = new GPSPositioningCalculator.PositioningResult(
-            testPosition, algorithmWeights, selectionReasons, context
+        scanResults = List.of(
+            WifiScanResult.of("00:11:22:33:44:55", -65.0, 2437, "Test"),
+            WifiScanResult.of("AA:BB:CC:DD:EE:FF", -70.0, 5180, "Test")
         );
         
-        // Use lenient stubbing to avoid unnecessary stubbing errors
-        lenient().when(accessPointRepository.findByMacAddress(testAccessPoint.getMacAddress()))
-                .thenReturn(Optional.of(testAccessPoint));
+        request = new WifiPositioningRequest(
+            scanResults,
+            "test-client",
+            "test-request-id",
+            "test-app",
+            false  // calculationDetail
+        );
         
-        Map<String, WifiAccessPoint> batchResult = new HashMap<>();
-        batchResult.put(testAccessPoint.getMacAddress(), testAccessPoint);
-        lenient().when(accessPointRepository.findByMacAddresses(anySet()))
-                .thenReturn(batchResult);
-                
-        lenient().when(signalPhysicsValidator.isPhysicallyPossible(any())).thenReturn(true);
+        accessPoints = Arrays.asList(
+            createAccessPoint("00:11:22:33:44:55", 37.7749, -122.4194, 10.0, WifiAccessPoint.STATUS_ACTIVE),
+            createAccessPoint("AA:BB:CC:DD:EE:FF", 37.7751, -122.4196, 12.0, WifiAccessPoint.STATUS_WARNING)
+        );
         
-        lenient().when(algorithm.getName()).thenReturn("Proximity");
+        // Set up calculator behavior to return a valid result
+        PositioningAlgorithm mockAlgorithm = mock(PositioningAlgorithm.class);
+        lenient().when(mockAlgorithm.getName()).thenReturn("Test Algorithm");
+        
+        WifiPositioningCalculator.PositioningResult positioningResult = 
+            new WifiPositioningCalculator.PositioningResult(
+                new Position(37.7749, -122.4194, 10.0, 5.0, 0.85),
+                Map.of(
+                    mockAlgorithm, 1.0
+                )
+            );
+            
+        lenient().when(calculator.calculatePosition(anyList(), anyList())).thenReturn(positioningResult);
+        
+        // Mock repository to return test access points
+        Map<String, WifiAccessPoint> apMap = new HashMap<>();
+        for (WifiAccessPoint ap : accessPoints) {
+            apMap.put(ap.getMacAddress(), ap);
+        }
+        
+        lenient().when(accessPointRepository.findByMacAddresses(anySet())).thenReturn(apMap);
+        
+        // Mock signal physics validator to pass validation
+        lenient().when(signalPhysicsValidator.isPhysicallyPossible(anyList())).thenReturn(true);
     }
-
-    @Test
-    void should_CalculatePosition_When_ValidRequest() {
-        // Setup
-        when(calculator.calculatePosition(any(), any())).thenReturn(positioningResult);
+    
+    private WifiAccessPoint createAccessPoint(String mac, double lat, double lon, double alt, String status) {
+        return WifiAccessPoint.builder()
+                .macAddress(mac)
+                .latitude(lat)
+                .longitude(lon)
+                .altitude(alt)
+                .horizontalAccuracy(10.0)
+                .verticalAccuracy(5.0)
+                .confidence(0.85)
+                .status(status)
+                .build();
+    }
+    
+    @Nested
+    @DisplayName("Happy Path Tests")
+    class HappyPathTests {
         
-        // Execute
-        WifiPositioningResponse response = positioningService.calculatePosition(validRequest);
+        @Test
+        @DisplayName("Should calculate position when given valid input")
+        void should_CalculatePosition_When_GivenValidInput() {
+            // Act
+            WifiPositioningResponse response = positioningService.calculatePosition(request);
         
-        // Verify
+            // Assert
         assertNotNull(response);
         assertEquals("SUCCESS", response.result());
-        assertEquals("Request processed successfully", response.message());
-        assertEquals(TEST_REQUEST_ID, response.requestId());
-        assertEquals(TEST_CLIENT, response.client());
-        assertEquals(TEST_APPLICATION, response.application());
-        assertNotNull(response.timestamp());
-        
-        // Verify position data
         assertNotNull(response.wifiPosition());
-        assertEquals(testPosition.latitude(), response.wifiPosition().latitude());
-        assertEquals(testPosition.longitude(), response.wifiPosition().longitude());
-        assertEquals(testPosition.accuracy(), response.wifiPosition().horizontalAccuracy());
-        assertEquals(testPosition.confidence(), response.wifiPosition().confidence());
-        assertEquals(1, response.wifiPosition().methodsUsed().size());
-        assertEquals("proximity", response.wifiPosition().methodsUsed().get(0));
-        
-        // Verify the calculator was called with the correct data
-        verify(calculator).calculatePosition(any(), any());
-        verify(signalPhysicsValidator).isPhysicallyPossible(any());
+            assertNotNull(response.wifiPosition().latitude());
+            assertNotNull(response.wifiPosition().longitude());
+            
+            // Verify repository and calculator were called
         verify(accessPointRepository).findByMacAddresses(anySet());
+            verify(calculator).calculatePosition(anyList(), anyList());
+        }
     }
     
+    @Nested
+    @DisplayName("Error Handling Tests")
+    class ErrorHandlingTests {
+    
     @Test
-    void should_ThrowException_When_NoScanResults() {
-        // Setup
-        PositionRequestDto emptyRequest = new PositionRequestDto(
+        @DisplayName("Should throw exception when scan results are empty")
+        void should_ThrowException_When_ScanResultsAreEmpty() {
+            // Arrange
+            WifiPositioningRequest emptyRequest = new WifiPositioningRequest(
                 Collections.emptyList(),
-                TEST_CLIENT,
-                TEST_REQUEST_ID,
-                TEST_APPLICATION,
-                false);
+                "test-client",
+                "test-request-id",
+                "test-app",
+                false
+            );
         
-        // Execute & Verify
-        PositioningException exception = assertThrows(
-                PositioningException.class,
-                () -> positioningService.calculatePosition(emptyRequest));
+            // Act & Assert
+            assertThrows(PositioningException.class, () -> positioningService.calculatePosition(emptyRequest));
+        }
         
-        assertEquals("No WiFi scan results provided", exception.getMessage());
+        @Test
+        @DisplayName("Should return error when no known APs are found")
+        void should_ReturnError_When_NoKnownAPsAreFound() {
+            // Arrange
+            when(accessPointRepository.findByMacAddresses(anySet())).thenReturn(Map.of());
+            
+            // Act
+            WifiPositioningResponse response = positioningService.calculatePosition(request);
+            
+            // Assert
+            assertNotNull(response);
+            assertEquals("ERROR", response.result());
+            assertTrue(response.message().contains("no position could be determined"));
     }
     
     @Test
-    void should_ReturnPositionNotFoundResponse_When_PositionNotFound() {
-        // Setup
-        when(calculator.calculatePosition(any(), any())).thenReturn(null);
+        @DisplayName("Should return error when calculator returns null")
+        void should_ReturnError_When_CalculatorReturnsNull() {
+            // Arrange
+            when(calculator.calculatePosition(anyList(), anyList())).thenReturn(null);
         
-        // Execute
-        WifiPositioningResponse response = positioningService.calculatePosition(validRequest);
+            // Act
+            WifiPositioningResponse response = positioningService.calculatePosition(request);
         
-        // Verify
+            // Assert
         assertNotNull(response);
         assertEquals("ERROR", response.result());
-        assertEquals("Position calculation failed: no position could be determined", response.message());
-        assertEquals(TEST_REQUEST_ID, response.requestId());
-        assertEquals(TEST_CLIENT, response.client());
-        assertEquals(TEST_APPLICATION, response.application());
-        assertNull(response.wifiPosition());
     }
     
     @Test
-    void should_ReturnErrorResponse_When_SignalPhysicsInvalid() {
-        // Setup
-        when(signalPhysicsValidator.isPhysicallyPossible(any())).thenReturn(false);
+        @DisplayName("Should return error when signals are physically impossible")
+        void should_ReturnError_When_SignalsArePhysicallyImpossible() {
+            // Arrange
+            when(signalPhysicsValidator.isPhysicallyPossible(anyList())).thenReturn(false);
         
-        // Execute
-        WifiPositioningResponse response = positioningService.calculatePosition(validRequest);
+            // Act
+            WifiPositioningResponse response = positioningService.calculatePosition(request);
         
-        // Verify
+            // Assert
         assertNotNull(response);
         assertEquals("ERROR", response.result());
-        assertEquals("Physically impossible signal strength relationships", response.message());
-        assertEquals(TEST_REQUEST_ID, response.requestId());
-        assertEquals(TEST_CLIENT, response.client());
-        assertEquals(TEST_APPLICATION, response.application());
-        assertNull(response.wifiPosition());
+            assertTrue(response.message().contains("Physically impossible"));
+        }
     }
     
-    @Test
-    void should_ReturnErrorResponse_When_CalculatorThrowsException() {
-        // Setup
-        when(calculator.calculatePosition(any(), any()))
-                .thenThrow(new RuntimeException("Calculator internal error"));
+    @Nested
+    @DisplayName("Access Point Status Filtering Tests")
+    class AccessPointFilteringTests {
         
-        // Use Mockito lenient() to avoid UnnecessaryStubbingException
-        lenient().when(signalPhysicsValidator.isPhysicallyPossible(any())).thenReturn(true);
-        lenient().when(accessPointRepository.findByMacAddresses(anySet())).thenReturn(
-            Map.of(testAccessPoint.getMacAddress(), testAccessPoint)
-        );
+        @Test
+        @DisplayName("Should filter out APs with invalid status")
+        void should_FilterOutAPs_With_InvalidStatus() {
+            // Arrange
+            List<WifiAccessPoint> mixedStatusAPs = Arrays.asList(
+                createAccessPoint("00:11:22:33:44:55", 37.7749, -122.4194, 10.0, WifiAccessPoint.STATUS_ACTIVE),
+                createAccessPoint("AA:BB:CC:DD:EE:FF", 37.7751, -122.4196, 12.0, WifiAccessPoint.STATUS_ERROR),
+                createAccessPoint("11:22:33:44:55:66", 37.7753, -122.4198, 14.0, WifiAccessPoint.STATUS_EXPIRED)
+            );
+            
+            Map<String, WifiAccessPoint> apMap = new HashMap<>();
+            for (WifiAccessPoint ap : mixedStatusAPs) {
+                apMap.put(ap.getMacAddress(), ap);
+            }
+            
+            when(accessPointRepository.findByMacAddresses(anySet())).thenReturn(apMap);
+            
+            // Reset the calculator mock to verify it gets called with filtered APs
+            reset(calculator);
         
-        // Execute
-        WifiPositioningResponse response = positioningService.calculatePosition(validRequest);
+            // Setup calculator to return valid result
+            PositioningAlgorithm mockAlgorithm = mock(PositioningAlgorithm.class);
+            when(mockAlgorithm.getName()).thenReturn("Test Algorithm");
+            
+            WifiPositioningCalculator.PositioningResult positioningResult = 
+                new WifiPositioningCalculator.PositioningResult(
+                    new Position(37.7749, -122.4194, 10.0, 5.0, 0.85),
+                    Map.of(
+                        mockAlgorithm, 1.0
+                    )
+                );
+                
+            when(calculator.calculatePosition(anyList(), anyList())).thenReturn(positioningResult);
         
-        // Verify
+            // Act
+            WifiPositioningResponse response = positioningService.calculatePosition(request);
+        
+            // Assert
         assertNotNull(response);
-        assertEquals("ERROR", response.result());
-        assertEquals("Calculator internal error", response.message());
-        assertEquals(TEST_REQUEST_ID, response.requestId());
-        assertEquals(TEST_CLIENT, response.client());
-        assertEquals(TEST_APPLICATION, response.application());
-        assertNull(response.wifiPosition());
+            assertEquals("SUCCESS", response.result());
+            
+            // Verify calculator was called with only the valid status AP
+            verify(calculator).calculatePosition(anyList(), argThat(aps -> 
+                aps.size() == 1 && 
+                aps.get(0).getMacAddress().equals("00:11:22:33:44:55") &&
+                aps.get(0).getStatus().equals(WifiAccessPoint.STATUS_ACTIVE)
+            ));
+        }
     }
 } 

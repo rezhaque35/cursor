@@ -1,7 +1,7 @@
 package com.wifi.positioning.service;
 
-import com.wifi.positioning.dto.PositionRequestDto;
 import com.wifi.positioning.dto.WifiPositioningResponse;
+import com.wifi.positioning.dto.WifiPositioningRequest;
 
 /**
  * Service interface for WiFi positioning calculations.
@@ -15,5 +15,5 @@ public interface PositioningService {
      * @param request The position request containing WiFi scan results
      * @return A positioning response with result status, position data, and metadata
      */
-    WifiPositioningResponse calculatePosition(PositionRequestDto request);
+    WifiPositioningResponse calculatePosition(WifiPositioningRequest request);
 } 

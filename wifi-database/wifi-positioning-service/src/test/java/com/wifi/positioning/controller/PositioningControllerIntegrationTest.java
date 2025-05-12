@@ -2,7 +2,7 @@ package com.wifi.positioning.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wifi.positioning.model.WifiAccessPoint;
+import com.wifi.positioning.dto.WifiAccessPoint;
 import com.wifi.positioning.repository.WifiAccessPointRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

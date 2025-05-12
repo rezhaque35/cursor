@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.wifi.positioning.service.impl.PositioningServiceImplTest
 -------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.878 s -- in com.wifi.positioning.service.impl.PositioningServiceImplTest
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.157 s -- in com.wifi.positioning.service.impl.PositioningServiceImplTest

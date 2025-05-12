@@ -1,9 +1,11 @@
 package com.wifi.positioning.repository;
 
-import com.wifi.positioning.model.WifiAccessPoint;
+import com.wifi.positioning.dto.WifiAccessPoint;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Extended repository interface for testing purposes.

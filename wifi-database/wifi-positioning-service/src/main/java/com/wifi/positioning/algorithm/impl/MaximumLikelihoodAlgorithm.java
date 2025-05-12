@@ -1,14 +1,14 @@
 package com.wifi.positioning.algorithm.impl;
 
 import com.wifi.positioning.algorithm.PositioningAlgorithm;
-import com.wifi.positioning.algorithm.factor.APCountFactor;
-import com.wifi.positioning.algorithm.factor.GeometricQualityFactor;
-import com.wifi.positioning.algorithm.factor.SignalDistributionFactor;
-import com.wifi.positioning.algorithm.factor.SignalQualityFactor;
+import com.wifi.positioning.algorithm.selection.factor.APCountFactor;
+import com.wifi.positioning.algorithm.selection.factor.GeometricQualityFactor;
+import com.wifi.positioning.algorithm.selection.factor.SignalDistributionFactor;
+import com.wifi.positioning.algorithm.selection.factor.SignalQualityFactor;
 import com.wifi.positioning.algorithm.util.GDOPCalculator;
 import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.WifiScanResult;
-import com.wifi.positioning.model.WifiAccessPoint;
+import com.wifi.positioning.dto.WifiAccessPoint;
 import org.springframework.stereotype.Component;
 import org.apache.commons.math3.linear.*;
 import java.util.*;

@@ -1,22 +1,25 @@
 package com.wifi.positioning.service.impl;
 
-import com.wifi.positioning.algorithm.GPSPositioningCalculator;
+import com.wifi.positioning.algorithm.WifiPositioningCalculator;
 import com.wifi.positioning.algorithm.PositioningAlgorithm;
 import com.wifi.positioning.algorithm.selection.SelectionContext;
 import com.wifi.positioning.dto.Position;
-import com.wifi.positioning.dto.PositionRequestDto;
+import com.wifi.positioning.dto.WifiPositioningRequest;
 import com.wifi.positioning.dto.WifiPositioningResponse;
 import com.wifi.positioning.dto.WifiScanResult;
-import com.wifi.positioning.exception.PositioningException;
-import com.wifi.positioning.model.WifiAccessPoint;
+import com.wifi.positioning.controller.PositioningException;
+import com.wifi.positioning.dto.WifiAccessPoint;
 import com.wifi.positioning.repository.WifiAccessPointRepository;
-import com.wifi.positioning.validation.SignalPhysicsValidator;
+import com.wifi.positioning.service.PositioningServiceImpl;
+import com.wifi.positioning.service.SignalPhysicsValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.MockitoAnnotations;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -44,7 +47,7 @@ import static org.mockito.Mockito.*;
 public class PositioningServiceImplTest {
 
     @Mock
-    private GPSPositioningCalculator calculator;
+    private WifiPositioningCalculator calculator;
     
     @Mock
     private WifiAccessPointRepository accessPointRepository;
@@ -55,13 +58,14 @@ public class PositioningServiceImplTest {
     @Mock
     private PositioningAlgorithm algorithm;
     
+    @InjectMocks
     private PositioningServiceImpl service;
     
     private List<WifiScanResult> scanResults;
     private List<WifiAccessPoint> knownAPs;
     private Position position;
-    private GPSPositioningCalculator.PositioningResult positioningResult;
-    private PositionRequestDto request;
+    private WifiPositioningCalculator.PositioningResult positioningResult;
+    private WifiPositioningRequest request;
     
     private static final double VALID_LATITUDE = 37.7749;
     private static final double VALID_LONGITUDE = -122.4194;
@@ -71,6 +75,7 @@ public class PositioningServiceImplTest {
     
     @BeforeEach
     void setUp() {
+        MockitoAnnotations.openMocks(this);
         service = new PositioningServiceImpl(calculator, accessPointRepository, signalPhysicsValidator);
         
         // Set up test data
@@ -107,7 +112,7 @@ public class PositioningServiceImplTest {
         
         SelectionContext context = mock(SelectionContext.class);
         
-        positioningResult = new GPSPositioningCalculator.PositioningResult(
+        positioningResult = new WifiPositioningCalculator.PositioningResult(
             position, algorithmWeights, selectionReasons, context
         );
         
@@ -115,9 +120,9 @@ public class PositioningServiceImplTest {
         lenient().when(algorithm.getName()).thenReturn("Weighted Centroid");
         
         // Create request
-        request = new PositionRequestDto(
-            scanResults,
-            "test-client",
+        request = new WifiPositioningRequest(
+            scanResults, 
+            "test-client", 
             "test-request-1",
             "test-app",
             true
@@ -163,7 +168,7 @@ public class PositioningServiceImplTest {
     @Test
     void should_ThrowException_When_NoScanResults() {
         // Arrange
-        PositionRequestDto emptyRequest = new PositionRequestDto(
+        WifiPositioningRequest emptyRequest = new WifiPositioningRequest(
             Collections.emptyList(), 
             "test-client", 
             "test-request-id", 
@@ -214,7 +219,7 @@ public class PositioningServiceImplTest {
         );
         
         // Create request with mixed scan results
-        PositionRequestDto mixedRequest = new PositionRequestDto(
+        WifiPositioningRequest mixedRequest = new WifiPositioningRequest(
             mixedScanResults,
             "test-client",
             "test-request-mixed",
@@ -272,7 +277,7 @@ public class PositioningServiceImplTest {
         );
         
         // Create request with mixed scan results
-        PositionRequestDto mixedRequest = new PositionRequestDto(
+        WifiPositioningRequest mixedRequest = new WifiPositioningRequest(
             mixedScanResults,
             "test-client",
             "test-request-mixed",
@@ -294,12 +299,18 @@ public class PositioningServiceImplTest {
         
         // Assert
         assertNotNull(response.calculationInfo());
-        assertTrue(response.calculationInfo().contains("Access Points Information:"));
-        assertTrue(response.calculationInfo().contains("MAC: 00:11:22:33:44:55, Status: active, Used: Yes"));
-        assertTrue(response.calculationInfo().contains("MAC: 11:22:33:44:55:66, Status: error, Used: No"));
+        // Check for AP Filtering section
+        assertTrue(response.calculationInfo().contains("AP Filtering:"));
+        // Check for active AP info
+        assertTrue(response.calculationInfo().contains("active: 1 APs, used in calculation"));
+        // Check for error AP info
+        assertTrue(response.calculationInfo().contains("error: 1 APs, filtered out"));
+        // Check for AP list
+        assertTrue(response.calculationInfo().contains("AP List:"));
+        // Check for algorithm calculation info
         assertTrue(response.calculationInfo().contains("Algorithm calculation info here"));
     }
-    
+
     @Test
     void should_ReturnErrorResponse_When_SignalPhysicsInvalid() {
         // Arrange
@@ -309,7 +320,7 @@ public class PositioningServiceImplTest {
             WifiScanResult.of("AA:BB:CC:DD:EE:FF", -45.0, 5180, "ImpossibleAP_2")  // Also strong signal from same location
         );
         
-        PositionRequestDto impossibleRequest = new PositionRequestDto(
+        WifiPositioningRequest impossibleRequest = new WifiPositioningRequest(
             impossibleScanResults,
             "test-client",
             "test-request-impossible",

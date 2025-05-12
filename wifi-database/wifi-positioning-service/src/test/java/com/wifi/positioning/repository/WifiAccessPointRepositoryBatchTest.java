@@ -1,6 +1,6 @@
 package com.wifi.positioning.repository;
 
-import com.wifi.positioning.model.WifiAccessPoint;
+import com.wifi.positioning.dto.WifiAccessPoint;
 import com.wifi.positioning.repository.impl.InMemoryWifiAccessPointRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,7 +17,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("WifiAccessPointRepository Batch Operations Tests")
 class WifiAccessPointRepositoryBatchTest {
 
-    private TestWifiAccessPointRepository repository;
+    private WifiAccessPointRepository repository;
+    private TestWifiAccessPointRepository testRepository;
     
     // Test constants
     private static final String MAC_1 = "00:11:22:33:44:55";
@@ -29,7 +30,9 @@ class WifiAccessPointRepositoryBatchTest {
 
     @BeforeEach
     void setUp() {
-        repository = new InMemoryWifiAccessPointRepository();
+        InMemoryWifiAccessPointRepository repo = new InMemoryWifiAccessPointRepository();
+        repository = repo;
+        testRepository = repo;
         
         // Add test access points
         WifiAccessPoint ap1 = WifiAccessPoint.builder()
@@ -53,9 +56,9 @@ class WifiAccessPointRepositoryBatchTest {
                 .longitude(-122.4196)
                 .build();
                 
-        repository.save(ap1);
-        repository.save(ap2);
-        repository.save(ap3);
+        testRepository.save(ap1);
+        testRepository.save(ap2);
+        testRepository.save(ap3);
     }
     
     @Test
@@ -115,7 +118,7 @@ class WifiAccessPointRepositoryBatchTest {
                 .latitude(37.7752)
                 .longitude(-122.4197)
                 .build();
-        repository.save(ap1v2);
+        testRepository.save(ap1v2);
         
         // Execute the batch find
         Map<String, WifiAccessPoint> results = repository.findByMacAddresses(

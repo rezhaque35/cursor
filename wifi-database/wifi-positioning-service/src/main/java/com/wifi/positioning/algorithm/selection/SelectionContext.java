@@ -1,9 +1,9 @@
 package com.wifi.positioning.algorithm.selection;
 
-import com.wifi.positioning.algorithm.factor.APCountFactor;
-import com.wifi.positioning.algorithm.factor.GeometricQualityFactor;
-import com.wifi.positioning.algorithm.factor.SignalDistributionFactor;
-import com.wifi.positioning.algorithm.factor.SignalQualityFactor;
+import com.wifi.positioning.algorithm.selection.factor.APCountFactor;
+import com.wifi.positioning.algorithm.selection.factor.GeometricQualityFactor;
+import com.wifi.positioning.algorithm.selection.factor.SignalDistributionFactor;
+import com.wifi.positioning.algorithm.selection.factor.SignalQualityFactor;
 import lombok.Builder;
 import lombok.Data;
 

@@ -1,6 +1,6 @@
 package com.wifi.positioning.repository;
 
-import com.wifi.positioning.model.WifiAccessPoint;
+import com.wifi.positioning.dto.WifiAccessPoint;
 
 import java.util.List;
 import java.util.Map;

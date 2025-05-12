@@ -1,7 +1,9 @@
 package com.wifi.positioning.algorithm.selection;
 
 import com.wifi.positioning.dto.Position;
-import com.wifi.positioning.algorithm.factor.GeometricQualityFactor;
+import com.wifi.positioning.algorithm.selection.factor.GeometricQualityFactor;
+import com.wifi.positioning.algorithm.impl.WeightedAveragePositionCombiner;
+import com.wifi.positioning.algorithm.impl.PositionCombiner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

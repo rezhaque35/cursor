@@ -1,6 +1,6 @@
 package com.wifi.positioning.config;
 
-import com.wifi.positioning.model.WifiAccessPoint;
+import com.wifi.positioning.dto.WifiAccessPoint;
 import com.wifi.positioning.repository.WifiAccessPointRepository;
 import com.wifi.positioning.repository.impl.InMemoryWifiAccessPointRepository;
 import org.springframework.boot.test.context.TestConfiguration;

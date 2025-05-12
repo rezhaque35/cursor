@@ -2,19 +2,19 @@ package com.wifi.positioning.algorithm.selection;
 
 import com.wifi.positioning.algorithm.PositioningAlgorithm;
 import com.wifi.positioning.algorithm.PositioningAlgorithmType;
-import com.wifi.positioning.algorithm.factor.APCountFactor;
-import com.wifi.positioning.algorithm.factor.GeometricQualityFactor;
-import com.wifi.positioning.algorithm.factor.SignalDistributionFactor;
-import com.wifi.positioning.algorithm.factor.SignalQualityFactor;
+import com.wifi.positioning.algorithm.selection.factor.APCountFactor;
+import com.wifi.positioning.algorithm.selection.factor.GeometricQualityFactor;
+import com.wifi.positioning.algorithm.selection.factor.SignalDistributionFactor;
+import com.wifi.positioning.algorithm.selection.factor.SignalQualityFactor;
 import com.wifi.positioning.dto.WifiScanResult;
-import com.wifi.positioning.model.WifiAccessPoint;
+import com.wifi.positioning.dto.WifiAccessPoint;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
-import com.wifi.positioning.algorithm.selection.DefaultContextBuilder;
+import com.wifi.positioning.algorithm.selection.SelectionContextBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -762,8 +762,8 @@ class AlgorithmSelectorTest {
         @DisplayName("Extremely weak signals with correct context builder usage")
         void extremelyWeakSignalWithContextBuilder() {
             // Arrange
-            // Create a DefaultContextBuilder instance
-            DefaultContextBuilder contextBuilder = new DefaultContextBuilder();
+            // Create a SelectionContextBuilder instance
+            SelectionContextBuilder contextBuilder = new SelectionContextBuilder();
             
             // Setup - use extremely weak signals
             List<WifiScanResult> scans = Arrays.asList(

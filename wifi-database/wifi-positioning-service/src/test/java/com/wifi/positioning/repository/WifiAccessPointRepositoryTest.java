@@ -1,7 +1,7 @@
 package com.wifi.positioning.repository;
 
 import com.wifi.positioning.config.TestApplicationConfig;
-import com.wifi.positioning.model.WifiAccessPoint;
+import com.wifi.positioning.dto.WifiAccessPoint;
 import com.wifi.positioning.repository.impl.InMemoryWifiAccessPointRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

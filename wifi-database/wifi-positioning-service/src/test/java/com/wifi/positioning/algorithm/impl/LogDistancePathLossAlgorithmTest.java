@@ -2,7 +2,7 @@ package com.wifi.positioning.algorithm.impl;
 
 import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.WifiScanResult;
-import com.wifi.positioning.model.WifiAccessPoint;
+import com.wifi.positioning.dto.WifiAccessPoint;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

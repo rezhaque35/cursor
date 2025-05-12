@@ -3,6 +3,7 @@ package com.wifi.positioning.dto;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import com.wifi.positioning.dto.WifiPositioningRequest;
 
 /**
  * Combined response object for WiFi positioning calculations.
@@ -28,7 +29,7 @@ public record WifiPositioningResponse(
      * Creates a success response with position data.
      */
     public static WifiPositioningResponse success(
-            PositionRequestDto request, 
+            WifiPositioningRequest request, 
             WifiPosition wifiPosition,
             String calculationInfo) {
         return new WifiPositioningResponse(
@@ -46,15 +47,37 @@ public record WifiPositioningResponse(
     /**
      * Creates an error response with a specific error message.
      */
-    public static WifiPositioningResponse error(
-            String errorMessage,
-            PositionRequestDto request) {
+    public static WifiPositioningResponse error(String message, WifiPositioningRequest request) {
         return new WifiPositioningResponse(
             "ERROR",
-            errorMessage,
+            message,
             request.requestId(),
             request.client(),
             request.application(),
+            Instant.now().toEpochMilli(),
+            null,
+            null
+        );
+    }
+    
+    /**
+     * Creates a generic error response for global exception handling.
+     * This method is used when a WifiPositioningRequest is not available.
+     *
+     * @param errorMessage The error message to display
+     * @param statusCode Optional HTTP status code to include in the message
+     * @return A WifiPositioningResponse with error details
+     */
+    public static WifiPositioningResponse genericError(String errorMessage, Integer statusCode) {
+        String formattedMessage = statusCode != null ? 
+            "Error " + statusCode + ": " + errorMessage : errorMessage;
+            
+        return new WifiPositioningResponse(
+            "ERROR",
+            formattedMessage,
+            "error-" + Instant.now().toEpochMilli(),
+            "system",
+            "global-exception-handler",
             Instant.now().toEpochMilli(),
             null,
             null
