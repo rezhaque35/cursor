@@ -10,6 +10,8 @@ A service that provides indoor positioning using WiFi access points. The system 
 - Works with single measurements (no historical data needed)
 - Supports both 2D and 3D positioning
 - GDOP (Geometric Dilution of Precision) implementation for better accuracy estimation
+- Handles collinear AP configurations and geometrically challenging scenarios
+- Adjusts confidence and accuracy based on geometric quality assessment
 
 ## Architecture
 
@@ -25,19 +27,70 @@ The service is structured around the following components:
    - Converts DTOs to internal models
 
 3. **Algorithm Layer**
-   - `GPSPositioningCalculator` - Implements the core positioning algorithms
-   - `GPSPositioningCalculatorAdapter` - Adapts API data to calculator input format
-   - Includes implementations of multiple positioning methods:
-     - Proximity Detection
-     - RSSI Ratio Method
-     - Log-Distance Path Loss Model
-     - Weighted Centroid
-     - Modified Trilateration
-     - Maximum Likelihood
+   - `PositioningAlgorithm` - Interface for all positioning algorithms
+   - Algorithm implementations:
+     - `ProximityAlgorithm` - Identifies the AP with strongest signal
+     - `RSSIRatioAlgorithm` - Uses relative signal strength ratios 
+     - `LogDistanceAlgorithm` - Physics-based signal propagation model
+     - `WeightedCentroidAlgorithm` - Calculates weighted average of AP locations
+     - `TriangulationAlgorithm` - Solves intersection of distance spheres
+     - `MaximumLikelihoodAlgorithm` - Statistical position estimation
+   - `WeightedAveragePositionCombiner` - Combines results from multiple algorithms
 
 4. **Repository Layer**
    - `WifiAccessPointRepository` - Interface for access point data access
    - `DynamoWifiAccessPointRepository` - DynamoDB implementation
+
+## Algorithm Details
+
+### Primary Algorithms
+
+1. **Proximity Detection**
+   - Identifies AP with strongest signal and uses its location as the user's position
+   - Key Formula: `position = bestAP.location`
+   - Accuracy: Low (±15-50m)
+   - Best for: Single AP scenarios with strong signals
+
+2. **RSSI Ratio Method**
+   - Uses ratios of signal strengths to estimate relative distances
+   - Key Formula: `distanceRatio(AP1,AP2) = 10^((RSSI2 - RSSI1)/(10 * pathLossExponent))`
+   - Accuracy: Medium (±8-25m)
+   - Best for: 2-3 APs with similar signal strengths
+
+3. **Log-Distance Path Loss**
+   - Estimates distances using physics-based signal propagation models
+   - Key Formula: `distance = 10^((A - RSSI)/(10 * n))`
+   - Accuracy: Medium (±10-30m)
+   - Best for: Known environment characteristics
+
+4. **Weighted Centroid**
+   - Calculates position as weighted average of AP locations
+   - Key Formula: `position = Σ(AP positions * w(i)) / Σ(w(i))` 
+   - Accuracy: Medium (±8-20m)
+   - Best for: Well-distributed APs with mixed signals
+
+### Enhanced Algorithms
+
+1. **Maximum Likelihood**
+   - Finds position with highest probability given observed signals
+   - Uses statistical modeling of signal probabilities
+   - Accuracy: Medium-High (±4-12m)
+   - Best for: 4+ APs with strong signals
+
+2. **Modified Trilateration**
+   - Determines position by solving for intersection of distance spheres
+   - Incorporates GDOP calculations for geometric quality assessment
+   - Accuracy: Medium-High (±5-15m)
+   - Best for: 3+ APs with good geometric distribution
+
+### Position Combination
+
+The system combines results from multiple algorithms using:
+
+- Weighted position averaging based on algorithm confidence
+- Geometric quality assessment using covariance matrices
+- Special handling for collinear AP configurations
+- Confidence and accuracy adjustments based on geometric quality
 
 ## Database Integration
 
@@ -48,13 +101,45 @@ The system uses Amazon DynamoDB to store information about known WiFi access poi
 3. Retrieves information about known access points (location, signal characteristics)
 4. Uses this information to enhance position calculations
 
-The access point data is stored with the following structure:
+### Access Point Data Schema
 
-- Primary Key: `mac_address` (partition key) + `version` (sort key)
-- GSI: `GeohashIndex` - For geographic area searches
-- Other fields include: latitude, longitude, altitude, accuracy, confidence, etc.
-- Status field values: active, error, expired, warning, wifi-hotspot
-  - Only access points with status "active" or "warning" are used for calculations
+The access point data is stored with the following schema:
+
+```json
+{
+  "TableName": "wifi_access_points",
+  "AttributeDefinitions": [
+    {
+      "AttributeName": "mac_address",
+      "AttributeType": "S"
+    }
+  ],
+  "KeySchema": [
+    {
+      "AttributeName": "mac_address",
+      "KeyType": "HASH"
+    }
+  ],
+  "BillingMode": "PAY_PER_REQUEST"
+}
+```
+
+### Data Fields
+
+Each access point record contains:
+- **Primary Key**: `mac_addr` - Unique identifier in XX:XX:XX:XX:XX:XX format
+- **Location Data**: latitude, longitude, altitude, horizontal_accuracy, vertical_accuracy
+- **Signal Data**: frequency, ssid, vendor
+- **Metadata**: version, geohash, confidence, status
+
+### Status Values
+- `active`: Valid and current access point data
+- `warning`: Data may be outdated or have reduced confidence
+- `error`: Data contains errors or inconsistencies
+- `expired`: Data is no longer valid
+- `wifi-hotspot`: Special designation for public WiFi hotspots
+
+Only access points with status "active" or "warning" are used for calculations.
 
 ## API Usage
 
@@ -119,28 +204,37 @@ Note: `calculationInfo` is only present when `calculationDetail=true` is set in 
 
 ## Hybrid Algorithm Selection Framework
 
-The system dynamically selects positioning algorithms based on available data through a three-phase process:
+The system dynamically selects positioning algorithms through a three-phase process:
 
 1. **Hard Constraints (Disqualification Phase)**
-   - Single AP → Only Proximity and Log Distance methods
-   - Two APs → Remove Trilateration and Maximum Likelihood
-   - Collinear APs → Remove Trilateration
-   - Very weak signals → Only Proximity method
+   - Eliminates algorithms that are mathematically or practically invalid
+   - Examples: Single AP → Only Proximity and Log Distance; Collinear APs → Remove Trilateration
 
 2. **Algorithm Weighting (Ranking Phase)**
-   - Base weights assigned by AP count
-   - Adjustments for signal quality, geometric quality, and distribution
+   - Assigns base weights according to AP count
+   - Applies adjustments for signal quality, geometric quality, and distribution
+   - Example: 
+     * For 3 APs with medium signal quality: Weighted Centroid (weight=0.728), RSSI Ratio (weight=0.353)
 
 3. **Finalist Selection (Combination Phase)**
-   - Final algorithm selection based on adjusted weights
+   - Selects algorithms to use based on adjusted weights
+   - Combines results using the weighted position combiner
 
-### Algorithm Selection Examples
+### Confidence and Accuracy Calculation
 
-- Single AP with strong signal → Proximity detection
-- Two APs with good signals → Weighted Centroid and RSSI Ratio methods
-- Three+ APs with good geometry → Modified Trilateration and Weighted Centroid
-- Multiple APs with poor geometry → Weighted Centroid
-- Multiple APs with strong signals → Maximum Likelihood and Weighted Centroid
+The system calculates confidence and accuracy through multi-step processes:
+
+- **Confidence Calculation**:
+  1. Each algorithm generates a base confidence value (0.0-1.0)
+  2. Values are blended according to algorithm weights
+  3. Adjustments are made based on geometric quality
+  4. Final values are capped based on scenario-specific limits
+
+- **Accuracy Calculation** (lower values = better precision):
+  1. Base accuracy from each algorithm's internal assessment
+  2. Geometric quality integration using GDOP principles
+  3. Signal quality considerations (strong signals produce more reliable estimates)
+  4. Final accuracy represents estimated position error in meters
 
 ## Development
 
