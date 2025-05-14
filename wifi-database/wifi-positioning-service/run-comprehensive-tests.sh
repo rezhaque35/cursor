@@ -26,7 +26,13 @@ check_range() {
     local min=$2
     local max=$3
     
-    if (( $(echo "$value >= $min" | bc -l) )) && (( $(echo "$value <= $max" | bc -l) )); then
+    # Handle empty or non-numeric values
+    if [[ -z "$value" || "$value" == "null" ]]; then
+        return 1
+    fi
+    
+    # Use bc for floating point comparison with error handling
+    if (( $(echo "$value >= $min" | bc -l 2>/dev/null || echo 0) )) && (( $(echo "$value <= $max" | bc -l 2>/dev/null || echo 0) )); then
         return 0
     else
         return 1
@@ -38,25 +44,70 @@ extract_json_value() {
     local json=$1
     local field=$2
     
+    # Remove any control characters that might cause parsing issues
+    local cleaned_json=$(echo "$json" | tr -d '\000-\037')
+    
     # Handle different fields based on their location in the JSON
     case "$field" in
         # Top-level fields
         result|message|requestId|client|application|timestamp|calculationInfo)
-            echo "$json" | jq -r ".$field // \"\"" 
+            echo "$cleaned_json" | jq -r ".$field // \"\"" 2>/dev/null || echo ""
             ;;
         # Fields in wifiPosition object
         latitude|longitude|altitude|horizontalAccuracy|verticalAccuracy|confidence|apCount|calculationTimeMs)
-            echo "$json" | jq -r ".wifiPosition.$field // \"\"" 
+            echo "$cleaned_json" | jq -r ".wifiPosition.$field // \"\"" 2>/dev/null || echo ""
             ;;
         # Handle methodsUsed array
         methodsUsed)
-            echo "$json" | jq -r ".wifiPosition.methodsUsed | if . == null then \"\" else join(\", \") end"
+            echo "$cleaned_json" | jq -r ".wifiPosition.methodsUsed | if . == null then \"\" else join(\", \") end" 2>/dev/null || echo ""
             ;;
         # Default case
         *)
-            echo "$json" | jq -r ".$field // \"\""
+            echo "$cleaned_json" | jq -r ".$field // \"\"" 2>/dev/null || echo ""
             ;;
     esac
+}
+
+# Function to validate altitude handling in 2D positioning
+check_altitude_handling() {
+    local response=$1
+    
+    # Clean the JSON by removing control characters
+    local cleaned_json=$(echo "$response" | tr -d '\000-\037')
+    
+    # Extract the altitude field if it exists
+    local altitude=$(echo "$cleaned_json" | jq -r ".wifiPosition.altitude // \"not_present\"" 2>/dev/null || echo "not_present")
+    
+    # Check if altitude is not present or is 0.0
+    if [[ "$altitude" == "not_present" ]] || [[ "$altitude" == "null" ]] || [[ $(echo "$altitude == 0.0" | bc -l 2>/dev/null) -eq 1 ]]; then
+        return 0  # Valid 2D positioning (no altitude or 0.0)
+    else
+        echo "Expected altitude to be 0.0 or not present for 2D positioning, got: $altitude"
+        return 1  # Invalid altitude handling
+    fi
+}
+
+# Function to validate non-zero altitude (for mixed 2D/3D tests)
+check_non_zero_altitude() {
+    local response=$1
+    
+    # Clean the JSON by removing control characters
+    local cleaned_json=$(echo "$response" | tr -d '\000-\037')
+    
+    # Extract the altitude field if it exists
+    local altitude=$(echo "$cleaned_json" | jq -r ".wifiPosition.altitude // \"not_present\"" 2>/dev/null || echo "not_present")
+    
+    # Check if altitude is present and not 0.0
+    if [[ "$altitude" != "not_present" ]] && [[ "$altitude" != "null" ]]; then
+        # Use bc for safe floating point comparison
+        local is_zero=$(echo "$altitude == 0.0" | bc -l 2>/dev/null || echo 0)
+        if [[ "$is_zero" != "1" ]]; then
+            return 0  # Valid mixed 2D/3D positioning (non-zero altitude)
+        fi
+    fi
+    
+    echo "Expected non-zero altitude for mixed 2D/3D positioning, got: $altitude"
+    return 1  # Invalid altitude handling
 }
 
 # Function to validate response against detailed criteria
@@ -68,6 +119,8 @@ validate_response() {
     local confidence_min=$5
     local confidence_max=$6
     local expected_methods=$7
+    local check_2d_positioning=${8:-false}
+    local check_non_zero_alt=${9:-false}
     
     local validation_errors=()
     
@@ -109,6 +162,20 @@ validate_response() {
             done
         else
             validation_errors+=("methodsUsed not found in response")
+        fi
+        
+        # If we need to check 2D positioning specifically
+        if [[ "$check_2d_positioning" == "true" ]]; then
+            if ! altitude_validation=$(check_altitude_handling "$response"); then
+                validation_errors+=("$altitude_validation")
+            fi
+        fi
+        
+        # If we need to check for non-zero altitude (mixed 2D/3D tests)
+        if [[ "$check_non_zero_alt" == "true" ]]; then
+            if ! altitude_validation=$(check_non_zero_altitude "$response"); then
+                validation_errors+=("$altitude_validation")
+            fi
         fi
     fi
     
@@ -152,6 +219,8 @@ run_test() {
     local confidence_min="${5:-0}"
     local confidence_max="${6:-1}"
     local expected_methods="${7:-}"
+    local check_2d_positioning="${8:-false}"
+    local check_non_zero_alt="${9:-false}"
     
     ((TOTAL_TESTS++))
     
@@ -163,7 +232,7 @@ run_test() {
     
     # Validate the response against all criteria
     validation_errors=()
-    if ! validation_output=$(validate_response "$response" "$expected_result" "$horiz_acc_min" "$horiz_acc_max" "$confidence_min" "$confidence_max" "$expected_methods"); then
+    if ! validation_output=$(validate_response "$response" "$expected_result" "$horiz_acc_min" "$horiz_acc_max" "$confidence_min" "$confidence_max" "$expected_methods" "$check_2d_positioning" "$check_non_zero_alt"); then
         validation_errors=($validation_output)
         format_output "$payload" "$response" false
     else
@@ -192,7 +261,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-1",
     "application": "wifi-positioning-test-suite"
-}' "SUCCESS" 45 55 0.35 0.55 "proximity"
+}' "SUCCESS" 45 55 0.35 0.55 "proximity" false false
 
 # Test Case 2: Two APs - RSSI Ratio Method
 # Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8, Proximity: 0.4, Log Distance: 0.5
@@ -221,7 +290,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-2",
     "application": "wifi-positioning-test-suite"
-}' "SUCCESS" 55 70 0.40 0.60 "weighted_centroid rssi ratio"
+}' "SUCCESS" 55 70 0.40 0.60 "weighted_centroid rssi ratio" false false
 
 # Test Case 3: Three APs - Trilateration
 # Base weights: Trilateration: 1.0, Weighted Centroid: 0.8, RSSI Ratio: 0.7
@@ -255,7 +324,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-3",
     "application": "wifi-positioning-test-suite"
-}' "SUCCESS" 90 105 0.35 0.55 "weighted_centroid rssi ratio"
+}' "SUCCESS" 90 105 0.35 0.55 "weighted_centroid rssi ratio" false false
 
 # Test Case 4: Multiple APs - Maximum Likelihood
 # Base weights: Maximum Likelihood: 1.0, Weighted Centroid: 0.7
@@ -296,7 +365,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-4",
     "application": "wifi-positioning-test-suite"
-}' "SUCCESS" 65 75 0.35 0.40 "maximum_likelihood weighted_centroid"
+}' "SUCCESS" 65 75 0.35 0.40 "maximum_likelihood weighted_centroid" false false
 
 # Test Case 5: Weak Signals
 # Base weights: Proximity: 1.0, Log Distance: 0.4
@@ -316,7 +385,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-5",
     "application": "wifi-positioning-test-suite"
-}' "SUCCESS" 30 80 0.05 0.15 "proximity"
+}' "SUCCESS" 30 80 0.05 0.15 "proximity" false false
 
 echo -e "\n${BLUE}SECTION 2: ADVANCED SCENARIO TEST CASES${NC}"
 echo -e "${BLUE}====================================================${NC}"
@@ -353,7 +422,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-6-10",
     "application": "wifi-positioning-test-suite"
-}' "SUCCESS" 70 85 0.35 0.45 "weighted_centroid rssiratio"
+}' "SUCCESS" 70 85 0.35 0.45 "weighted_centroid rssiratio" false false
 
 # Test Case 11-15: High Density AP Cluster
 # Base weights: Maximum Likelihood: 1.0, Trilateration: 0.8, Weighted Centroid: 0.7
@@ -393,7 +462,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-11-15",
     "application": "wifi-positioning-test-suite"
-}' "SUCCESS" 50 60 0.35 0.55 "weighted_centroid maximum_likelihood"
+}' "SUCCESS" 50 60 0.35 0.55 "weighted_centroid maximum_likelihood" false false
 
 # Test Case 16-20: Mixed Signal Quality
 # Base weights: Trilateration: 1.0, Weighted Centroid: 0.8, RSSI Ratio: 0.7
@@ -427,7 +496,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-16-20",
     "application": "wifi-positioning-test-suite"
-}' "SUCCESS" 60 75 0.35 0.55 "weighted_centroid rssi ratio"
+}' "SUCCESS" 60 75 0.35 0.55 "weighted_centroid rssi ratio" false false
 
 echo -e "\n${BLUE}SECTION 3: TEMPORAL AND ENVIRONMENTAL TEST CASES${NC}"
 echo -e "${BLUE}====================================================${NC}"
@@ -457,7 +526,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-21-25",
     "application": "wifi-positioning-test-suite"
-}' "SUCCESS" 45 60 0.35 0.55 "weighted_centroid rssi ratio"
+}' "SUCCESS" 45 60 0.35 0.55 "weighted_centroid rssi ratio" false false
 
 # Test Case 26-30: Log-Distance Path Loss
 # Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8
@@ -484,7 +553,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-26-30",
     "application": "wifi-positioning-test-suite"
-}' "SUCCESS" 20 35 0.40 0.60 "weighted_centroid rssi ratio"
+}' "SUCCESS" 20 35 0.40 0.60 "weighted_centroid rssi ratio" false false
 
 # Test Case 31-35: Stable Signal Quality
 # Base weights: RSSI Ratio: 1.0, Weighted Centroid: 0.8
@@ -512,7 +581,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-31-35",
     "application": "wifi-positioning-test-suite"
-}' "SUCCESS" 5 15 0.65 0.80 "weighted_centroid rssi ratio"
+}' "SUCCESS" 5 15 0.65 0.80 "weighted_centroid rssi ratio" false false
 
 echo -e "\n${BLUE}SECTION 4: ERROR AND EDGE CASES${NC}"
 echo -e "${BLUE}====================================================${NC}"
@@ -530,7 +599,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-36",
     "application": "wifi-positioning-test-suite"
-}' "ERROR"
+}' "ERROR" false false
 
 # Test Case 38: Very Weak Signal (Single AP)
 # According to algorithm selection framework:
@@ -550,7 +619,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-38",
     "application": "wifi-positioning-test-suite"
-}' "SUCCESS" 5 15 0.0 0.1 "proximity"
+}' "SUCCESS" 5 15 0.0 0.1 "proximity" false false
 
 # Test Case 39: Algorithm Failure
 run_test '{
@@ -577,7 +646,7 @@ run_test '{
     "client": "test-client",
     "requestId": "test-request-39",
     "application": "wifi-positioning-test-suite"
-}' "ERROR"
+}' "ERROR" false false
 
 echo -e "\n${BLUE}SECTION 5: STATUS FILTERING TESTS${NC}"
 echo -e "${BLUE}====================================================${NC}"
@@ -621,7 +690,113 @@ run_test '{
     "requestId": "test-request-status-filtering",
     "application": "wifi-positioning-test-suite",
     "calculationDetail": true
-}' "SUCCESS" 15 25 0.65 0.75 "weighted_centroid rssiratio"
+}' "SUCCESS" 15 25 0.65 0.75 "weighted_centroid rssiratio" false false
+
+echo -e "\n${BLUE}SECTION 6: 2D POSITIONING TESTS (NULL ALTITUDE DATA)${NC}"
+echo -e "${BLUE}====================================================${NC}"
+echo -e "${YELLOW}Note: Using existing access points with altitude data, but our modified algorithm should handle 2D positioning correctly${NC}"
+
+# Test Case 50: Single AP Test (Using existing data but 2D positioning)
+# Testing the algorithm's ability to properly work with 2D data
+# Expected: 
+# - Proximity algorithm will be used
+# - 2D positioning works correctly
+run_test '{
+    "wifiScanResults": [{
+        "macAddress": "AA:BB:CC:00:00:50",
+        "ssid": "2D_SingleAP_Test",
+        "signalStrength": -65.0,
+        "frequency": 2437
+    }],
+    "client": "test-client",
+    "requestId": "test-request-2d-1",
+    "application": "wifi-positioning-test-suite",
+    "calculationDetail": true
+}' "SUCCESS" 8 55 0.35 0.60 "proximity" true false
+
+# Test Case 51-52: Two APs Test (Using existing data but 2D positioning)
+# Testing the algorithm's ability to properly work with 2D data
+# Expected:
+# - RSSI Ratio and Weighted Centroid algorithms will be used
+# - 2D positioning works correctly
+run_test '{
+    "wifiScanResults": [
+        {
+            "macAddress": "AA:BB:CC:00:00:51",
+            "signalStrength": -68.5,
+            "frequency": 5180,
+            "ssid": "2D_DualAP_Test"
+        },
+        {
+            "macAddress": "AA:BB:CC:00:00:52",
+            "signalStrength": -62.3,
+            "frequency": 2462,
+            "ssid": "2D_DualAP_Test"
+        }
+    ],
+    "client": "test-client",
+    "requestId": "test-request-2d-2",
+    "application": "wifi-positioning-test-suite",
+    "calculationDetail": true
+}' "SUCCESS" 5 70 0.40 0.60 "weighted_centroid rssi ratio" true false
+
+# Test Case 53-55: Three APs Test (Using existing data but 2D positioning)
+# Testing the algorithm's ability to properly work with 3D data
+# Expected:
+# - Trilateration, Maximum Likelihood, and Weighted Centroid algorithms may be used
+# - 2D positioning works correctly
+run_test '{
+    "wifiScanResults": [
+        {
+            "macAddress": "AA:BB:CC:00:00:53",
+            "signalStrength": -62.3,
+            "frequency": 2462,
+            "ssid": "2D_TriAP_Test"
+        },
+        {
+            "macAddress": "AA:BB:CC:00:00:54",
+            "signalStrength": -71.2,
+            "frequency": 5240,
+            "ssid": "2D_TriAP_Test"
+        },
+        {
+            "macAddress": "AA:BB:CC:00:00:55",
+            "signalStrength": -85.5,
+            "frequency": 2412,
+            "ssid": "2D_TriAP_Test"
+        }
+    ],
+    "client": "test-client",
+    "requestId": "test-request-2d-3",
+    "application": "wifi-positioning-test-suite",
+    "calculationDetail": true
+}' "SUCCESS" 4 105 0.35 0.55 "weighted_centroid rssi ratio" true false
+
+# Test Case 56-57: Mixed Data Test (Testing algorithms with a mix of AP data)
+# Testing the algorithm's handling of mixed data
+# Expected:
+# - Algorithms should use available data
+# - Position should be calculated correctly
+run_test '{
+    "wifiScanResults": [
+        {
+            "macAddress": "AA:BB:CC:00:00:56", 
+            "ssid": "Mixed_2D3D_Test",
+            "signalStrength": -65.0,
+            "frequency": 2437
+        },
+        {
+            "macAddress": "AA:BB:CC:00:00:57",
+            "ssid": "Mixed_2D3D_Test",
+            "signalStrength": -67.0,
+            "frequency": 2437
+        }
+    ],
+    "client": "test-client",
+    "requestId": "test-request-mixed-data",
+    "application": "wifi-positioning-test-suite",
+    "calculationDetail": true
+}' "SUCCESS" 5 80 0.40 0.60 "weighted_centroid rssi ratio" false true
 
 # Print test summary
 echo -e "\n${CYAN}====================================================${NC}"

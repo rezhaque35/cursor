@@ -235,23 +235,41 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
         }
 
         // Prepare coordinates for GDOP calculation
-        double[][] coordinates = new double[measurements.size()][3];
-        for (int i = 0; i < measurements.size(); i++) {
-            MeasurementModel ap = measurements.get(i);
-            coordinates[i][0] = ap.lat;
-            coordinates[i][1] = ap.lon;
-            coordinates[i][2] = ap.alt;
+        double[][] coordinates;
+        if (bestPosition.altitude() != null) {
+            coordinates = new double[measurements.size()][3];
+            for (int i = 0; i < measurements.size(); i++) {
+                MeasurementModel ap = measurements.get(i);
+                coordinates[i][0] = ap.lat;
+                coordinates[i][1] = ap.lon;
+                coordinates[i][2] = ap.alt;
+            }
+        } else {
+            coordinates = new double[measurements.size()][2];
+            for (int i = 0; i < measurements.size(); i++) {
+                MeasurementModel ap = measurements.get(i);
+                coordinates[i][0] = ap.lat;
+                coordinates[i][1] = ap.lon;
+            }
         }
         
         // Calculate position as a double array for GDOP calculation
-        double[] position = new double[] {
-            bestPosition.latitude(),
-            bestPosition.longitude(),
-            bestPosition.altitude()
-        };
+        double[] position;
+        if (bestPosition.altitude() != null) {
+            position = new double[] {
+                bestPosition.latitude(),
+                bestPosition.longitude(),
+                bestPosition.altitude()
+            };
+        } else {
+            position = new double[] {
+                bestPosition.latitude(),
+                bestPosition.longitude()
+            };
+        }
         
         // Calculate GDOP using the GDOPCalculator utility
-        double gdop = GDOPCalculator.calculateGDOP(coordinates, position, true);
+        double gdop = GDOPCalculator.calculateGDOP(coordinates, position, bestPosition.altitude() != null);
         double gdopFactor = GDOPCalculator.calculateGDOPFactor(gdop);
         
         // Calculate average signal strength for accuracy and confidence calculations
@@ -297,6 +315,7 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
         DoubleAdder weightedLon = new DoubleAdder();
         DoubleAdder weightedAlt = new DoubleAdder();
         DoubleAdder totalSignal = new DoubleAdder();
+        DoubleAdder altitudeWeightSum = new DoubleAdder(); // Track weights for altitude calculation separately
 
         // Process scans in parallel
         wifiScan.parallelStream().forEach(scan -> {
@@ -306,7 +325,13 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
             double weight = Math.pow(10, scan.signalStrength() / 10.0);
             weightedLat.add(ap.getLatitude() * weight);
             weightedLon.add(ap.getLongitude() * weight);
-            weightedAlt.add(ap.getAltitude() * weight);
+            
+            // Only add altitude contribution if altitude is not null
+            if (ap.getAltitude() != null) {
+                weightedAlt.add(ap.getAltitude() * weight);
+                altitudeWeightSum.add(weight);
+            }
+            
             totalWeight.add(weight);
             totalSignal.add(scan.signalStrength());
         });
@@ -318,7 +343,13 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
         // Calculate position
         double latitude = weightedLat.doubleValue() / totalWeight.doubleValue();
         double longitude = weightedLon.doubleValue() / totalWeight.doubleValue();
-        double altitude = weightedAlt.doubleValue() / totalWeight.doubleValue();
+        
+        // Calculate altitude only if we have valid altitude data
+        double altitude = 0.0;
+        boolean has3DData = altitudeWeightSum.doubleValue() > 0;
+        if (has3DData) {
+            altitude = weightedAlt.doubleValue() / altitudeWeightSum.doubleValue();
+        }
         
         // Calculate average signal strength
         double avgSignalStrength = totalSignal.doubleValue() / wifiScan.size();
@@ -328,23 +359,42 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
         Position initialPosition = new Position(latitude, longitude, altitude, 0.0, 0.0);
         
         // Prepare coordinates for GDOP calculation
-        double[][] coordinates = new double[measurements.size()][3];
-        for (int i = 0; i < measurements.size(); i++) {
-            MeasurementModel ap = measurements.get(i);
-            coordinates[i][0] = ap.lat;
-            coordinates[i][1] = ap.lon;
-            coordinates[i][2] = ap.alt;
+        // Use 2D coordinates (lat, lon) if we don't have altitude data
+        double[][] coordinates;
+        if (has3DData) {
+            coordinates = new double[measurements.size()][3];
+            for (int i = 0; i < measurements.size(); i++) {
+                MeasurementModel ap = measurements.get(i);
+                coordinates[i][0] = ap.lat;
+                coordinates[i][1] = ap.lon;
+                coordinates[i][2] = ap.alt;
+            }
+        } else {
+            coordinates = new double[measurements.size()][2];
+            for (int i = 0; i < measurements.size(); i++) {
+                MeasurementModel ap = measurements.get(i);
+                coordinates[i][0] = ap.lat;
+                coordinates[i][1] = ap.lon;
+            }
         }
         
         // Calculate position as a double array for GDOP calculation
-        double[] position = new double[] {
-            initialPosition.latitude(),
-            initialPosition.longitude(),
-            initialPosition.altitude()
-        };
+        double[] position;
+        if (has3DData) {
+            position = new double[] {
+                initialPosition.latitude(),
+                initialPosition.longitude(),
+                initialPosition.altitude()
+            };
+        } else {
+            position = new double[] {
+                initialPosition.latitude(),
+                initialPosition.longitude()
+            };
+        }
         
         // Calculate GDOP using the GDOPCalculator utility
-        double gdop = GDOPCalculator.calculateGDOP(coordinates, position, true);
+        double gdop = GDOPCalculator.calculateGDOP(coordinates, position, has3DData);
         double gdopFactor = GDOPCalculator.calculateGDOPFactor(gdop);
         
         // Calculate initial accuracy
@@ -581,17 +631,18 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
     /**
      * Calculates 3D distance between two points using Haversine formula.
      * Accounts for Earth's curvature in horizontal distance.
+     * When altitude data is missing, falls back to 2D distance calculation.
      * 
      * @param lat1 First point latitude
      * @param lon1 First point longitude
-     * @param alt1 First point altitude
+     * @param alt1 First point altitude (can be null)
      * @param lat2 Second point latitude
      * @param lon2 Second point longitude
-     * @param alt2 Second point altitude
-     * @return 3D distance in meters
+     * @param alt2 Second point altitude (can be null)
+     * @return 3D or 2D distance in meters
      */
-    private double calculateDistance(double lat1, double lon1, double alt1, 
-                                   double lat2, double lon2, double alt2) {
+    private double calculateDistance(double lat1, double lon1, Double alt1, 
+                                   double lat2, double lon2, Double alt2) {
         double dLat = Math.toRadians(lat2 - lat1);
         double dLon = Math.toRadians(lon2 - lon1);
         double a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -599,9 +650,15 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
                   Math.sin(dLon/2) * Math.sin(dLon/2);
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         double horizontalDist = EARTH_RADIUS * c;
-        double verticalDist = alt2 - alt1;
         
-        return Math.sqrt(horizontalDist * horizontalDist + verticalDist * verticalDist);
+        // Only include vertical component if altitude data is available for both points
+        if (alt1 != null && alt2 != null) {
+            double verticalDist = alt2 - alt1;
+            return Math.sqrt(horizontalDist * horizontalDist + verticalDist * verticalDist);
+        } else {
+            // 2D distance only (horizontal)
+            return horizontalDist;
+        }
     }
 
     @Override
@@ -692,11 +749,11 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
         final double stdDev;
         final double confidence;
 
-        MeasurementModel(double lat, double lon, double alt, double rssi, 
+        MeasurementModel(double lat, double lon, Double alt, double rssi, 
                        double stdDev, double confidence) {
             this.lat = lat;
             this.lon = lon;
-            this.alt = alt;
+            this.alt = alt != null ? alt : 0.0;
             this.rssi = rssi;
             this.stdDev = stdDev;
             this.confidence = confidence;

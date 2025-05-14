@@ -348,4 +348,118 @@ for i in {41..45}; do
         }'
 done
 
-echo -e "${GREEN}Test data loaded successfully.${NC}" 
+echo -e "${GREEN}Test data loaded successfully.${NC}"
+
+# Test Case 50-55: Missing Altitude Data Tests
+# These test cases have null altitude and verticalAccuracy
+# to test 2D-only positioning algorithms
+echo -e "${YELLOW}Adding test data for 2D positioning tests (null altitude)...${NC}"
+
+# Test Case 50: Single AP with null altitude (Proximity Detection)
+aws dynamodb put-item \
+    --table-name wifi_access_points \
+    --endpoint-url http://localhost:8000 \
+    --profile dynamodb-local \
+    --item '{
+        "mac_addr": {"S": "AA:BB:CC:00:00:50"},
+        "version": {"S": "20240411-120050"},
+        "latitude": {"N": "37.7750"},
+        "longitude": {"N": "-122.4194"},
+        "horizontal_accuracy": {"N": "10.0"},
+        "confidence": {"N": "0.80"},
+        "ssid": {"S": "2D_SingleAP_Test"},
+        "frequency": {"N": "2437"},
+        "vendor": {"S": "Cisco"},
+        "geohash": {"S": "9q8yyk"},
+        "status": {"S": "active"}
+    }'
+
+# Test Case 51-52: Two APs with null altitude (RSSI Ratio and Weighted Centroid)
+for i in {51..52}; do
+    aws dynamodb put-item \
+        --table-name wifi_access_points \
+        --endpoint-url http://localhost:8000 \
+        --profile dynamodb-local \
+        --item '{
+            "mac_addr": {"S": "AA:BB:CC:00:00:'$i'"},
+            "version": {"S": "20240411-120'$i'00"},
+            "latitude": {"N": "'$(echo "37.7750 + ($i-51)*0.0005" | bc)'"},
+            "longitude": {"N": "'$(echo "-122.4194 + ($i-51)*0.0005" | bc)'"},
+            "horizontal_accuracy": {"N": "8.0"},
+            "confidence": {"N": "0.80"},
+            "ssid": {"S": "2D_DualAP_Test"},
+            "frequency": {"N": "'$((2437 + (i-51)*40))'"},
+            "vendor": {"S": "Cisco"},
+            "geohash": {"S": "9q8yyk"},
+            "status": {"S": "active"}
+        }'
+done
+
+# Test Case 53-55: Three APs with null altitude (Trilateration, Maximum Likelihood)
+for i in {53..55}; do
+    aws dynamodb put-item \
+        --table-name wifi_access_points \
+        --endpoint-url http://localhost:8000 \
+        --profile dynamodb-local \
+        --item '{
+            "mac_addr": {"S": "AA:BB:CC:00:00:'$i'"},
+            "version": {"S": "20240411-120'$i'00"},
+            "latitude": {"N": "'$(echo "37.7755 + ($i-53)*0.0008" | bc)'"},
+            "longitude": {"N": "'$(echo "-122.4196 + ($i-53)*0.0008" | bc)'"},
+            "horizontal_accuracy": {"N": "5.0"},
+            "confidence": {"N": "0.85"},
+            "ssid": {"S": "2D_TriAP_Test"},
+            "frequency": {"N": "'$((2437 + (i-53)*20))'"},
+            "vendor": {"S": "Aruba"},
+            "geohash": {"S": "9q8yyk"},
+            "status": {"S": "active"}
+        }'
+done
+
+echo -e "${GREEN}2D positioning test data loaded successfully.${NC}"
+
+# Test Case 56-57: Mixed Data Test (One AP with altitude, one without)
+# This tests the behavior when some APs have altitude data and some don't
+echo -e "${YELLOW}Adding test data for mixed 2D/3D positioning tests...${NC}"
+
+# AP with altitude data
+aws dynamodb put-item \
+    --table-name wifi_access_points \
+    --endpoint-url http://localhost:8000 \
+    --profile dynamodb-local \
+    --item '{
+        "mac_addr": {"S": "AA:BB:CC:00:00:56"},
+        "version": {"S": "20240411-120056"},
+        "latitude": {"N": "37.7760"},
+        "longitude": {"N": "-122.4195"},
+        "altitude": {"N": "30.0"},
+        "horizontal_accuracy": {"N": "8.0"},
+        "vertical_accuracy": {"N": "5.0"},
+        "confidence": {"N": "0.85"},
+        "ssid": {"S": "Mixed_2D3D_Test"},
+        "frequency": {"N": "2437"},
+        "vendor": {"S": "Aruba"},
+        "geohash": {"S": "9q8yyk"},
+        "status": {"S": "active"}
+    }'
+
+# AP without altitude data
+aws dynamodb put-item \
+    --table-name wifi_access_points \
+    --endpoint-url http://localhost:8000 \
+    --profile dynamodb-local \
+    --item '{
+        "mac_addr": {"S": "AA:BB:CC:00:00:57"},
+        "version": {"S": "20240411-120057"},
+        "latitude": {"N": "37.7765"},
+        "longitude": {"N": "-122.4190"},
+        "horizontal_accuracy": {"N": "6.0"},
+        "confidence": {"N": "0.80"},
+        "ssid": {"S": "Mixed_2D3D_Test"},
+        "frequency": {"N": "2437"},
+        "vendor": {"S": "Cisco"},
+        "geohash": {"S": "9q8yyk"},
+        "status": {"S": "active"}
+    }'
+
+echo -e "${GREEN}Mixed 2D/3D positioning test data loaded successfully.${NC}" 

@@ -127,11 +127,14 @@ public class ProximityDetectionAlgorithm implements PositioningAlgorithm {
         // Typical WiFi range is -30 dBm (excellent) to -90 dBm (unusable)
         double normalizedSignal = (strongestSignal.signalStrength() - MIN_SIGNAL_STRENGTH) / SIGNAL_RANGE;
         double confidence = Math.max(0, Math.min(0.85, normalizedSignal));
+        
+        // Use the AP's altitude if available, otherwise default to 0.0
+        double altitude = nearestAP.getAltitude() != null ? nearestAP.getAltitude() : 0.0;
 
         return new Position(
             nearestAP.getLatitude(),
             nearestAP.getLongitude(),
-            nearestAP.getAltitude(),
+            altitude,
             nearestAP.getHorizontalAccuracy(),
             confidence
         );

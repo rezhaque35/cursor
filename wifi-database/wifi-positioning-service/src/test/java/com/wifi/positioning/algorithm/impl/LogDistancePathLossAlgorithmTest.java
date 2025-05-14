@@ -247,44 +247,195 @@ class LogDistancePathLossAlgorithmTest {
         @Test
         @DisplayName("should calculate reasonable positions with mixed signal qualities")
         void shouldCalculateReasonablePositions() {
-            List<WifiAccessPoint> knownAPs = Arrays.asList(
+            // Create test data
+            List<WifiScanResult> wifiScan = List.of(
+                WifiScanResult.of("00:11:22:33:44:55", -65.0, 2400, "test-ssid"),
+                WifiScanResult.of("AA:BB:CC:DD:EE:FF", -70.0, 2400, "test-ssid"),
+                WifiScanResult.of("11:22:33:44:55:66", -75.0, 2400, "test-ssid")
+            );
+            
+            List<WifiAccessPoint> knownAPs = List.of(
                 WifiAccessPoint.builder()
-                    .macAddress("AP1")
-                    .vendor("Cisco")
-                    .latitude(1.0)
-                    .longitude(1.0)
-                    .altitude(0.0)
-                    .horizontalAccuracy(5.0)
+                    .macAddress("00:11:22:33:44:55")
+                    .latitude(40.748817)
+                    .longitude(-73.985428)
+                    .altitude(100.0)
+                    .horizontalAccuracy(10.0)
+                    .verticalAccuracy(5.0)
+                    .vendor("Vendor1")
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AA:BB:CC:DD:EE:FF")
+                    .latitude(40.748192)
+                    .longitude(-73.984870)
+                    .altitude(105.0)
+                    .horizontalAccuracy(8.0)
+                    .verticalAccuracy(4.0)
+                    .vendor("Vendor2")
                     .confidence(0.9)
                     .build(),
                 WifiAccessPoint.builder()
-                    .macAddress("AP2")
-                    .latitude(1.0)
-                    .longitude(2.0)
-                    .altitude(0.0)
-                    .horizontalAccuracy(5.0)
-                    .confidence(0.8)
+                    .macAddress("11:22:33:44:55:66")
+                    .latitude(40.747500)
+                    .longitude(-73.985800)
+                    .altitude(95.0)
+                    .horizontalAccuracy(12.0)
+                    .verticalAccuracy(6.0)
+                    .confidence(0.7)
                     .build()
             );
 
-            List<WifiScanResult> scans = Arrays.asList(
-                WifiScanResult.of("AP1", -65.0, 2400, "test-ssid"),
-                WifiScanResult.of("AP2", -70.0, 2400, "test-ssid")
+            // Execute algorithm
+            Position position = algorithm.calculatePosition(wifiScan, knownAPs);
+
+            // Verify results
+            assertNotNull(position);
+            assertTrue(position.latitude() >= 40.74 && position.latitude() <= 40.75, 
+                       "Latitude should be reasonable");
+            assertTrue(position.longitude() >= -74.0 && position.longitude() <= -73.9, 
+                       "Longitude should be reasonable");
+            assertTrue(position.altitude() >= 90.0 && position.altitude() <= 110.0, 
+                       "Altitude should be reasonable");
+            assertTrue(position.accuracy() >= 4.0 && position.accuracy() <= 10.0, 
+                       "Expected accuracy between 4 and 10, got " + position.accuracy());
+            assertTrue(position.confidence() >= 0.6 && position.confidence() <= 0.9, 
+                       "Confidence should be between 0.6 and 0.9");
+        }
+    }
+
+    /**
+     * Tests for handling incomplete data in access points.
+     * These tests verify the algorithm's ability to calculate positions
+     * when altitude and/or verticalAccuracy data are missing.
+     */
+    @Nested
+    @DisplayName("Incomplete Data Handling Tests")
+    class IncompleteDataHandlingTests {
+        /**
+         * Tests algorithm behavior with missing altitude data.
+         * Verifies that:
+         * 1. Algorithm can properly handle null altitude values
+         * 2. Position is calculated using only 2D coordinates
+         * 3. Default altitude is set to 0.0
+         * Expected: Valid position with 2D coordinates and altitude defaulted to 0.0
+         */
+        @Test
+        @DisplayName("should handle null altitude values")
+        void shouldHandleNullAltitudeValues() {
+            // Create test data with null altitude values
+            List<WifiScanResult> wifiScan = List.of(
+                WifiScanResult.of("00:11:22:33:44:55", -65.0, 2400, "test-ssid"),
+                WifiScanResult.of("AA:BB:CC:DD:EE:FF", -70.0, 2400, "test-ssid")
+            );
+            
+            List<WifiAccessPoint> knownAPs = List.of(
+                WifiAccessPoint.builder()
+                    .macAddress("00:11:22:33:44:55")
+                    .latitude(40.748817)
+                    .longitude(-73.985428)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(10.0)
+                    .verticalAccuracy(null) // Null verticalAccuracy
+                    .vendor("Vendor1")
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AA:BB:CC:DD:EE:FF")
+                    .latitude(40.748192)
+                    .longitude(-73.984870)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(8.0)
+                    .verticalAccuracy(null) // Null verticalAccuracy
+                    .vendor("Vendor2")
+                    .confidence(0.9)
+                    .build()
             );
 
-            Position position = algorithm.calculatePosition(scans, knownAPs);
+            // Execute algorithm
+            Position position = algorithm.calculatePosition(wifiScan, knownAPs);
+
+            // Verify results
             assertNotNull(position);
-            // Accuracy: Should be within 6-10m for strong signals, log-distance path loss
-            assertTrue(position.accuracy() >= 6.0 && position.accuracy() <= 10.0,
-                "Expected accuracy between 6 and 10, got " + position.accuracy());
-            // Confidence: Should be high for strong signals
-            assertTrue(position.confidence() >= 0.69 && position.confidence() <= 0.95,
-                "Expected confidence between 0.69 and 0.95, got " + position.confidence());
-            // Latitude/Longitude: Should be between APs, with margin
-            assertTrue(position.latitude() >= 0.9 && position.latitude() <= 2.1,
-                "Expected latitude between 0.9 and 2.1, got " + position.latitude());
-            assertTrue(position.longitude() >= 0.9 && position.longitude() <= 2.1,
-                "Expected longitude between 0.9 and 2.1, got " + position.longitude());
+            assertTrue(position.latitude() >= 40.74 && position.latitude() <= 40.75, 
+                      "Latitude should be reasonable");
+            assertTrue(position.longitude() >= -74.0 && position.longitude() <= -73.9, 
+                      "Longitude should be reasonable");
+            assertEquals(0.0, position.altitude(), 0.0001, 
+                      "Altitude should be 0.0 when all altitude data is null");
+            assertTrue(position.accuracy() > 0.0, 
+                      "Accuracy should be positive");
+            assertTrue(position.confidence() >= 0.6 && position.confidence() <= 0.9, 
+                      "Confidence should be between 0.6 and 0.9");
+        }
+
+        /**
+         * Tests algorithm behavior with mixed altitude data (some null, some not).
+         * Verifies that:
+         * 1. Algorithm correctly calculates altitude using only valid altitude values
+         * 2. Position coordinates are calculated correctly
+         * Expected: Valid position with altitude calculated from valid altitude data only
+         */
+        @Test
+        @DisplayName("should handle mixed altitude values")
+        void shouldHandleMixedAltitudeValues() {
+            // Create test data with mixed altitude values
+            List<WifiScanResult> wifiScan = List.of(
+                WifiScanResult.of("00:11:22:33:44:55", -65.0, 2400, "test-ssid"),
+                WifiScanResult.of("AA:BB:CC:DD:EE:FF", -70.0, 2400, "test-ssid"),
+                WifiScanResult.of("11:22:33:44:55:66", -75.0, 2400, "test-ssid")
+            );
+            
+            List<WifiAccessPoint> knownAPs = List.of(
+                WifiAccessPoint.builder()
+                    .macAddress("00:11:22:33:44:55")
+                    .latitude(40.748817)
+                    .longitude(-73.985428)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(10.0)
+                    .verticalAccuracy(null) // Null verticalAccuracy
+                    .vendor("Vendor1")
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AA:BB:CC:DD:EE:FF")
+                    .latitude(40.748192)
+                    .longitude(-73.984870)
+                    .altitude(105.0) // Valid altitude
+                    .horizontalAccuracy(8.0)
+                    .verticalAccuracy(4.0) // Valid verticalAccuracy
+                    .vendor("Vendor2")
+                    .confidence(0.9)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("11:22:33:44:55:66")
+                    .latitude(40.747500)
+                    .longitude(-73.985800)
+                    .altitude(95.0) // Valid altitude
+                    .horizontalAccuracy(12.0)
+                    .verticalAccuracy(6.0) // Valid verticalAccuracy
+                    .confidence(0.7)
+                    .build()
+            );
+
+            // Execute algorithm
+            Position position = algorithm.calculatePosition(wifiScan, knownAPs);
+
+            // Verify results
+            assertNotNull(position);
+            assertTrue(position.latitude() >= 40.74 && position.latitude() <= 40.75, 
+                      "Latitude should be reasonable");
+            assertTrue(position.longitude() >= -74.0 && position.longitude() <= -73.9, 
+                      "Longitude should be reasonable");
+            
+            // Altitude should be calculated from AP2 and AP3 (since AP1 has null altitude)
+            assertTrue(position.altitude() != 0.0, 
+                      "Altitude should be calculated from valid altitude data only");
+                      
+            assertTrue(position.accuracy() > 0.0, 
+                      "Accuracy should be positive");
+            assertTrue(position.confidence() >= 0.6 && position.confidence() <= 0.9, 
+                      "Confidence should be between 0.6 and 0.9");
         }
     }
 } 

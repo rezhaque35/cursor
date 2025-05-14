@@ -629,4 +629,160 @@ class MaximumLikelihoodAlgorithmTest {
                 "Expected longitude between 0.7 and 3.3, got " + result.longitude());
         }
     }
+
+    @Nested
+    @DisplayName("Incomplete Data Handling")
+    class IncompleteDataHandlingTests {
+        /**
+         * Tests algorithm behavior with missing altitude data.
+         * This verifies the algorithm can function properly with 2D data only.
+         * 
+         * Expected outcome:
+         * - Algorithm should still calculate position using 2D coordinates
+         * - Position should have reasonable accuracy and confidence
+         * - The algorithm should fall back to 2D calculations
+         */
+        @Test
+        @DisplayName("should calculate position when altitude data is missing")
+        void shouldCalculatePositionWhenAltitudeDataIsMissing() {
+            // Create APs with null altitude
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                WifiAccessPoint.builder()
+                    .macAddress("AP1")
+                    .latitude(1.0)
+                    .longitude(1.0)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AP2")
+                    .latitude(2.0)
+                    .longitude(2.0)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AP3")
+                    .latitude(3.0)
+                    .longitude(1.0)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AP4")
+                    .latitude(2.0)
+                    .longitude(1.0)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build()
+            );
+
+            // Create scans with varying signal strengths
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -65.0),
+                createScan("AP2", -70.0),
+                createScan("AP3", -75.0),
+                createScan("AP4", -68.0)
+            );
+
+            Position position = algorithm.calculatePosition(scans, knownAPs);
+            
+            // Verify position calculation succeeded
+            assertNotNull(position);
+            
+            // Verify position is within the bounds of the APs
+            assertTrue(position.latitude() >= 1.0 && position.latitude() <= 3.0,
+                "Latitude should be within bounds of APs");
+            assertTrue(position.longitude() >= 1.0 && position.longitude() <= 2.0,
+                "Longitude should be within bounds of APs");
+            
+            // Altitude should default to 0.0 since all altitudes are null
+            assertEquals(0.0, position.altitude(), "Altitude should be 0.0 when all APs have null altitude");
+            
+            // Verify accuracy and confidence are reasonable
+            assertTrue(position.accuracy() > 0, "Accuracy should be positive");
+            assertTrue(position.confidence() > 0, "Confidence should be positive");
+        }
+        
+        /**
+         * Tests algorithm behavior with a mix of APs with and without altitude data.
+         * This verifies the algorithm can blend 2D and 3D data appropriately.
+         * 
+         * Expected outcome:
+         * - Algorithm should calculate reasonable position
+         * - Altitude should be based on APs with altitude data
+         * - Position should have reasonable accuracy and confidence
+         */
+        @Test
+        @DisplayName("should calculate position with mixed 2D and 3D data")
+        void shouldCalculatePositionWithMixed2DAnd3DData() {
+            // Create APs with mixed altitude data
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                WifiAccessPoint.builder()
+                    .macAddress("AP1")
+                    .latitude(1.0)
+                    .longitude(1.0)
+                    .altitude(10.0) // With altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AP2")
+                    .latitude(2.0)
+                    .longitude(2.0)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AP3")
+                    .latitude(3.0)
+                    .longitude(1.0)
+                    .altitude(15.0) // With altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AP4")
+                    .latitude(2.0)
+                    .longitude(1.0)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build()
+            );
+
+            // Create scans with varying signal strengths
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -65.0),
+                createScan("AP2", -70.0),
+                createScan("AP3", -75.0),
+                createScan("AP4", -68.0)
+            );
+
+            Position position = algorithm.calculatePosition(scans, knownAPs);
+            
+            // Verify position calculation succeeded
+            assertNotNull(position);
+            
+            // Verify position is within the bounds of the APs
+            assertTrue(position.latitude() >= 1.0 && position.latitude() <= 3.0,
+                "Latitude should be within bounds of APs");
+            assertTrue(position.longitude() >= 1.0 && position.longitude() <= 2.0,
+                "Longitude should be within bounds of APs");
+            
+            // Altitude should be based on APs with altitude data
+            // Should be between 10.0 and 15.0 based on signal strengths
+            assertTrue(position.altitude() >= 10.0 && position.altitude() <= 15.0,
+                "Altitude should be based on APs with altitude data");
+            
+            // Verify accuracy and confidence are reasonable
+            assertTrue(position.accuracy() > 0, "Accuracy should be positive");
+            assertTrue(position.confidence() > 0, "Confidence should be positive");
+        }
+    }
 } 

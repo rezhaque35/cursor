@@ -529,4 +529,140 @@ class TrilaterationAlgorithmTest {
                 "Expected longitude between 0.7 and 2.3, got " + result.longitude());
         }
     }
+
+    @Nested
+    @DisplayName("Incomplete Data Handling")
+    class IncompleteDataHandlingTests {
+        /**
+         * Tests algorithm behavior with missing altitude data.
+         * This tests the 2D positioning fallback capability of the algorithm.
+         * 
+         * Expected outcome:
+         * - Algorithm should still calculate position using 2D coordinates
+         * - Position should have reasonable accuracy and confidence
+         * - Altitude should be 0.0 when all altitude data is missing
+         */
+        @Test
+        @DisplayName("should calculate 2D position when altitude data is missing")
+        void shouldCalculate2DPositionWhenAltitudeDataIsMissing() {
+            // Create APs with null altitude
+            List<WifiAccessPoint> aps = Arrays.asList(
+                WifiAccessPoint.builder()
+                    .macAddress("AP1")
+                    .latitude(1.0)
+                    .longitude(1.0)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AP2")
+                    .latitude(1.0)
+                    .longitude(2.0)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AP3")
+                    .latitude(2.0)
+                    .longitude(1.5)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build()
+            );
+            
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -60.0),
+                createScan("AP2", -62.0),
+                createScan("AP3", -61.0)
+            );
+            
+            Position result = algorithm.calculatePosition(scans, aps);
+            
+            // Verify position calculation succeeded
+            assertNotNull(result);
+            
+            // Verify position is within reasonable bounds
+            assertTrue(result.latitude() >= 0.9 && result.latitude() <= 2.1,
+                "Expected latitude between 0.9 and 2.1, got " + result.latitude());
+            assertTrue(result.longitude() >= 0.9 && result.longitude() <= 2.1,
+                "Expected longitude between 0.9 and 2.1, got " + result.longitude());
+            
+            // Verify altitude handling
+            assertEquals(0.0, result.altitude(), "Altitude should be 0.0 when all APs have null altitude");
+            
+            // Verify accuracy and confidence are reasonable
+            assertTrue(result.accuracy() > 0, "Accuracy should be positive");
+            assertTrue(result.confidence() > 0, "Confidence should be positive");
+        }
+        
+        /**
+         * Tests algorithm behavior with a mix of APs with and without altitude data.
+         * This verifies the algorithm can blend 2D and 3D data appropriately.
+         * 
+         * Expected outcome:
+         * - Algorithm should calculate reasonable position
+         * - Altitude should be based on APs with altitude data
+         * - Position should have reasonable accuracy and confidence
+         */
+        @Test
+        @DisplayName("should calculate position with mixed 2D and 3D data")
+        void shouldCalculatePositionWithMixed2DAnd3DData() {
+            // Create APs with mixed altitude data
+            List<WifiAccessPoint> aps = Arrays.asList(
+                WifiAccessPoint.builder()
+                    .macAddress("AP1")
+                    .latitude(1.0)
+                    .longitude(1.0)
+                    .altitude(10.0) // With altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AP2")
+                    .latitude(1.0)
+                    .longitude(2.0)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AP3")
+                    .latitude(2.0)
+                    .longitude(1.5)
+                    .altitude(15.0) // With altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build()
+            );
+            
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -60.0),
+                createScan("AP2", -62.0),
+                createScan("AP3", -61.0)
+            );
+            
+            Position result = algorithm.calculatePosition(scans, aps);
+            
+            // Verify position calculation succeeded
+            assertNotNull(result);
+            
+            // Verify position is within reasonable bounds
+            assertTrue(result.latitude() >= 0.9 && result.latitude() <= 2.1,
+                "Expected latitude between 0.9 and 2.1, got " + result.latitude());
+            assertTrue(result.longitude() >= 0.9 && result.longitude() <= 2.1,
+                "Expected longitude between 0.9 and 2.1, got " + result.longitude());
+            
+            // Verify altitude is based on APs with altitude data
+            // Should be between 10.0 and 15.0, or exactly one of those values
+            assertTrue(result.altitude() >= 10.0 && result.altitude() <= 15.0,
+                "Altitude should be based on APs with altitude data");
+            
+            // Verify accuracy and confidence are reasonable
+            assertTrue(result.accuracy() > 0, "Accuracy should be positive");
+            assertTrue(result.confidence() > 0, "Confidence should be positive");
+        }
+    }
 } 

@@ -111,12 +111,18 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
         final double weightedLon;
         final double weightedAlt;
         final double weight;
+        final boolean hasAltitudeData;
 
-        WeightedPositionResult(double weightedLat, double weightedLon, double weightedAlt, double weight) {
+        WeightedPositionResult(double weightedLat, double weightedLon, double weightedAlt, double weight, boolean hasAltitudeData) {
             this.weightedLat = weightedLat;
             this.weightedLon = weightedLon;
             this.weightedAlt = weightedAlt;
             this.weight = weight;
+            this.hasAltitudeData = hasAltitudeData;
+        }
+        
+        WeightedPositionResult(double weightedLat, double weightedLon, double weightedAlt, double weight) {
+            this(weightedLat, weightedLon, weightedAlt, weight, true);
         }
     }
 
@@ -146,6 +152,7 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
         DoubleAdder weightedLat = new DoubleAdder();
         DoubleAdder weightedLon = new DoubleAdder();
         DoubleAdder weightedAlt = new DoubleAdder();
+        DoubleAdder altitudeWeightSum = new DoubleAdder(); // Track weights for altitude separately
 
         // Process AP pairs in parallel
         List<WeightedPositionResult> results = IntStream.range(0, wifiScan.size())
@@ -171,9 +178,17 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
                     // Calculate weighted midpoint
                     double lat = (ap1.getLatitude() + ratio * ap2.getLatitude()) / (1 + ratio);
                     double lon = (ap1.getLongitude() + ratio * ap2.getLongitude()) / (1 + ratio);
-                    double alt = (ap1.getAltitude() + ratio * ap2.getAltitude()) / (1 + ratio);
+                    
+                    // Only include altitude in calculation if both APs have altitude data
+                    double alt = 0.0;
+                    boolean hasAltitudeData = false;
+                    
+                    if (ap1.getAltitude() != null && ap2.getAltitude() != null) {
+                        alt = (ap1.getAltitude() + ratio * ap2.getAltitude()) / (1 + ratio);
+                        hasAltitudeData = true;
+                    }
 
-                    return new WeightedPositionResult(lat * weight, lon * weight, alt * weight, weight);
+                    return new WeightedPositionResult(lat * weight, lon * weight, alt * weight, weight, hasAltitudeData);
                 })
             )
             .filter(result -> result != null)
@@ -185,6 +200,11 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
             weightedLon.add(result.weightedLon);
             weightedAlt.add(result.weightedAlt);
             totalWeight.add(result.weight);
+            
+            // Only add to altitude weight sum if result has altitude data
+            if (result.hasAltitudeData) {
+                altitudeWeightSum.add(result.weight);
+            }
         });
 
         if (totalWeight.doubleValue() == 0) {
@@ -218,11 +238,17 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
 
         double computedConfidence = Math.min(0.85, baseConfidence + (signalQuality * 1.0));
         double finalConfidence = (avgSignalStrength >= -70) ? Math.max(0.7, computedConfidence) : computedConfidence;
+        
+        // Calculate altitude only if we have valid altitude data
+        double altitude = 0.0;
+        if (altitudeWeightSum.doubleValue() > 0) {
+            altitude = weightedAlt.doubleValue() / altitudeWeightSum.doubleValue();
+        }
 
         return new Position(
             weightedLat.doubleValue() / totalWeight.doubleValue(),
             weightedLon.doubleValue() / totalWeight.doubleValue(),
-            weightedAlt.doubleValue() / totalWeight.doubleValue(),
+            altitude,
             finalAccuracy,
             finalConfidence
         );

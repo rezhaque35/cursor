@@ -509,4 +509,118 @@ class ProximityDetectionAlgorithmTest {
                     "Weight should be in reasonable range (0-1.0)");
         }
     }
+
+    @Nested
+    @DisplayName("Incomplete Data Handling Tests")
+    class IncompleteDataHandlingTests {
+        /**
+         * Tests algorithm behavior with missing altitude data.
+         * Verifies that:
+         * 1. Algorithm can properly handle null altitude values
+         * 2. Position is calculated using only 2D coordinates
+         * 3. Default altitude is set to 0.0
+         * Expected: Valid position with 2D coordinates and altitude defaulted to 0.0
+         */
+        @Test
+        @DisplayName("should handle null altitude values")
+        void shouldHandleNullAltitudeValues() {
+            // Create AP with null altitude
+            WifiAccessPoint ap = WifiAccessPoint.builder()
+                .macAddress("AP1")
+                .latitude(1.0)
+                .longitude(1.0)
+                .altitude(null) // Null altitude
+                .horizontalAccuracy(5.0)
+                .confidence(0.8)
+                .build();
+
+            List<WifiAccessPoint> knownAPs = Collections.singletonList(ap);
+
+            List<WifiScanResult> scans = Collections.singletonList(
+                createScan("AP1", -60.0)
+            );
+
+            Position position = algorithm.calculatePosition(scans, knownAPs);
+            
+            // Verify position is calculated correctly
+            assertNotNull(position);
+            assertEquals(1.0, position.latitude());
+            assertEquals(1.0, position.longitude());
+            assertEquals(0.0, position.altitude());
+        }
+
+        /**
+         * Tests algorithm behavior with missing verticalAccuracy data.
+         * Verifies that:
+         * 1. Algorithm can properly handle null verticalAccuracy values
+         * 2. Position is calculated using only horizontalAccuracy for accuracy
+         * Expected: Valid position with appropriate accuracy values
+         */
+        @Test
+        @DisplayName("should handle null verticalAccuracy values")
+        void shouldHandleNullVerticalAccuracyValues() {
+            // Create AP with null verticalAccuracy (but valid altitude)
+            WifiAccessPoint ap = WifiAccessPoint.builder()
+                .macAddress("AP1")
+                .latitude(1.0)
+                .longitude(1.0)
+                .altitude(10.0)
+                .horizontalAccuracy(5.0)
+                .verticalAccuracy(null) // Null verticalAccuracy
+                .confidence(0.8)
+                .build();
+
+            List<WifiAccessPoint> knownAPs = Collections.singletonList(ap);
+
+            List<WifiScanResult> scans = Collections.singletonList(
+                createScan("AP1", -60.0)
+            );
+
+            Position position = algorithm.calculatePosition(scans, knownAPs);
+            
+            // Verify position is calculated correctly
+            assertNotNull(position);
+            assertEquals(1.0, position.latitude());
+            assertEquals(1.0, position.longitude());
+            assertEquals(10.0, position.altitude());
+            assertEquals(5.0, position.accuracy()); // Should use horizontalAccuracy
+        }
+
+        /**
+         * Tests algorithm behavior with both null altitude and verticalAccuracy.
+         * Verifies that:
+         * 1. Algorithm operates correctly when both altitude and verticalAccuracy are null
+         * 2. Position is calculated with 2D coordinates only
+         * Expected: Valid position with 2D coordinates and appropriate default values
+         */
+        @Test
+        @DisplayName("should handle both null altitude and verticalAccuracy")
+        void shouldHandleBothNullAltitudeAndVerticalAccuracy() {
+            // Create AP with null altitude and null verticalAccuracy
+            WifiAccessPoint ap = WifiAccessPoint.builder()
+                .macAddress("AP1")
+                .latitude(1.0)
+                .longitude(1.0)
+                .altitude(null) // Null altitude
+                .horizontalAccuracy(5.0)
+                .verticalAccuracy(null) // Null verticalAccuracy
+                .confidence(0.8)
+                .build();
+
+            List<WifiAccessPoint> knownAPs = Collections.singletonList(ap);
+
+            List<WifiScanResult> scans = Collections.singletonList(
+                createScan("AP1", -60.0)
+            );
+
+            Position position = algorithm.calculatePosition(scans, knownAPs);
+            
+            // Verify position is calculated correctly
+            assertNotNull(position);
+            assertEquals(1.0, position.latitude());
+            assertEquals(1.0, position.longitude());
+            assertEquals(0.0, position.altitude());
+            assertEquals(5.0, position.accuracy()); // Should use horizontalAccuracy
+        }
+    }
 } 

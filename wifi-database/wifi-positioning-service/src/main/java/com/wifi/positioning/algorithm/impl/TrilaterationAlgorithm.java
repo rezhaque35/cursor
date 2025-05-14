@@ -118,6 +118,12 @@ public class TrilaterationAlgorithm implements PositioningAlgorithm {
     private static final double MIN_DISTANCE = 1.0; // minimum distance in meters
     private static final double MAX_DISTANCE = 100.0; // maximum distance in meters
     
+    /**
+     * Radius of the Earth in meters. Used for distance calculations.
+     * The average radius of Earth is approximately 6,371 kilometers.
+     */
+    private static final double EARTH_RADIUS = 6371000.0; // meters
+    
     // Constants for signal strength thresholds
     private static final double STRONG_SIGNAL_THRESHOLD = -65.0; // dBm, signals stronger than this are considered "strong"
     private static final double WEAK_SIGNAL_THRESHOLD = -80.0; // dBm, signals weaker than this are considered "weak"
@@ -128,6 +134,9 @@ public class TrilaterationAlgorithm implements PositioningAlgorithm {
     private static final double SIGNAL_NORMALIZATION_RANGE = 15.0; // Range to normalize signal strength (STRONG_SIGNAL_THRESHOLD to STRONG_SIGNAL_THRESHOLD-15)
     private static final double SIGNAL_NORMALIZATION_OFFSET = -50.0; // Normalization offset for signal scaling
     private static final double POSITION_MARGIN = 0.3; // Margin for position constraints (0.3 units = ~33 meters)
+    
+    // Flag to track if we have altitude data available for 3D positioning
+    private boolean has3DData = false;
 
     /**
      * Helper class to store coordinate calculations for each AP.
@@ -339,12 +348,20 @@ public class TrilaterationAlgorithm implements PositioningAlgorithm {
             WifiAccessPoint ap = apMap.get(scan.macAddress());
             CachedCoordinates coords = coordinateCache.get(scan.macAddress());
             double weight = 1.0 / coords.distance;
-            weightedAltitude.add(ap.getAltitude() * weight);
-            weightSum.add(weight);
+            
+            // Only contribute to altitude calculation if the AP has altitude data
+            if (ap.getAltitude() != null) {
+                weightedAltitude.add(ap.getAltitude() * weight);
+                weightSum.add(weight);
+            }
         });
         
+        // Default to 0.0 if no valid altitude data is available
         double altitude = weightSum.doubleValue() > 0 ? 
             weightedAltitude.doubleValue() / weightSum.doubleValue() : 0.0;
+            
+        // Flag indicating if we have 3D data
+        boolean has3DData = weightSum.doubleValue() > 0;
         
         // Calculate average accuracy based on known APs and signal strength, adjusted for GDOP
         double avgAccuracy;
@@ -612,5 +629,48 @@ public class TrilaterationAlgorithm implements PositioningAlgorithm {
             default:
                 return TRILATERATION_MIXED_SIGNALS_MULTIPLIER;
         }
+    }
+
+    /**
+     * Calculates 3D distance between two points using Haversine formula.
+     * Accounts for Earth's curvature in horizontal distance.
+     * When altitude data is missing, falls back to 2D distance calculation.
+     * 
+     * @param lat1 First point latitude
+     * @param lon1 First point longitude
+     * @param alt1 First point altitude (can be 0.0 if missing)
+     * @param lat2 Second point latitude
+     * @param lon2 Second point longitude
+     * @param alt2 Second point altitude (can be 0.0 if missing)
+     * @param use3D Whether to include altitude in distance calculation
+     * @return 3D or 2D distance in meters
+     */
+    private double calculateDistance(double lat1, double lon1, double alt1, 
+                                  double lat2, double lon2, double alt2,
+                                  boolean use3D) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        double horizontalDist = EARTH_RADIUS * c;
+        
+        // Only include vertical component if we have 3D data and use3D is true
+        if (use3D) {
+            double verticalDist = alt2 - alt1;
+            return Math.sqrt(horizontalDist * horizontalDist + verticalDist * verticalDist);
+        } else {
+            // 2D distance only (horizontal)
+            return horizontalDist;
+        }
+    }
+    
+    /**
+     * Convenience method for calculateDistance that uses currentUse3D value.
+     */
+    private double calculateDistance(double lat1, double lon1, double alt1, 
+                                  double lat2, double lon2, double alt2) {
+        return calculateDistance(lat1, lon1, alt1, lat2, lon2, alt2, has3DData);
     }
 } 

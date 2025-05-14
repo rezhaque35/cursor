@@ -287,8 +287,9 @@ public class LogDistancePathLossAlgorithm implements PositioningAlgorithm {
         double weightedLat = 0.0;
         double weightedLon = 0.0;
         double weightedAlt = 0.0;
-        double maxDistance = 0.0;
-        double avgPathLossExponent = 0.0;
+        double invDistanceSum = 0.0; // Renamed from totalWeight to avoid variable conflict
+        double altitude = 0.0;
+        boolean has3DData = false; // Track if we have valid altitude data
 
         // Collect all signal strengths, distances, and path loss exponents for confidence calculation
         List<Double> signalStrengths = new ArrayList<>();
@@ -304,9 +305,14 @@ public class LogDistancePathLossAlgorithm implements PositioningAlgorithm {
             double invDistance = 1.0 / Math.max(1.0, result.distance);
             weightedLat += ap.getLatitude() * invDistance;
             weightedLon += ap.getLongitude() * invDistance;
-            weightedAlt += ap.getAltitude() * invDistance;
-            maxDistance = Math.max(maxDistance, result.distance);
-            avgPathLossExponent += result.pathLossExponent * normalizedWeight;
+            
+            // Only include altitude in calculation if AP has altitude data
+            if (ap.getAltitude() != null) {
+                weightedAlt += ap.getAltitude() * invDistance;
+                has3DData = true;
+            }
+            
+            invDistanceSum += invDistance;
             
             // Collect data for academic confidence calculation
             WifiScanResult scan = wifiScan.stream()
@@ -321,14 +327,14 @@ public class LogDistancePathLossAlgorithm implements PositioningAlgorithm {
             }
         }
 
-        double totalInvDistance = results.values().stream()
-            .mapToDouble(result -> 1.0 / Math.max(1.0, result.distance))
-            .sum();
-
         // Calculate final position
-        double finalLat = weightedLat / totalInvDistance;
-        double finalLon = weightedLon / totalInvDistance;
-        double finalAlt = weightedAlt / totalInvDistance;
+        double calculatedLat = weightedLat / invDistanceSum;
+        double calculatedLon = weightedLon / invDistanceSum;
+        
+        // Only calculate altitude if we have valid altitude data
+        if (has3DData) {
+            altitude = weightedAlt / invDistanceSum;
+        }
 
         // Get average signal strength to adjust accuracy
         double avgSignalStrength = signalStrengths.stream()
@@ -340,15 +346,24 @@ public class LogDistancePathLossAlgorithm implements PositioningAlgorithm {
         double adjustedMaxDistance;
         if (avgSignalStrength >= STRONG_SIGNAL_THRESHOLD) {
             // Strong signal = smallest distance
-            adjustedMaxDistance = maxDistance * STRONG_SIGNAL_DISTANCE_MULTIPLIER;
+            adjustedMaxDistance = distances.stream()
+                .mapToDouble(Double::doubleValue)
+                .min()
+                .orElse(0.0) * STRONG_SIGNAL_DISTANCE_MULTIPLIER;
         } else if (avgSignalStrength <= WEAK_SIGNAL_THRESHOLD) {
             // Weak signal = largest distance
-            adjustedMaxDistance = maxDistance * WEAK_SIGNAL_DISTANCE_MULTIPLIER;
+            adjustedMaxDistance = distances.stream()
+                .mapToDouble(Double::doubleValue)
+                .max()
+                .orElse(0.0) * WEAK_SIGNAL_DISTANCE_MULTIPLIER;
         } else {
             // Medium signal = in between
             double ratio = (avgSignalStrength - WEAK_SIGNAL_THRESHOLD) / 
                           (STRONG_SIGNAL_THRESHOLD - WEAK_SIGNAL_THRESHOLD);
-            adjustedMaxDistance = maxDistance * (MAX_DISTANCE_ADJUSTMENT - DISTANCE_ADJUSTMENT_RANGE * ratio);
+            adjustedMaxDistance = distances.stream()
+                .mapToDouble(Double::doubleValue)
+                .min()
+                .orElse(0.0) * (MAX_DISTANCE_ADJUSTMENT - DISTANCE_ADJUSTMENT_RANGE * ratio);
         }
 
         // Calculate final confidence using the academic model
@@ -360,9 +375,9 @@ public class LogDistancePathLossAlgorithm implements PositioningAlgorithm {
         );
 
         return new Position(
-            finalLat,
-            finalLon,
-            finalAlt,
+            calculatedLat,
+            calculatedLon,
+            altitude,
             adjustedMaxDistance,
             finalConfidence
         );

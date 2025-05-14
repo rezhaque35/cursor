@@ -312,4 +312,114 @@ class RSSIRatioAlgorithmTest {
                 "Expected longitude between 0.7 and 2.3, got " + result.longitude());
         }
     }
+
+    @Nested
+    @DisplayName("Incomplete Data Handling Tests")
+    class IncompleteDataHandlingTests {
+        /**
+         * Tests algorithm behavior with missing altitude data.
+         * Verifies that:
+         * 1. Algorithm can properly handle null altitude values
+         * 2. Position is calculated using only 2D coordinates (latitude/longitude)
+         * 3. Default altitude is set to 0.0
+         * Expected: Valid position with 2D coordinates and altitude defaulted to 0.0
+         */
+        @Test
+        @DisplayName("should handle null altitude values")
+        void shouldHandleNullAltitudeValues() {
+            // Create APs with null altitude values
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                WifiAccessPoint.builder()
+                    .macAddress("AP1")
+                    .vendor("Vendor1")
+                    .latitude(1.0)
+                    .longitude(1.0)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AP2")
+                    .vendor("Vendor2")
+                    .latitude(3.0)
+                    .longitude(3.0)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build()
+            );
+
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -60.0),
+                createScan("AP2", -80.0)
+            );
+
+            Position position = algorithm.calculatePosition(scans, knownAPs);
+            
+            // Verify position is calculated correctly
+            assertNotNull(position);
+            assertTrue(position.latitude() >= 1.0 && position.latitude() <= 3.0);
+            assertTrue(position.longitude() >= 1.0 && position.longitude() <= 3.0);
+            assertEquals(0.0, position.altitude(), 0.001);
+        }
+
+        /**
+         * Tests algorithm behavior with mixed altitude data (some null, some not).
+         * Verifies that:
+         * 1. Algorithm correctly calculates altitude using only valid altitude values
+         * 2. Position coordinates are calculated correctly
+         * Expected: Valid position with altitude calculated from valid altitude data only
+         */
+        @Test
+        @DisplayName("should handle mixed altitude values")
+        void shouldHandleMixedAltitudeValues() {
+            // Create APs with mixed altitude values (null and non-null)
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                WifiAccessPoint.builder()
+                    .macAddress("AP1")
+                    .vendor("Vendor1")
+                    .latitude(1.0)
+                    .longitude(1.0)
+                    .altitude(null) // Null altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AP2")
+                    .vendor("Vendor2")
+                    .latitude(3.0)
+                    .longitude(3.0)
+                    .altitude(20.0) // Valid altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build(),
+                WifiAccessPoint.builder()
+                    .macAddress("AP3")
+                    .vendor("Vendor3")
+                    .latitude(2.0)
+                    .longitude(2.0)
+                    .altitude(30.0) // Valid altitude
+                    .horizontalAccuracy(5.0)
+                    .confidence(0.8)
+                    .build()
+            );
+
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -60.0),
+                createScan("AP2", -70.0),
+                createScan("AP3", -80.0)
+            );
+
+            Position position = algorithm.calculatePosition(scans, knownAPs);
+            
+            // Verify position is calculated correctly
+            assertNotNull(position);
+            assertTrue(position.latitude() >= 1.0 && position.latitude() <= 3.0);
+            assertTrue(position.longitude() >= 1.0 && position.longitude() <= 3.0);
+            
+            // Altitude should be calculated from AP2 and AP3 (since AP1 has null altitude)
+            assertTrue(position.altitude() > 0.0, "Altitude should be calculated from valid altitude data");
+            assertTrue(position.altitude() <= 30.0, "Altitude should not exceed maximum input value");
+        }
+    }
 } 

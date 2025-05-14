@@ -140,6 +140,7 @@ public class WeightedCentroidAlgorithm implements PositioningAlgorithm {
         DoubleAdder weightedLat = new DoubleAdder();
         DoubleAdder weightedLon = new DoubleAdder();
         DoubleAdder weightedAlt = new DoubleAdder();
+        DoubleAdder altitudeWeightSum = new DoubleAdder(); // Track weights for altitude separately
 
         // Process each AP in parallel
         List<WeightedPositionResult> results = wifiScan.parallelStream()
@@ -153,10 +154,16 @@ public class WeightedCentroidAlgorithm implements PositioningAlgorithm {
                 double normalizedSignal = (scan.signalStrength() - MAX_WIFI_SIGNAL) / (MIN_WIFI_SIGNAL - MAX_WIFI_SIGNAL);
                 double weight = Math.pow(10, normalizedSignal); // Exponential weighting
 
+                // Only include altitude in weighted calculation if it's not null
+                double weightedAltitude = 0.0;
+                if (ap.getAltitude() != null) {
+                    weightedAltitude = ap.getAltitude() * weight;
+                }
+
                 return new WeightedPositionResult(
                     ap.getLatitude() * weight,
                     ap.getLongitude() * weight,
-                    ap.getAltitude() * weight,
+                    weightedAltitude,
                     weight
                 );
             })
@@ -169,6 +176,11 @@ public class WeightedCentroidAlgorithm implements PositioningAlgorithm {
             weightedLon.add(result.weightedLon);
             weightedAlt.add(result.weightedAlt);
             totalWeight.add(result.weight);
+            
+            // Only add to altitude weight sum if there's a valid altitude contribution
+            if (result.weightedAlt != 0.0) {
+                altitudeWeightSum.add(result.weight);
+            }
         });
 
         if (totalWeight.doubleValue() == 0) {
@@ -184,11 +196,17 @@ public class WeightedCentroidAlgorithm implements PositioningAlgorithm {
         // Calculate confidence based on number of APs and signal distribution
         double coverage = (double) wifiScan.size() / knownAPs.size();
         double confidence = Math.min(0.8, coverage * getConfidence());
+        
+        // Calculate altitude only if we have valid altitude data, otherwise default to 0.0
+        double altitude = 0.0;
+        if (altitudeWeightSum.doubleValue() > 0) {
+            altitude = weightedAlt.doubleValue() / altitudeWeightSum.doubleValue();
+        }
 
         return new Position(
             weightedLat.doubleValue() / totalWeight.doubleValue(),
             weightedLon.doubleValue() / totalWeight.doubleValue(),
-            weightedAlt.doubleValue() / totalWeight.doubleValue(),
+            altitude,
             avgAccuracy,
             confidence
         );
