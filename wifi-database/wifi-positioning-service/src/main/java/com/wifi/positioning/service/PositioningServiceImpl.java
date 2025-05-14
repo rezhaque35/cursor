@@ -55,15 +55,6 @@ public class PositioningServiceImpl implements PositioningService {
      */
     private static final boolean DEFAULT_RETURN_ALL_METHODS = false;
     
-    /**
-     * Valid status values for access points to be used in calculation.
-     * As per requirements, only access points with active or warning status should be used.
-     */
-    private static final List<String> VALID_AP_STATUSES = List.of(
-        WifiAccessPoint.STATUS_ACTIVE,
-        WifiAccessPoint.STATUS_WARNING
-    );
-    
     private final WifiPositioningCalculator calculator;
     private final WifiAccessPointRepository accessPointRepository;
     private final SignalPhysicsValidator signalPhysicsValidator;
@@ -147,7 +138,7 @@ public class PositioningServiceImpl implements PositioningService {
      */
     private List<WifiAccessPoint> filterAPsByStatus(List<WifiAccessPoint> allAPs) {
         return allAPs.stream()
-                .filter(ap -> ap.getStatus() != null && VALID_AP_STATUSES.contains(ap.getStatus()))
+                .filter(ap -> ap.getStatus() != null && WifiAccessPoint.VALID_AP_STATUSES.contains(ap.getStatus()))
                 .collect(Collectors.toList());
     }
     
@@ -255,7 +246,7 @@ public class PositioningServiceImpl implements PositioningService {
         
         for (WifiAccessPoint ap : knownAPs) {
             String status = ap.getStatus() != null ? ap.getStatus() : "unknown";
-            boolean used = VALID_AP_STATUSES.contains(status);
+            boolean used = WifiAccessPoint.VALID_AP_STATUSES.contains(status);
             
             statusCounts.put(status, statusCounts.getOrDefault(status, 0) + 1);
             
@@ -278,7 +269,7 @@ public class PositioningServiceImpl implements PositioningService {
                            .append(": ").append(entry.getValue())
                            .append(" APs, ");
             
-            if (VALID_AP_STATUSES.contains(entry.getKey())) {
+            if (WifiAccessPoint.VALID_AP_STATUSES.contains(entry.getKey())) {
                 calculationInfo.append("used in calculation");
             } else {
                 calculationInfo.append("filtered out");

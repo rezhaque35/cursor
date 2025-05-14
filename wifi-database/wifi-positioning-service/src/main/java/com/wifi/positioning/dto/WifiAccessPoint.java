@@ -5,6 +5,7 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.*;
+import java.util.List;
 
 /**
  * WiFi access point model with DynamoDB mapping annotations.
@@ -26,6 +27,21 @@ public class WifiAccessPoint {
     public static final String STATUS_EXPIRED = "expired";
     public static final String STATUS_WARNING = "warning";
     public static final String STATUS_WIFI_HOTSPOT = "wifi-hotspot";
+    public static final String STATUS_VERIFIED = "verified";
+    public static final String STATUS_TEST = "test";
+    public static final String STATUS_IMPORTED= "imported";
+    
+    /**
+     * List of valid access point statuses that should be used for positioning calculations.
+     * Access points with these statuses are considered reliable enough for positioning.
+     */
+    public static final List<String> VALID_AP_STATUSES = List.of(
+        STATUS_ACTIVE,
+        STATUS_WARNING,
+        STATUS_VERIFIED,
+        STATUS_TEST,
+        STATUS_IMPORTED
+    );
 
     private String macAddress;
     private String version;
