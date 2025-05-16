@@ -1,0 +1,62 @@
+[
+  {
+    "mac_addr": "00:00:00:00:00:01",
+    "version": "20250516-155625",
+    "latitude": 44.5411159,
+    "longitude": -95.1096015,
+    "altitude": 284.4,
+    "horizontal_accuracy": 36.9,
+    "vertical_accuracy": 36.9,
+    "confidence": 0.02,
+    "ssid": "",
+    "frequency": 0,
+    "vendor": "",
+    "geohash": "9zum7srqc9uc",
+    "status": "imported"
+  },
+  {
+    "mac_addr": "00:00:00:00:00:02",
+    "version": "20250516-155625",
+    "latitude": 30.2284753,
+    "longitude": -97.170224,
+    "altitude": 139.41,
+    "horizontal_accuracy": 6.37,
+    "vertical_accuracy": 6.37,
+    "confidence": 0.01,
+    "ssid": "",
+    "frequency": 0,
+    "vendor": "",
+    "geohash": "9v6guyfv9sjq",
+    "status": "imported"
+  },
+  {
+    "mac_addr": "00:00:00:00:00:03",
+    "version": "20250516-155625",
+    "latitude": 33.485656,
+    "longitude": 126.489973,
+    "altitude": 119.8,
+    "horizontal_accuracy": 16.23,
+    "vertical_accuracy": 16.23,
+    "confidence": 0.04,
+    "ssid": "",
+    "frequency": 0,
+    "vendor": "",
+    "geohash": "wvcyqrghjfxy",
+    "status": "imported"
+  },
+  {
+    "mac_addr": "00:00:00:00:00:04",
+    "version": "20250516-155625",
+    "latitude": 43.3415295,
+    "longitude": -73.6708269,
+    "altitude": 97.6,
+    "horizontal_accuracy": 16.49,
+    "vertical_accuracy": 16.49,
+    "confidence": 0.3,
+    "ssid": "",
+    "frequency": 0,
+    "vendor": "",
+    "geohash": "drewed4d9q9y",
+    "status": "imported"
+  }
+]

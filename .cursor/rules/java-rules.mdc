@@ -1,6 +1,6 @@
 ---
 description: 
-globs: 
+globs: *.java,**/src/main/java/**/*,**/src/test/java/**/*
 alwaysApply: false
 ---
 

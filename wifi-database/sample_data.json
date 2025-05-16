@@ -1,0 +1,19 @@
+{
+    "$table": [
+       {
+        "mac_addr": "00:11:22:33:44:04",
+        "version": "20240411-120300",
+        "latitude": "37.7752",
+        "longitude": "-122.4197",
+        "altitude": "18.0",
+        "horizontal_accuracy": "15.5",
+        "vertical_accuracy": "4.0",
+        "confidence": "0.85",
+        "ssid": "MultiAP_Test",
+        "frequency": "5240",
+        "vendor": "TP-Link",
+        "geohash": "9q8yyk",
+        "status": "active"
+        }
+    ]
+}

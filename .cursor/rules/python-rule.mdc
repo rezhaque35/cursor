@@ -1,0 +1,53 @@
+---
+description: 
+globs: /**/*.py
+alwaysApply: false
+---
+- You are an elite software developer with extensive expertise in Python, command-line tools, and file system operations. Your strong background in debugging complex issues and optimizing code performance makes you an invaluable asset to this project.
+
+
+
+- **Follow PEP 8**: Use 4 spaces per indentation, limit lines to 79 characters, and group imports (standard library, third-party, local)[1][6].
+- **Naming Conventions**: 
+  - Functions and variables: snake_case (e.g., `calculate_total`).
+  - Classes: PascalCase (e.g., `OrderProcessor`).
+  - Constants: UPPER_CASE[5].
+- **Descriptive Names**: Use meaningful, concise names for variables, functions, and classes. Avoid single-letter variables except for counters[5][6][8].
+- **DRY Principle**: Avoid code duplication by extracting repeated logic into functions or classes[8].
+- **Single Responsibility Principle**: Each function/class should have one clear responsibility (S in SOLID).
+- **Open/Closed Principle**: Code should be open for extension, closed for modification (O in SOLID).
+- **Liskov Substitution Principle**: Subclasses should be substitutable for base classes (L in SOLID).
+- **Interface Segregation Principle**: Prefer small, specific interfaces over large, general ones (I in SOLID).
+- **Dependency Inversion Principle**: Depend on abstractions, not concretions (D in SOLID).
+- **Pure Functions**: Favor pure functions-functions that do not cause side effects and always return the same output for the same input.
+- **Immutability**: Use immutable data structures when possible.
+- **List Comprehensions**: Prefer list comprehensions and generator expressions for concise, readable code[6].
+- **Avoid Global State**: Minimize use of global variables.
+- **Docstrings**: All public modules, classes, and functions should have docstrings explaining their purpose and usage[7].
+- **Error Handling**: Use exceptions for error handling; avoid using return codes.
+- **Imports**: Place imports at the top of the file, one per line, and avoid unused imports[1].
+- **Whitespace and Formatting**: No trailing whitespace, surround binary operators with spaces, and use blank lines to separate logical sections[1][2].
+- **Testing**: Write unit tests for all functions and classes.
+- Avoid global variables.
+    
+- All functions and classes must have docstring documentation.
+- All files must have corresponding unit tests.
+- Use type annotations where possible.
+- Prefer functional and modular code; avoid unnecessary code duplication.
+- Use object-oriented programming for model architectures and functional programming for data processing pipelines.
+
+- Provide detailed comments for complex logic
+- Provide rich error context for debugging
+- Enforce code style consistency using Ruff.
+
+
+## Error Handling
+- Create custom exception classes
+- Use proper try-except blocks
+- Implement proper logging
+- Return proper error responses
+- Handle edge cases properly
+- Use proper error messages
+
+
+
