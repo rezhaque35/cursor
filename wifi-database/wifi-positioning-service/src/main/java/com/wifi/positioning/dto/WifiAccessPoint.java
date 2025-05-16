@@ -32,10 +32,10 @@ public class WifiAccessPoint {
     public static final String STATUS_IMPORTED= "imported";
     
     /**
-     * List of valid access point statuses that should be used for positioning calculations.
+     * Set of valid access point statuses for fast lookup during positioning calculations.
      * Access points with these statuses are considered reliable enough for positioning.
      */
-    public static final List<String> VALID_AP_STATUSES = List.of(
+    public static final Set<String> VALID_AP_STATUSES = Set.of(
         STATUS_ACTIVE,
         STATUS_WARNING,
         STATUS_VERIFIED,
