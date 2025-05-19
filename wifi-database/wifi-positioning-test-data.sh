@@ -113,29 +113,69 @@ aws dynamodb put-item \
         "status": {"S": "warning"}
     }'
 
-# Test Case 6-10: Collinear APs Scenario (Testing geometric distribution impact)
-for i in {06..10}; do
-    aws dynamodb put-item \
-        --table-name wifi_access_points \
-        --endpoint-url http://localhost:8000 \
-        --profile dynamodb-local \
-        --item '{
-            "mac_addr": {"S": "00:11:22:33:44:'$i'"},
-            "version": {"S": "20240411-120'$i'00"},
-            "latitude": {"N": "'$(echo "37.7754 + ($i-6)*0.0001" | bc)'"},
-            "longitude": {"N": "-122.4194"},
-            "altitude": {"N": "'$(echo "15.0 + ($i-6)*2" | bc)'"},
-            "horizontal_accuracy": {"N": "18.5"},
-            "vertical_accuracy": {"N": "5.0"},
-            "confidence": {"N": "0.72"},
-            "ssid": {"S": "Collinear_Test_'$i'"},
-            "frequency": {"N": "2437"},
-            "vendor": {"S": "Cisco"},
-            "signal_strength_avg": {"N": "'$(echo "-70.0 + ($i-6)*2" | bc)'"},
-            "geohash": {"S": "9q8yyk"},
-            "status": {"S": "active"}
-        }'
-done
+# Test Case 6-8: Collinear APs Test
+aws dynamodb put-item \
+    --table-name wifi_access_points \
+    --endpoint-url http://localhost:8000 \
+    --profile dynamodb-local \
+    --item '{
+        "mac_addr": {"S": "00:11:22:33:44:06"},
+        "version": {"S": "20240411-120006"},
+        "latitude": {"N": "37.7753"},
+        "longitude": {"N": "-122.4198"},
+        "altitude": {"N": "17.0"},
+        "horizontal_accuracy": {"N": "18.5"},
+        "vertical_accuracy": {"N": "5.0"},
+        "confidence": {"N": "0.72"},
+        "ssid": {"S": "Collinear_Test_06"},
+        "frequency": {"N": "2437"},
+        "vendor": {"S": "Cisco"},
+        "signal_strength_avg": {"N": "-70.0"},
+        "geohash": {"S": "9q8yyk"},
+        "status": {"S": "active"}
+    }'
+
+aws dynamodb put-item \
+    --table-name wifi_access_points \
+    --endpoint-url http://localhost:8000 \
+    --profile dynamodb-local \
+    --item '{
+        "mac_addr": {"S": "00:11:22:33:44:07"},
+        "version": {"S": "20240411-120007"},
+        "latitude": {"N": "37.7754"},
+        "longitude": {"N": "-122.4199"},
+        "altitude": {"N": "18.0"},
+        "horizontal_accuracy": {"N": "18.5"},
+        "vertical_accuracy": {"N": "5.0"},
+        "confidence": {"N": "0.72"},
+        "ssid": {"S": "Collinear_Test_07"},
+        "frequency": {"N": "2437"},
+        "vendor": {"S": "Cisco"},
+        "signal_strength_avg": {"N": "-68.0"},
+        "geohash": {"S": "9q8yyk"},
+        "status": {"S": "active"}
+    }'
+
+aws dynamodb put-item \
+    --table-name wifi_access_points \
+    --endpoint-url http://localhost:8000 \
+    --profile dynamodb-local \
+    --item '{
+        "mac_addr": {"S": "00:11:22:33:44:08"},
+        "version": {"S": "20240411-120008"},
+        "latitude": {"N": "37.7755"},
+        "longitude": {"N": "-122.4200"},
+        "altitude": {"N": "19.0"},
+        "horizontal_accuracy": {"N": "18.5"},
+        "vertical_accuracy": {"N": "5.0"},
+        "confidence": {"N": "0.72"},
+        "ssid": {"S": "Collinear_Test_08"},
+        "frequency": {"N": "2437"},
+        "vendor": {"S": "Cisco"},
+        "signal_strength_avg": {"N": "-66.0"},
+        "geohash": {"S": "9q8yyk"},
+        "status": {"S": "active"}
+    }'
 
 # Test Case 11-15: High Density AP Cluster (Testing maximum likelihood in dense environments)
 for i in {11..15}; do
