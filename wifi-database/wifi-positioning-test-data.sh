@@ -462,4 +462,26 @@ aws dynamodb put-item \
         "status": {"S": "active"}
     }'
 
-echo -e "${GREEN}Mixed 2D/3D positioning test data loaded successfully.${NC}" 
+echo -e "${GREEN}Mixed 2D/3D positioning test data loaded successfully.${NC}"
+
+# Test Case 38: Very Weak Signal Test
+aws dynamodb put-item \
+    --table-name wifi_access_points \
+    --endpoint-url http://localhost:8000 \
+    --profile dynamodb-local \
+    --item '{
+        "mac_addr": {"S": "00:11:22:33:44:55"},
+        "version": {"S": "20240411-120055"},
+        "latitude": {"N": "37.7844"},
+        "longitude": {"N": "-122.4276"},
+        "altitude": {"N": "15.0"},
+        "horizontal_accuracy": {"N": "10.0"},
+        "vertical_accuracy": {"N": "0.0"},
+        "confidence": {"N": "0.0"},
+        "ssid": {"S": "TestAP1"},
+        "frequency": {"N": "2412"},
+        "vendor": {"S": "Generic"},
+        "signal_strength_avg": {"N": "-99.9"},
+        "geohash": {"S": "9q8yyk"},
+        "status": {"S": "active"}
+    }' 

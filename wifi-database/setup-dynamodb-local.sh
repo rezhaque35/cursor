@@ -58,44 +58,12 @@ sleep 5
 
 # Step 7: Create the wifi_access_points table
 echo "Creating wifi_access_points table..."
-aws dynamodb create-table \
-    --table-name wifi_access_points \
-    --attribute-definitions \
-        AttributeName=mac_address,AttributeType=S \
-        AttributeName=geohash,AttributeType=S \
-        AttributeName=ssid,AttributeType=S \
-    --key-schema \
-        AttributeName=mac_address,KeyType=HASH \
-    --global-secondary-indexes \
-        "[
-            {
-                \"IndexName\": \"GeohashIndex\",
-                \"KeySchema\": [
-                    {\"AttributeName\":\"geohash\",\"KeyType\":\"HASH\"},
-                    {\"AttributeName\":\"mac_address\",\"KeyType\":\"RANGE\"}
-                ],
-                \"Projection\": {
-                    \"ProjectionType\":\"ALL\"
-                }
-            },
-            {
-                \"IndexName\": \"SSIDIndex\",
-                \"KeySchema\": [
-                    {\"AttributeName\":\"ssid\",\"KeyType\":\"HASH\"},
-                    {\"AttributeName\":\"mac_address\",\"KeyType\":\"RANGE\"}
-                ],
-                \"Projection\": {
-                    \"ProjectionType\":\"ALL\"
-                }
-            }
-        ]" \
-    --billing-mode PAY_PER_REQUEST \
-    --endpoint-url http://localhost:8000 \
-    --profile dynamodb-local
+./create-and-load.sh
 
 # Step 8: Verify table creation
 echo "Verifying table creation..."
 aws dynamodb list-tables --endpoint-url http://localhost:8000 --profile dynamodb-local
+./verify-dynamodb-data.sh
 
 echo "Setup complete! DynamoDB Local is running on port 8000"
 echo "You can now run the load-test-data.sh script" 

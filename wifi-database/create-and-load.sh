@@ -17,7 +17,7 @@ aws dynamodb wait table-not-exists \
 # Create the table
 echo "Creating new table..."
 aws dynamodb create-table \
-    --cli-input-json file://wifi-access-point-location-schema.json \
+    --cli-input-json file://wifi-access-points-schema.json \
     --endpoint-url http://localhost:8000 \
     --profile dynamodb-local
 
