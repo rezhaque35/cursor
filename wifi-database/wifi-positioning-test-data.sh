@@ -114,24 +114,32 @@ aws dynamodb put-item \
     }'
 
 # Test Case 6-10: Collinear APs Scenario (Testing geometric distribution impact)
-for i in {06..10}; do
+for i in {6..10}; do
+    # Format the mac address and version with leading zeros
+    padded_i=$(printf "%02d" $i)
+    
+    # Calculate values separately to avoid bc issues
+    lat=$(echo "scale=6; 37.7754 + ($i-6)*0.0001" | bc)
+    alt=$(echo "scale=1; 15.0 + ($i-6)*2" | bc)
+    sig=$(echo "scale=1; -70.0 + ($i-6)*2" | bc)
+    
     aws dynamodb put-item \
         --table-name wifi_access_points \
         --endpoint-url http://localhost:8000 \
         --profile dynamodb-local \
         --item '{
-            "mac_addr": {"S": "00:11:22:33:44:'$i'"},
-            "version": {"S": "20240411-120'$i'00"},
-            "latitude": {"N": "'$(echo "37.7754 + ($i-6)*0.0001" | bc)'"},
+            "mac_addr": {"S": "00:11:22:33:44:'$padded_i'"},
+            "version": {"S": "20240411-120'$padded_i'00"},
+            "latitude": {"N": "'$lat'"},
             "longitude": {"N": "-122.4194"},
-            "altitude": {"N": "'$(echo "15.0 + ($i-6)*2" | bc)'"},
+            "altitude": {"N": "'$alt'"},
             "horizontal_accuracy": {"N": "18.5"},
             "vertical_accuracy": {"N": "5.0"},
             "confidence": {"N": "0.72"},
-            "ssid": {"S": "Collinear_Test_'$i'"},
+            "ssid": {"S": "Collinear_Test_'$padded_i'"},
             "frequency": {"N": "2437"},
             "vendor": {"S": "Cisco"},
-            "signal_strength_avg": {"N": "'$(echo "-70.0 + ($i-6)*2" | bc)'"},
+            "signal_strength_avg": {"N": "'$sig'"},
             "geohash": {"S": "9q8yyk"},
             "status": {"S": "active"}
         }'
