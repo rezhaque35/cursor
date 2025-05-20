@@ -20,32 +20,35 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Transform the data to match the required format
+# Transform the data to match the required format with "status" set to "test"
 echo "Transforming data..."
-TRANSFORMED_DATA=$(echo "$DATA" | jq -c '{
+TRANSFORMED_DATA=$(echo "$DATA" | jq '{
     "$table": [.Items[] | {
         "mac_addr": .mac_addr.S,
         "version": .version.S,
-        "latitude": .latitude.N,
-        "longitude": .longitude.N,
-        "altitude": .altitude.N,
-        "horizontal_accuracy": .horizontal_accuracy.N,
-        "vertical_accuracy": .vertical_accuracy.N,
-        "confidence": .confidence.N,
+        "latitude": (if .latitude.N != null then (.latitude.N | tonumber) else null end),
+        "longitude": (if .longitude.N != null then (.longitude.N | tonumber) else null end),
+        "altitude": (if .altitude.N != null then (.altitude.N | tonumber) else null end),
+        "horizontal_accuracy": (if .horizontal_accuracy.N != null then (.horizontal_accuracy.N | tonumber) else null end),
+        "vertical_accuracy": (if .vertical_accuracy.N != null then (.vertical_accuracy.N | tonumber) else null end),
+        "confidence": (if .confidence.N != null then (.confidence.N | tonumber) else null end),
         "ssid": .ssid.S,
-        "frequency": .frequency.N,
+        "frequency": (if .frequency.N != null then (.frequency.N | tonumber) else null end),
         "vendor": .vendor.S,
         "geohash": .geohash.S,
         "status": "test"
     }]
 }')
 
-# Write the transformed data to a file
-echo "Writing data to output file..."
-echo "$TRANSFORMED_DATA" > wifi-data-export.json
+# Define output file
+OUTPUT_FILE="wifi-access-points-test-data.json"
+
+# Write the transformed data to a file with pretty printing
+echo "Writing pretty JSON data to output file..."
+echo "$TRANSFORMED_DATA" | jq '.' > "$OUTPUT_FILE"
 
 if [ $? -eq 0 ]; then
-    echo -e "${GREEN}Data exported successfully to wifi-data-export.json${NC}"
+    echo -e "${GREEN}Data exported successfully to $OUTPUT_FILE${NC}"
     echo "Total records exported: $(echo "$TRANSFORMED_DATA" | jq '.["$table"] | length')"
 else
     echo -e "${RED}Failed to write data to file${NC}"
