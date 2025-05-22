@@ -2,7 +2,7 @@
 import csv
 import json
 from datetime import datetime
-import geohash
+import python_geohash as geohash
 
 def transform_csv_to_json(input_csv, output_json):
     # Read CSV and transform data
