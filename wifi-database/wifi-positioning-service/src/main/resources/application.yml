@@ -2,9 +2,11 @@ spring:
   application:
     name: wifi-positioning-service
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:local}
+    active: ${SPRING_PROFILES_ACTIVE:non-local}
 
 server:
+  servlet:
+    context-path: /wifi-positioning-service
   port: 8080
 
 # Default configuration (local)

@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.*;
 import java.util.List;
+import java.util.Set;
 
 /**
  * WiFi access point model with DynamoDB mapping annotations.

@@ -228,7 +228,7 @@ run_test() {
     response=$(curl -s -X POST \
         -H "Content-Type: application/json" \
         -d "$payload" \
-        http://localhost:8080/api/positioning/calculate)
+        http://localhost:8080/wifi-positioning-service/api/positioning/calculate)
     
     # Validate the response against all criteria
     validation_errors=()

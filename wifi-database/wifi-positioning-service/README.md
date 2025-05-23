@@ -245,6 +245,21 @@ To build and run the service:
 java -jar target/wifi-positioning-service-1.0.0.jar
 ```
 
+### Active Profiles Configuration
+
+The service uses Spring profiles to manage different configurations. By default, the service runs with the `non-local` profile. To run the service with a different profile, you can set the `SPRING_PROFILES_ACTIVE` environment variable:
+
+```bash
+# Run with non-local profile (default)
+java -jar target/wifi-positioning-service-1.0.0.jar
+
+# Run with local profile
+SPRING_PROFILES_ACTIVE=local java -jar target/wifi-positioning-service-1.0.0.jar
+
+# Run with multiple profiles
+SPRING_PROFILES_ACTIVE=local,dev java -jar target/wifi-positioning-service-1.0.0.jar
+```
+
 For development with local DynamoDB:
 
 ```
