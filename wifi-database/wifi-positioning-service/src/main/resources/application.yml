@@ -30,6 +30,27 @@ management:
       exposure:
         include: '*'
       base-path: /
+  endpoint:
+    health:
+      # Show health details to everyone for easier monitoring and debugging
+      show-details: always
+      # Show health components for better debugging
+      show-components: always
+      # Configure health groups for Kubernetes probes
+      group:
+        # Liveness probe - checks if the service is alive and should be restarted if failing
+        liveness:
+          include: serviceLiveness
+        # Readiness probe - checks if the service is ready to handle requests
+        readiness:
+          include: dynamoDBReadiness
+  # Health indicator configuration
+  health:
+    # Enable liveness and readiness state indicators
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
 
 springdoc:
   api-docs:

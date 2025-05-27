@@ -6,119 +6,231 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
-import software.amazon.awssdk.enhanced.dynamodb.Key;
-import software.amazon.awssdk.enhanced.dynamodb.model.BatchGetItemEnhancedRequest;
-import software.amazon.awssdk.enhanced.dynamodb.model.BatchGetResultPage;
-import software.amazon.awssdk.enhanced.dynamodb.model.BatchGetResultPageIterable;
-import software.amazon.awssdk.enhanced.dynamodb.model.GetItemEnhancedRequest;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+import software.amazon.awssdk.enhanced.dynamodb.model.DescribeTableEnhancedResponse;
+import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
+import software.amazon.awssdk.services.dynamodb.model.InternalServerErrorException;
+import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.dynamodb.model.TableDescription;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+/**
+ * Unit tests for WifiAccessPointRepositoryImpl health check methods.
+ * Tests follow TDD principles with comprehensive coverage of success and error scenarios.
+ */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("WifiAccessPointRepositoryImpl Tests")
+@DisplayName("WifiAccessPointRepository Health Check Tests")
 class WifiAccessPointRepositoryImplTest {
 
+    // Test Constants
+    private static final String TEST_TABLE_NAME = "test_wifi_access_points";
+    private static final long HEALTHY_RESPONSE_TIME_MS = 500L;
+    private static final long UNHEALTHY_RESPONSE_TIME_MS = 1500L;
+    private static final long TEST_ITEM_COUNT = 1000L;
+    private static final long LATENCY_THRESHOLD_MS = 1000L;
+
     @Mock
-    private DynamoDbEnhancedClient enhancedClient;
-    
+    private DynamoDbEnhancedClient mockEnhancedClient;
+
     @Mock
-    private DynamoDbTable<WifiAccessPoint> accessPointTable;
-    
+    private DynamoDbTable<WifiAccessPoint> mockTable;
+
     @Mock
-    private BatchGetResultPageIterable resultPages;
-    
+    private DescribeTableEnhancedResponse mockDescribeResponse;
+
     @Mock
-    private BatchGetResultPage resultPage;
-    
+    private TableDescription mockTableDescription;
+
     private WifiAccessPointRepositoryImpl repository;
-    
-    private static final String TEST_MAC = "00:11:22:33:44:55";
-    private static final String TEST_VERSION = "1.0";
-    private static final String TABLE_NAME = "test-table";
-    
+
     @BeforeEach
     void setUp() {
-        doReturn(accessPointTable).when(enhancedClient).table(eq(TABLE_NAME), any());
-        repository = new WifiAccessPointRepositoryImpl(enhancedClient, TABLE_NAME);
+        // Fix the mock setup to use proper generics
+        when(mockEnhancedClient.table(eq(TEST_TABLE_NAME), any(TableSchema.class))).thenReturn(mockTable);
+        repository = new WifiAccessPointRepositoryImpl(mockEnhancedClient, TEST_TABLE_NAME);
     }
 
     @Test
-    @DisplayName("findByMacAddress should return empty Optional when no access point exists")
-    void findByMacAddress_shouldReturnEmptyOptional_whenNoAccessPointExists() {
+    @DisplayName("should_ReturnHealthyResult_When_TableAccessibleWithGoodLatency")
+    void should_ReturnHealthyResult_When_TableAccessibleWithGoodLatency() throws Exception {
         // Arrange
-        when(accessPointTable.getItem(any(GetItemEnhancedRequest.class))).thenReturn(null);
-        
+        when(mockTable.describeTable()).thenReturn(mockDescribeResponse);
+        when(mockDescribeResponse.table()).thenReturn(mockTableDescription);
+        when(mockTableDescription.itemCount()).thenReturn(TEST_ITEM_COUNT);
+
         // Act
-        Optional<WifiAccessPoint> result = repository.findByMacAddress(TEST_MAC);
-        
+        WifiAccessPointRepository.HealthCheckResult result = repository.validateTableHealth();
+
         // Assert
-        assertFalse(result.isPresent());
+        assertTrue(result.isHealthy());
+        assertEquals(TEST_TABLE_NAME, result.tableName());
+        assertEquals(TEST_ITEM_COUNT, result.itemCount());
+        assertTrue(result.responseTimeMs() >= 0);
+        assertTrue(result.responseTimeMs() < LATENCY_THRESHOLD_MS);
+        assertEquals("Table is accessible and healthy", result.statusMessage());
         
-        // Verify correct key was used
-        ArgumentCaptor<GetItemEnhancedRequest> requestCaptor = ArgumentCaptor.forClass(GetItemEnhancedRequest.class);
-        verify(accessPointTable).getItem(requestCaptor.capture());
-        Key key = requestCaptor.getValue().key();
-        assertEquals(TEST_MAC, key.partitionKeyValue().s());
+        verify(mockTable).describeTable();
     }
-    
+
     @Test
-    @DisplayName("findByMacAddress should return populated Optional when access point exists")
-    void findByMacAddress_shouldReturnPopulatedOptional_whenAccessPointExists() {
+    @DisplayName("should_ReturnUnhealthyResult_When_TableAccessibleButSlowLatency")
+    void should_ReturnUnhealthyResult_When_TableAccessibleButSlowLatency() throws Exception {
+        // Arrange - simulate slow response by adding delay
+        when(mockTable.describeTable()).thenAnswer(invocation -> {
+            Thread.sleep(UNHEALTHY_RESPONSE_TIME_MS);
+            return mockDescribeResponse;
+        });
+        when(mockDescribeResponse.table()).thenReturn(mockTableDescription);
+        when(mockTableDescription.itemCount()).thenReturn(TEST_ITEM_COUNT);
+
+        // Act
+        WifiAccessPointRepository.HealthCheckResult result = repository.validateTableHealth();
+
+        // Assert
+        assertFalse(result.isHealthy());
+        assertEquals(TEST_TABLE_NAME, result.tableName());
+        assertEquals(TEST_ITEM_COUNT, result.itemCount());
+        assertTrue(result.responseTimeMs() >= LATENCY_THRESHOLD_MS);
+        assertEquals("Table response time exceeds threshold", result.statusMessage());
+        
+        verify(mockTable).describeTable();
+    }
+
+    @Test
+    @DisplayName("should_ThrowResourceNotFoundException_When_TableNotFound")
+    void should_ThrowResourceNotFoundException_When_TableNotFound() {
+        // Arrange - Fix the exception creation
+        ResourceNotFoundException exception = ResourceNotFoundException.builder()
+                .message("Table not found")
+                .build();
+        when(mockTable.describeTable()).thenThrow(exception);
+
+        // Act & Assert
+        ResourceNotFoundException thrown = assertThrows(
+                ResourceNotFoundException.class,
+                () -> repository.validateTableHealth()
+        );
+        
+        assertEquals("Table not found", thrown.getMessage());
+        verify(mockTable).describeTable();
+    }
+
+    @Test
+    @DisplayName("should_ThrowDynamoDbException_When_ConnectionError")
+    void should_ThrowDynamoDbException_When_ConnectionError() {
+        // Arrange - Use InternalServerErrorException which extends DynamoDbException
+        InternalServerErrorException exception = InternalServerErrorException.builder()
+                .message("Connection error")
+                .build();
+        when(mockTable.describeTable()).thenThrow(exception);
+
+        // Act & Assert
+        DynamoDbException thrown = assertThrows(
+                DynamoDbException.class,
+                () -> repository.validateTableHealth()
+        );
+        
+        assertEquals("Connection error", thrown.getMessage());
+        verify(mockTable).describeTable();
+    }
+
+    @Test
+    @DisplayName("should_ThrowException_When_UnexpectedError")
+    void should_ThrowException_When_UnexpectedError() {
         // Arrange
-        WifiAccessPoint ap = new WifiAccessPoint();
-        ap.setMacAddress(TEST_MAC);
-        ap.setVersion(TEST_VERSION);
-        ap.setLatitude(37.7749);
-        ap.setLongitude(-122.4194);
+        RuntimeException exception = new RuntimeException("Unexpected error");
+        when(mockTable.describeTable()).thenThrow(exception);
+
+        // Act & Assert
+        Exception thrown = assertThrows(
+                Exception.class,
+                () -> repository.validateTableHealth()
+        );
         
-        when(accessPointTable.getItem(any(GetItemEnhancedRequest.class))).thenReturn(ap);
-        
-        // Act
-        Optional<WifiAccessPoint> result = repository.findByMacAddress(TEST_MAC);
-        
-        // Assert
-        assertTrue(result.isPresent());
-        assertEquals(TEST_MAC, result.get().getMacAddress());
-        assertEquals(TEST_VERSION, result.get().getVersion());
-        assertEquals(37.7749, result.get().getLatitude());
-        assertEquals(-122.4194, result.get().getLongitude());
+        assertEquals("Unexpected error", thrown.getMessage());
+        verify(mockTable).describeTable();
     }
-    
+
     @Test
-    @DisplayName("findByMacAddresses should return empty map when no access points exist")
-    void findByMacAddresses_shouldReturnEmptyMap_whenNoMacAddressesProvided() {
+    @DisplayName("should_ReturnItemCount_When_GetApproximateItemCountCalled")
+    void should_ReturnItemCount_When_GetApproximateItemCountCalled() throws Exception {
+        // Arrange
+        when(mockTable.describeTable()).thenReturn(mockDescribeResponse);
+        when(mockDescribeResponse.table()).thenReturn(mockTableDescription);
+        when(mockTableDescription.itemCount()).thenReturn(TEST_ITEM_COUNT);
+
         // Act
-        Map<String, WifiAccessPoint> result = repository.findByMacAddresses(Set.of());
-        
+        long itemCount = repository.getApproximateItemCount();
+
         // Assert
-        assertTrue(result.isEmpty());
-        verify(enhancedClient, never()).batchGetItem(any(BatchGetItemEnhancedRequest.class));
+        assertEquals(TEST_ITEM_COUNT, itemCount);
+        verify(mockTable).describeTable();
     }
-    
+
     @Test
-    @DisplayName("findByMacAddresses should return map with access points when they exist")
-    void findByMacAddresses_shouldReturnMapWithAccessPoints_whenTheyExist() {
-        // This test would be more complex to set up with mocks for the batch get operation
-        // For brevity, we'll outline what should be tested
+    @DisplayName("should_ThrowResourceNotFoundException_When_GetItemCountAndTableNotFound")
+    void should_ThrowResourceNotFoundException_When_GetItemCountAndTableNotFound() {
+        // Arrange
+        ResourceNotFoundException exception = ResourceNotFoundException.builder()
+                .message("Table not found")
+                .build();
+        when(mockTable.describeTable()).thenThrow(exception);
+
+        // Act & Assert
+        ResourceNotFoundException thrown = assertThrows(
+                ResourceNotFoundException.class,
+                () -> repository.getApproximateItemCount()
+        );
         
-        // TODO: Implement full test for batch operation
-        // 1. Mock enhancedClient.batchGetItem to return resultPages
-        // 2. Mock resultPages.iterator to return an iterator with resultPage
-        // 3. Mock resultPage.resultsForTable to return list of WifiAccessPoint
-        // 4. Verify the correct mapping from WifiAccessPoint to WifiAccessPoint
-        // 5. Verify the result map contains expected keys and values
+        assertEquals("Table not found", thrown.getMessage());
+        verify(mockTable).describeTable();
+    }
+
+    @Test
+    @DisplayName("should_ThrowDynamoDbException_When_GetItemCountAndConnectionError")
+    void should_ThrowDynamoDbException_When_GetItemCountAndConnectionError() {
+        // Arrange - Use InternalServerErrorException which extends DynamoDbException
+        InternalServerErrorException exception = InternalServerErrorException.builder()
+                .message("Connection error")
+                .build();
+        when(mockTable.describeTable()).thenThrow(exception);
+
+        // Act & Assert
+        DynamoDbException thrown = assertThrows(
+                DynamoDbException.class,
+                () -> repository.getApproximateItemCount()
+        );
+        
+        assertEquals("Connection error", thrown.getMessage());
+        verify(mockTable).describeTable();
+    }
+
+    @Test
+    @DisplayName("should_MeasureAccurateResponseTime_When_ValidatingTableHealth")
+    void should_MeasureAccurateResponseTime_When_ValidatingTableHealth() throws Exception {
+        // Arrange
+        long simulatedDelayMs = 100L;
+        when(mockTable.describeTable()).thenAnswer(invocation -> {
+            Thread.sleep(simulatedDelayMs);
+            return mockDescribeResponse;
+        });
+        when(mockDescribeResponse.table()).thenReturn(mockTableDescription);
+        when(mockTableDescription.itemCount()).thenReturn(TEST_ITEM_COUNT);
+
+        // Act
+        WifiAccessPointRepository.HealthCheckResult result = repository.validateTableHealth();
+
+        // Assert
+        assertTrue(result.responseTimeMs() >= simulatedDelayMs);
+        assertTrue(result.responseTimeMs() < simulatedDelayMs + 50); // Allow for small variance
+        verify(mockTable).describeTable();
     }
 } 

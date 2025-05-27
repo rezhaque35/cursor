@@ -5,6 +5,8 @@ import com.wifi.positioning.repository.TestWifiAccessPointRepository;
 import com.wifi.positioning.repository.WifiAccessPointRepository;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
+import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
+import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -372,5 +374,50 @@ public class InMemoryWifiAccessPointRepository implements WifiAccessPointReposit
         loadRssiRatioScenario();
         loadTrilaterationScenario();
         loadWeakSignalsScenario();
+    }
+
+    /**
+     * Validates table accessibility and measures response time for health checks.
+     * In-memory implementation always returns healthy status with minimal latency.
+     * 
+     * @return HealthCheckResult containing validation results and metrics
+     * @throws ResourceNotFoundException if simulating table not found scenario
+     * @throws DynamoDbException if simulating connectivity issues
+     * @throws Exception for simulating unexpected errors
+     */
+    @Override
+    public HealthCheckResult validateTableHealth() throws ResourceNotFoundException, DynamoDbException, Exception {
+        // Simulate response time measurement
+        long startTime = System.nanoTime();
+        
+        // Simulate minimal processing time
+        Thread.sleep(1); // 1ms delay to simulate processing
+        
+        long endTime = System.nanoTime();
+        long responseTimeMs = (endTime - startTime) / 1_000_000L;
+        
+        // In-memory implementation is always healthy
+        return new HealthCheckResult(
+                true,
+                responseTimeMs,
+                "in-memory-table",
+                getApproximateItemCount(),
+                "In-memory table is accessible and healthy"
+        );
+    }
+
+    /**
+     * Gets the approximate item count from the in-memory store.
+     * 
+     * @return Total number of items in the in-memory store
+     * @throws ResourceNotFoundException if simulating table not found scenario
+     * @throws DynamoDbException if simulating connectivity issues
+     * @throws Exception for simulating unexpected errors
+     */
+    @Override
+    public long getApproximateItemCount() throws ResourceNotFoundException, DynamoDbException, Exception {
+        return dataStore.values().stream()
+                .mapToLong(List::size)
+                .sum();
     }
 } 

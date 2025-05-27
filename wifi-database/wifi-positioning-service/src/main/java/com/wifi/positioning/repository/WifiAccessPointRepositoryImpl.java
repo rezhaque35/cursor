@@ -11,6 +11,8 @@ import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.*;
+import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
+import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -18,6 +20,7 @@ import java.util.stream.Collectors;
 /**
  * DynamoDB implementation of the WifiAccessPointRepository interface.
  * Optimized to use batch operations and secondary indexes for efficient access patterns.
+ * Includes health check capabilities for monitoring table accessibility and performance.
  */
 @Repository
 @Profile("!test") // Only active when not in test profile
@@ -35,14 +38,53 @@ public class WifiAccessPointRepositoryImpl implements WifiAccessPointRepository 
      */
     private static final int MAX_BATCH_RETRIES = 3;
 
+    /**
+     * Latency threshold for health checks in milliseconds.
+     * Response times exceeding this threshold indicate potential performance issues.
+     * Set to 1000ms (1 second) based on typical DynamoDB response time expectations.
+     * 
+     * Rationale: 
+     * - Normal DynamoDB operations should complete within 100-500ms
+     * - 1 second threshold allows for network latency and temporary slowdowns
+     * - Exceeding 1 second may indicate throttling, network issues, or overloaded tables
+     */
+    private static final long LATENCY_THRESHOLD_MS = 1_000L;
+
+    /**
+     * Conversion factor from nanoseconds to milliseconds.
+     * Used for converting System.nanoTime() measurements to milliseconds.
+     * Mathematical formula: milliseconds = nanoseconds / 1,000,000
+     * 
+     * Rationale:
+     * - System.nanoTime() provides high-precision timing measurement
+     * - 1 nanosecond = 1/1,000,000,000 seconds = 1/1,000,000 milliseconds
+     * - This constant ensures accurate conversion for latency measurements
+     */
+    private static final long NANOS_TO_MILLIS = 1_000_000L;
+
+    // Health Check Status Messages
+    /**
+     * Status message for healthy table state.
+     * Used when table is accessible and response time is within acceptable limits.
+     */
+    private static final String HEALTHY_STATUS_MESSAGE = "Table is accessible and healthy";
+    
+    /**
+     * Status message for slow response times.
+     * Used when table is accessible but response time exceeds the threshold.
+     */
+    private static final String SLOW_RESPONSE_STATUS_MESSAGE = "Table response time exceeds threshold";
+
     private static final Logger logger = LoggerFactory.getLogger(WifiAccessPointRepositoryImpl.class);
     private final DynamoDbTable<WifiAccessPoint> accessPointTable;
     private final DynamoDbEnhancedClient enhancedClient;
+    private final String tableName;
 
     public WifiAccessPointRepositoryImpl(
             DynamoDbEnhancedClient enhancedClient,
             @Value("${aws.dynamodb.table-name}") String tableName) {
         this.enhancedClient = enhancedClient;
+        this.tableName = tableName;
         this.accessPointTable = enhancedClient.table(tableName, TableSchema.fromBean(WifiAccessPoint.class));
         logger.info("Initialized WifiAccessPointRepository with table: {}", tableName);
     }
@@ -206,5 +248,118 @@ public class WifiAccessPointRepositoryImpl implements WifiAccessPointRepository 
         }
         
         return batches;
+    }
+
+    /**
+     * Validates table accessibility and measures response time for health checks.
+     * 
+     * This method performs a comprehensive health check by:
+     * 1. Measuring response time using high-precision timing
+     * 2. Verifying table existence and accessibility
+     * 3. Retrieving item count to validate read permissions
+     * 4. Evaluating response time against performance thresholds
+     * 
+     * Mathematical Formula for Response Time:
+     * response_time_ms = (end_time_nanos - start_time_nanos) / 1,000,000
+     * 
+     * Where:
+     * - start_time_nanos: System.nanoTime() before DynamoDB operation
+     * - end_time_nanos: System.nanoTime() after DynamoDB operation
+     * - response_time_ms: Latency in milliseconds for performance evaluation
+     * 
+     * Health Evaluation Logic:
+     * - Healthy: response_time_ms < LATENCY_THRESHOLD_MS (1000ms)
+     * - Unhealthy: response_time_ms >= LATENCY_THRESHOLD_MS
+     * 
+     * @return HealthCheckResult containing validation results and metrics
+     * @throws ResourceNotFoundException if the table does not exist
+     * @throws DynamoDbException if there are connectivity or permission issues
+     * @throws Exception for unexpected errors during validation
+     */
+    @Override
+    public HealthCheckResult validateTableHealth() throws ResourceNotFoundException, DynamoDbException, Exception {
+        logger.debug("Starting table health validation for: {}", tableName);
+        
+        // Measure response time using high-precision timing
+        long startTime = System.nanoTime();
+        
+        try {
+            // Perform table describe operation to validate accessibility
+            DescribeTableEnhancedResponse response = accessPointTable.describeTable();
+            long itemCount = response.table().itemCount();
+            
+            // Calculate response time in milliseconds
+            long endTime = System.nanoTime();
+            long responseTimeMs = (endTime - startTime) / NANOS_TO_MILLIS;
+            
+            // Evaluate health based on response time threshold
+            boolean isHealthy = responseTimeMs < LATENCY_THRESHOLD_MS;
+            String statusMessage = isHealthy ? HEALTHY_STATUS_MESSAGE : SLOW_RESPONSE_STATUS_MESSAGE;
+            
+            logger.debug("Table health check completed - Table: {}, Response time: {}ms, Healthy: {}, Item count: {}", 
+                    tableName, responseTimeMs, isHealthy, itemCount);
+            
+            return new HealthCheckResult(isHealthy, responseTimeMs, tableName, itemCount, statusMessage);
+            
+        } catch (ResourceNotFoundException e) {
+            long endTime = System.nanoTime();
+            long responseTimeMs = (endTime - startTime) / NANOS_TO_MILLIS;
+            logger.error("Table not found during health check: {} (response time: {}ms)", tableName, responseTimeMs);
+            throw e;
+            
+        } catch (DynamoDbException e) {
+            long endTime = System.nanoTime();
+            long responseTimeMs = (endTime - startTime) / NANOS_TO_MILLIS;
+            logger.error("DynamoDB error during health check: {} (response time: {}ms)", tableName, responseTimeMs, e);
+            throw e;
+            
+        } catch (Exception e) {
+            long endTime = System.nanoTime();
+            long responseTimeMs = (endTime - startTime) / NANOS_TO_MILLIS;
+            logger.error("Unexpected error during health check: {} (response time: {}ms)", tableName, responseTimeMs, e);
+            throw e;
+        }
+    }
+
+    /**
+     * Gets the approximate item count from the table for health validation.
+     * 
+     * This method verifies read permissions by retrieving table statistics.
+     * The item count is approximate and may not reflect real-time values due to
+     * DynamoDB's eventually consistent nature.
+     * 
+     * Use Cases:
+     * - Validate that the service has read permissions on the table
+     * - Monitor table growth for capacity planning
+     * - Detect empty tables that might indicate data loading issues
+     * 
+     * @return Approximate number of items in the table
+     * @throws ResourceNotFoundException if the table does not exist
+     * @throws DynamoDbException if there are connectivity or permission issues
+     * @throws Exception for unexpected errors during count retrieval
+     */
+    @Override
+    public long getApproximateItemCount() throws ResourceNotFoundException, DynamoDbException, Exception {
+        logger.debug("Retrieving approximate item count for table: {}", tableName);
+        
+        try {
+            DescribeTableEnhancedResponse response = accessPointTable.describeTable();
+            long itemCount = response.table().itemCount();
+            
+            logger.debug("Retrieved approximate item count: {} for table: {}", itemCount, tableName);
+            return itemCount;
+            
+        } catch (ResourceNotFoundException e) {
+            logger.error("Table not found when retrieving item count: {}", tableName);
+            throw e;
+            
+        } catch (DynamoDbException e) {
+            logger.error("DynamoDB error when retrieving item count for table: {}", tableName, e);
+            throw e;
+            
+        } catch (Exception e) {
+            logger.error("Unexpected error when retrieving item count for table: {}", tableName, e);
+            throw e;
+        }
     }
 } 
