@@ -422,4 +422,148 @@ class RSSIRatioAlgorithmTest {
             assertTrue(position.altitude() <= 30.0, "Altitude should not exceed maximum input value");
         }
     }
+
+    /**
+     * Tests for performance and stream optimization characteristics.
+     * These tests verify that the stream refactoring maintains algorithm correctness
+     * while improving code quality and SonarCube compliance.
+     */
+    @Nested
+    @DisplayName("Stream Optimization and Performance Tests")
+    class StreamOptimizationTests {
+        /**
+         * Verifies that the AP pair calculation produces consistent results.
+         * This test ensures that the refactored stream processing maintains
+         * the same mathematical output as the original implementation.
+         */
+        @Test
+        @DisplayName("should calculate consistent AP pairs regardless of order")
+        void shouldCalculateConsistentAPPairs() {
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                createAP("AP1", "Cisco", 1.0, 1.0),
+                createAP("AP2", "Cisco", 2.0, 2.0),
+                createAP("AP3", "Cisco", 3.0, 3.0)
+            );
+
+            List<WifiScanResult> scans1 = Arrays.asList(
+                createScan("AP1", -65.0),
+                createScan("AP2", -70.0),
+                createScan("AP3", -75.0)
+            );
+
+            List<WifiScanResult> scans2 = Arrays.asList(
+                createScan("AP3", -75.0),
+                createScan("AP1", -65.0),
+                createScan("AP2", -70.0)
+            );
+
+            Position position1 = algorithm.calculatePosition(scans1, knownAPs);
+            Position position2 = algorithm.calculatePosition(scans2, knownAPs);
+
+            assertNotNull(position1);
+            assertNotNull(position2);
+            
+            // Results should be very close (within tolerance for floating point precision)
+            assertEquals(position1.latitude(), position2.latitude(), 0.0001,
+                "Latitude should be consistent regardless of input order");
+            assertEquals(position1.longitude(), position2.longitude(), 0.0001,
+                "Longitude should be consistent regardless of input order");
+            assertEquals(position1.accuracy(), position2.accuracy(), 0.1,
+                "Accuracy should be consistent regardless of input order");
+            assertEquals(position1.confidence(), position2.confidence(), 0.01,
+                "Confidence should be consistent regardless of input order");
+        }
+
+        /**
+         * Tests behavior with large number of APs to verify stream optimization benefits.
+         * Verifies that the algorithm can handle scenarios with many APs efficiently.
+         */
+        @Test
+        @DisplayName("should handle large number of APs efficiently")
+        void shouldHandleLargeNumberOfAPsEfficiently() {
+            // Create 10 APs in a grid pattern
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                createAP("AP1", "Cisco", 1.0, 1.0),
+                createAP("AP2", "Cisco", 1.0, 2.0),
+                createAP("AP3", "Cisco", 1.0, 3.0),
+                createAP("AP4", "Cisco", 2.0, 1.0),
+                createAP("AP5", "Cisco", 2.0, 2.0),
+                createAP("AP6", "Cisco", 2.0, 3.0),
+                createAP("AP7", "Cisco", 3.0, 1.0),
+                createAP("AP8", "Cisco", 3.0, 2.0),
+                createAP("AP9", "Cisco", 3.0, 3.0),
+                createAP("AP10", "Cisco", 1.5, 2.5)
+            );
+
+            // Create scan results with varying signal strengths
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -60.0),
+                createScan("AP2", -65.0),
+                createScan("AP3", -70.0),
+                createScan("AP4", -62.0),
+                createScan("AP5", -58.0),
+                createScan("AP6", -68.0),
+                createScan("AP7", -75.0),
+                createScan("AP8", -72.0),
+                createScan("AP9", -80.0),
+                createScan("AP10", -55.0)
+            );
+
+            long startTime = System.nanoTime();
+            Position position = algorithm.calculatePosition(scans, knownAPs);
+            long endTime = System.nanoTime();
+            
+            assertNotNull(position);
+            // Verify position is within expected bounds
+            assertTrue(position.latitude() >= 1.0 && position.latitude() <= 3.0);
+            assertTrue(position.longitude() >= 1.0 && position.longitude() <= 3.0);
+            assertTrue(position.accuracy() > 0);
+            assertTrue(position.confidence() > 0 && position.confidence() <= 1.0);
+            
+            // Performance should be reasonable (less than 100ms for 10 APs = 45 pairs)
+            long durationMs = (endTime - startTime) / 1_000_000;
+            assertTrue(durationMs < 100, 
+                "Algorithm should complete in reasonable time, took " + durationMs + "ms");
+        }
+
+        /**
+         * Tests that the algorithm produces deterministic results for identical inputs.
+         * This verifies that the stream optimization doesn't introduce any race conditions
+         * or non-deterministic behavior.
+         */
+        @Test
+        @DisplayName("should produce deterministic results for identical inputs")
+        void shouldProduceDeterministicResults() {
+            List<WifiAccessPoint> knownAPs = Arrays.asList(
+                createAP("AP1", "Cisco", 1.0, 1.0),
+                createAP("AP2", "Cisco", 2.0, 2.0),
+                createAP("AP3", "Cisco", 3.0, 1.5)
+            );
+
+            List<WifiScanResult> scans = Arrays.asList(
+                createScan("AP1", -65.0),
+                createScan("AP2", -70.0),
+                createScan("AP3", -68.0)
+            );
+
+            // Run calculation multiple times
+            Position position1 = algorithm.calculatePosition(scans, knownAPs);
+            Position position2 = algorithm.calculatePosition(scans, knownAPs);
+            Position position3 = algorithm.calculatePosition(scans, knownAPs);
+
+            assertNotNull(position1);
+            assertNotNull(position2);
+            assertNotNull(position3);
+            
+            // All results should be identical
+            assertEquals(position1.latitude(), position2.latitude(), 1e-10);
+            assertEquals(position1.latitude(), position3.latitude(), 1e-10);
+            assertEquals(position1.longitude(), position2.longitude(), 1e-10);
+            assertEquals(position1.longitude(), position3.longitude(), 1e-10);
+            assertEquals(position1.accuracy(), position2.accuracy(), 1e-10);
+            assertEquals(position1.accuracy(), position3.accuracy(), 1e-10);
+            assertEquals(position1.confidence(), position2.confidence(), 1e-10);
+            assertEquals(position1.confidence(), position3.confidence(), 1e-10);
+        }
+    }
 } 

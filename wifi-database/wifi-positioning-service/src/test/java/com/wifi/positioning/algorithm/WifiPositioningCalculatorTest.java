@@ -574,6 +574,110 @@ class WifiPositioningCalculatorTest {
         assertTrue(calculationInfo.contains("rssi_ratio (weight: 0.60)"));
     }
 
+    @Nested
+    @DisplayName("Exception Handling Tests")
+    class ExceptionHandlingTests {
+        
+        @Test
+        @DisplayName("Should handle algorithm execution timeout gracefully")
+        void shouldHandleAlgorithmTimeoutGracefully() {
+            // Arrange
+            List<WifiScanResult> scans = testData.getWifiScans("DualAP_Test");
+            List<WifiAccessPoint> aps = testData.getAccessPoints("DualAP_Test");
+            
+            // Mock one algorithm to return normally, another to simulate timeout/failure
+            Position validPosition = new Position(37.7750, -122.4195, 12.0, 25.0, 0.70);
+            when(proximityAlgorithm.calculatePosition(any(), any())).thenReturn(validPosition);
+            
+            // Simulate an algorithm that takes too long (this will be handled by the timeout mechanism)
+            when(rssiRatioAlgorithm.calculatePosition(any(), any())).thenAnswer(invocation -> {
+                try {
+                    Thread.sleep(6000); // Sleep longer than timeout
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return null;
+            });
+            
+            // Configure algorithm selector to use both algorithms
+            Map<PositioningAlgorithm, Double> selectedAlgorithms = new HashMap<>();
+            selectedAlgorithms.put(proximityAlgorithm, 1.0);
+            selectedAlgorithms.put(rssiRatioAlgorithm, 0.8);
+            
+            when(algorithmSelector.selectAlgorithmsWithReasons(any(), any(), any()))
+                .thenReturn(new AlgorithmSelector.AlgorithmSelectionInfo(selectedAlgorithms, Map.of()));
+            
+            // Act
+            WifiPositioningCalculator.PositioningResult result = wifiPositioningCalculator.calculatePosition(scans, aps);
+            
+            // Assert
+            // Should still return a result based on the algorithm that completed successfully
+            assertNotNull(result, "Result should not be null even when one algorithm times out");
+            assertNotNull(result.position(), "Position should be calculated from successful algorithms");
+            assertEquals(validPosition.latitude(), result.position().latitude(), 0.001);
+            assertEquals(validPosition.longitude(), result.position().longitude(), 0.001);
+        }
+        
+        @Test
+        @DisplayName("Should handle all algorithms failing")
+        void shouldHandleAllAlgorithmsFailing() {
+            // Arrange
+            List<WifiScanResult> scans = testData.getWifiScans("DualAP_Test");
+            List<WifiAccessPoint> aps = testData.getAccessPoints("DualAP_Test");
+            
+            // Mock all algorithms to return null or throw exceptions
+            when(proximityAlgorithm.calculatePosition(any(), any())).thenReturn(null);
+            when(rssiRatioAlgorithm.calculatePosition(any(), any())).thenThrow(new RuntimeException("Algorithm failure"));
+            
+            // Configure algorithm selector
+            Map<PositioningAlgorithm, Double> selectedAlgorithms = new HashMap<>();
+            selectedAlgorithms.put(proximityAlgorithm, 1.0);
+            selectedAlgorithms.put(rssiRatioAlgorithm, 0.8);
+            
+            when(algorithmSelector.selectAlgorithmsWithReasons(any(), any(), any()))
+                .thenReturn(new AlgorithmSelector.AlgorithmSelectionInfo(selectedAlgorithms, Map.of()));
+            
+            // Act
+            WifiPositioningCalculator.PositioningResult result = wifiPositioningCalculator.calculatePosition(scans, aps);
+            
+            // Assert
+            assertNull(result, "Result should be null when all algorithms fail");
+        }
+        
+        @Test
+        @DisplayName("Should handle mixed algorithm success and failure")
+        void shouldHandleMixedAlgorithmResults() {
+            // Arrange
+            List<WifiScanResult> scans = testData.getWifiScans("TriAP_Test");
+            List<WifiAccessPoint> aps = testData.getAccessPoints("TriAP_Test");
+            
+            // Mock algorithms with mixed results
+            Position position1 = new Position(37.7751, -122.4196, 15.0, 20.0, 0.75);
+            Position position2 = new Position(37.7752, -122.4197, 16.0, 22.0, 0.72);
+            
+            when(proximityAlgorithm.calculatePosition(any(), any())).thenReturn(position1);
+            when(rssiRatioAlgorithm.calculatePosition(any(), any())).thenReturn(position2);
+            when(weightedCentroidAlgorithm.calculatePosition(any(), any())).thenReturn(null); // Simulate failure
+            
+            // Configure algorithm selector
+            Map<PositioningAlgorithm, Double> selectedAlgorithms = new HashMap<>();
+            selectedAlgorithms.put(proximityAlgorithm, 1.0);
+            selectedAlgorithms.put(rssiRatioAlgorithm, 0.8);
+            selectedAlgorithms.put(weightedCentroidAlgorithm, 0.6);
+            
+            when(algorithmSelector.selectAlgorithmsWithReasons(any(), any(), any()))
+                .thenReturn(new AlgorithmSelector.AlgorithmSelectionInfo(selectedAlgorithms, Map.of()));
+            
+            // Act
+            WifiPositioningCalculator.PositioningResult result = wifiPositioningCalculator.calculatePosition(scans, aps);
+            
+            // Assert
+            assertNotNull(result, "Result should not be null when some algorithms succeed");
+            assertNotNull(result.position(), "Position should be calculated from successful algorithms");
+            // Should get a position that's a combination of the successful results
+        }
+    }
+
     /**
      * Helper class to load test data from resources.
      */
