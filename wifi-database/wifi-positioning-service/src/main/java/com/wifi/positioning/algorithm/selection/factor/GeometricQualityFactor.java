@@ -125,13 +125,13 @@ public enum GeometricQualityFactor {
         }
 
         // Calculate line of best fit parameters
-        double slope;
-        if (covLonLon < SINGULARITY_THRESHOLD) {
-            // Vertical line
+        // Additional explicit check to satisfy static analysis tools
+        if (Math.abs(covLonLon) < SINGULARITY_THRESHOLD) {
+            // This should never happen due to the check above, but satisfies SonarQube
             return true;
-        } else {
-            slope = covLatLon / covLonLon;
         }
+        
+        double slope = covLatLon / covLonLon;
         double intercept = meanLat - slope * meanLon;
 
         // Calculate maximum deviation from line

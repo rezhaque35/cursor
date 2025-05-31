@@ -16,21 +16,45 @@ import java.util.concurrent.atomic.DoubleAdder;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import java.util.ArrayList;
 
 /**
  * Implementation of the RSSI Ratio positioning algorithm.
  * 
+ * This algorithm estimates position using relative signal strength ratios between access points,
+ * eliminating the need for absolute signal strength calibration. It's particularly effective
+ * in environments where hardware characteristics are similar across access points.
+ * 
+ * MATHEMATICAL FOUNDATION:
+ * ========================
+ * The algorithm is based on the principle that signal strength ratios correspond to distance ratios
+ * in free space propagation. For two access points with signal strengths RSSI₁ and RSSI₂:
+ * 
+ * Distance Ratio = 10^((RSSI₂ - RSSI₁) / PATH_LOSS_COEFFICIENT)
+ * 
+ * Where PATH_LOSS_COEFFICIENT = 20.0 dB per decade for free space propagation.
+ * 
+ * Position Interpolation:
+ * For each AP pair (AP₁, AP₂), the position is interpolated as:
+ * P = (P₁ + ratio × P₂) / (1 + ratio)
+ * 
+ * Where:
+ * - P₁, P₂ are the geographic positions of AP₁ and AP₂
+ * - ratio is the calculated distance ratio from signal strengths
+ * - P is the interpolated position weighted by the ratio
+ * 
+ * ALGORITHM CHARACTERISTICS:
+ * =========================
  * USE CASES:
  * - Ideal for scenarios with 2-3 access points
- * - Effective in environments where absolute signal calibration is difficult
+ * - Effective when absolute signal calibration is difficult
  * - Works well when APs have similar hardware characteristics
+ * - Suitable for dynamic transmit power environments
  * 
  * STRENGTHS:
  * - No need for absolute signal strength calibration
  * - Resistant to environmental changes affecting all signals equally
  * - Computationally efficient for small numbers of APs
- * - Works well with dynamic transmit power changes
+ * - Handles dynamic transmit power changes effectively
  * 
  * WEAKNESSES:
  * - Accuracy decreases with dissimilar AP hardware
@@ -38,191 +62,205 @@ import java.util.ArrayList;
  * - Sensitive to individual signal fluctuations
  * - Less accurate than trilateration in ideal conditions
  * 
- * RECENT OPTIMIZATIONS (v2.0):
- * - Refactored stream processing to eliminate nested parallel streams
- * - Improved SonarCube compliance by removing intermediate stream operations
- * - Added intelligent parallel/sequential processing based on data volume
- * - Introduced meaningful constants replacing hard-coded values
- * - Enhanced mathematical documentation with formula explanations
- * 
- * PERFORMANCE CHARACTERISTICS:
- * - Automatic parallel processing for large datasets (>100 AP pairs)
- * - Sequential processing for small datasets to avoid overhead
- * - Single-level stream parallelization prevents ForkJoinPool conflicts
- * - Optimal for 2-3 APs: O(1) pairs, O(n²) for n APs
- * 
- * TUNABLE PARAMETERS:
- * - BASE_CONFIDENCE: Base confidence level for the algorithm (0.0-1.0)
- * - MIN_REQUIRED_APS: Minimum number of APs needed (typically 2)
- * - PARALLEL_PROCESSING_THRESHOLD: Minimum pairs for parallel execution (100)
- * - Weight normalization factor (30.0) in ratio calculations
- * 
- * MATHEMATICAL MODEL:
- * The algorithm uses signal strength ratios to estimate relative distances:
- * 
- * 1. RSSI Ratio Calculation:
- *    ratio = 10^((RSSI1 - RSSI2)/20)
- *    where:
- *    - RSSI1, RSSI2 are signal strengths in dBm
- *    - 20 is the path loss coefficient for free space
- * 
- * 2. Position Estimation:
- *    For each AP pair (AP1, AP2):
- *    P = (P1 + ratio * P2)/(1 + ratio)
- *    where:
- *    - P is the estimated position (lat, lon, alt)
- *    - P1, P2 are the positions of AP1 and AP2
- *    - ratio is the calculated RSSI ratio
- * 
- * 3. Confidence Calculation:
- *    confidence = min(0.85, totalWeight / maxPossibleWeight)
- *    where:
- *    - totalWeight is sum of all pair weights
- *    - maxPossibleWeight is n*(n-1)/2 for n APs
- * 
  * THREAD SAFETY:
- * This class is thread-safe. The calculatePosition method uses atomic accumulators 
- * and optimized stream processing without maintaining mutable state in the class.
- * The refactored implementation eliminates race conditions and ensures deterministic 
- * results for identical inputs.
- * 
- * SONARQUBE COMPLIANCE:
- * - Eliminated "Intermediate Stream method should not be left unused" issues
- * - Removed nested parallel stream operations
- * - Added meaningful constants with documented rationale
- * - Improved code maintainability with SLAP principle adherence
+ * ==============
+ * This implementation is thread-safe through the use of:
+ * - Immutable constants and method parameters
+ * - ConcurrentHashMap for AP lookups
+ * - AtomicDouble accumulators for parallel calculations
+ * - Stream-based parallel processing with proper isolation
  */
 @Component
 public class RSSIRatioAlgorithm implements PositioningAlgorithm {
 
-    private static final String ALGORITHM_NAME = "RSSI Ratio";
-    private static final double BASE_CONFIDENCE = 0.75;
-    private static final int MIN_REQUIRED_APS = 2;
+    // ========================================================================================
+    // CORE ALGORITHM CONSTANTS
+    // ========================================================================================
     
     /**
-     * Mathematical constants for RSSI ratio calculations
-     * 
-     * RSSI_PATH_LOSS_COEFFICIENT (20.0):
-     * - Based on the free space path loss model: PL(dB) = 20*log10(d) + 20*log10(f) + K
-     * - In WiFi positioning, the factor of 20 represents the relationship between 
-     *   signal strength difference and distance ratio in free space
-     * - Derived from: 10^((RSSI1-RSSI2)/20) gives the distance ratio between two points
-     * - Rationale: Standard coefficient for 2.4GHz/5GHz WiFi signal propagation
+     * Algorithm identification string used by the positioning framework.
      */
-    private static final double RSSI_PATH_LOSS_COEFFICIENT = 20.0;
+    private static final String ALGORITHM_NAME = "RSSI Ratio";
     
     /**
-     * WEIGHT_NORMALIZATION_FACTOR (30.0):
-     * - Used to normalize the weight based on signal strength differences
-     * - Formula: weight = |RSSI1 - RSSI2| / 30.0
-     * - Rationale: 30dB represents a significant signal strength difference 
-     *   (approximately 1000:1 power ratio) that should receive full weight
-     * - Values above 30dB difference get capped at weight = 1.0
-     * - Ensures weights are in range [0, 1] for typical WiFi signal variations
+     * Base confidence level returned by getConfidence() method.
+     * Rationale: 0.75 represents high confidence in the algorithm's general capability,
+     * while individual position calculations may have lower confidence based on signal quality.
+     */
+    private static final double BASE_CONFIDENCE = 0.75;
+    
+    /**
+     * Minimum number of access points required for RSSI ratio calculations.
+     * Rationale: At least 2 APs are needed to calculate signal strength ratios.
+     * With only 1 AP, no ratio comparison is possible.
+     */
+    private static final int MIN_REQUIRED_APS = 2;
+
+    // ========================================================================================
+    // MATHEMATICAL CONSTANTS FOR RSSI RATIO CALCULATIONS
+    // ========================================================================================
+    
+    /**
+     * Path loss coefficient for free space propagation (dB per decade).
+     * 
+     * Mathematical Foundation:
+     * In free space, signal strength decreases by 20 dB per decade of distance.
+     * This constant is used in the formula: ratio = 10^((RSSI₁ - RSSI₂) / 20.0)
+     * 
+     * Rationale: 20.0 dB represents the theoretical free space path loss,
+     * providing a baseline for signal-to-distance ratio calculations.
+     * 
+     * Reference: Friis transmission equation for free space propagation
+     */
+    private static final double PATH_LOSS_COEFFICIENT = 20.0;
+    
+    /**
+     * Weight normalization factor for signal strength differences.
+     * 
+     * Mathematical Purpose:
+     * Converts signal strength differences (in dBm) to normalized weights [0,1].
+     * Formula: weight = |RSSI₁ - RSSI₂| / WEIGHT_NORMALIZATION_FACTOR
+     * 
+     * Rationale: 30.0 dB represents a significant signal difference that would
+     * receive maximum weight (1.0). Smaller differences receive proportionally
+     * lower weights, reducing their influence on the final position calculation.
+     * 
+     * Typical signal differences range from 2-30 dB in real environments.
      */
     private static final double WEIGHT_NORMALIZATION_FACTOR = 30.0;
+
+    // ========================================================================================
+    // ACCURACY CALCULATION CONSTANTS
+    // ========================================================================================
     
     /**
-     * Signal strength thresholds for accuracy and confidence calculations
+     * Default fallback value for average signal strength when calculation fails.
      * 
-     * DEFAULT_SIGNAL_STRENGTH (-80.0 dBm):
-     * - Used as fallback when signal strength average cannot be calculated
-     * - Represents typical indoor WiFi signal strength
-     * - Rationale: Middle ground between strong (-50dBm) and weak (-90dBm) signals
+     * Rationale: -80.0 dBm represents a moderate signal strength typical in indoor
+     * environments. Used as a safe fallback to prevent accuracy calculation failures.
      */
-    private static final double DEFAULT_SIGNAL_STRENGTH = -80.0;
+    private static final double DEFAULT_AVERAGE_SIGNAL_STRENGTH = -80.0;
     
     /**
-     * DEFAULT_BASE_ACCURACY (15.0 meters):
-     * - Used when AP horizontal accuracy data is unavailable
-     * - Represents typical WiFi positioning accuracy in indoor environments
-     * - Rationale: Conservative estimate based on typical WiFi AP density in buildings
+     * Default base accuracy when AP accuracy data is unavailable.
+     * 
+     * Rationale: 15.0 meters represents a reasonable baseline accuracy for
+     * RSSI-based positioning systems in typical indoor environments.
      */
     private static final double DEFAULT_BASE_ACCURACY = 15.0;
     
     /**
-     * Signal strength reference points for accuracy scaling
+     * Signal strength threshold for accuracy scaling calculations.
      * 
-     * SIGNAL_STRENGTH_REFERENCE (-50.0 dBm):
-     * - Reference point for strong signal strength in accuracy calculations
-     * - Signals stronger than this get best accuracy
-     * - Rationale: -50dBm represents very close proximity to AP (high accuracy)
+     * Mathematical Purpose:
+     * Used in formula: signalFactor = (-avgSignalStrength - SIGNAL_THRESHOLD) / SCALING_DIVISOR
      * 
-     * ACCURACY_SCALE_DIVISOR (10.0):
-     * - Used in formula: (-avgSignalStrength - 50) / 10.0
-     * - Converts signal strength difference to accuracy scaling factor
-     * - Rationale: Every 10dB represents roughly 3x distance change in free space
+     * Rationale: -50.0 dBm represents a very strong signal. Signals weaker than this
+     * will result in degraded accuracy through the scaling factor calculation.
      */
-    private static final double SIGNAL_STRENGTH_REFERENCE = -50.0;
-    private static final double ACCURACY_SCALE_DIVISOR = 10.0;
+    private static final double SIGNAL_THRESHOLD = -50.0;
     
     /**
-     * Accuracy scaling bounds
+     * Divisor for signal strength to accuracy scaling factor conversion.
      * 
-     * MIN_ACCURACY_SCALE (1.0):
-     * - Minimum multiplier for accuracy scaling (no improvement beyond reference)
-     * - Ensures accuracy never gets better than base accuracy
+     * Mathematical Purpose:
+     * Converts signal strength differences to scaling multipliers.
+     * Formula: signalFactor = (-avgSignalStrength - 50) / 10.0
      * 
-     * MAX_ACCURACY_SCALE (3.0):
-     * - Maximum multiplier for accuracy scaling (caps degradation)
-     * - Prevents extreme accuracy values for very weak signals
-     * - Rationale: Factor of 3 represents reasonable maximum degradation
+     * Rationale: 10.0 dB increments provide reasonable granularity for accuracy scaling.
+     * Each 10 dB of signal degradation increases the accuracy scaling factor.
      */
-    private static final double MIN_ACCURACY_SCALE = 1.0;
-    private static final double MAX_ACCURACY_SCALE = 3.0;
+    private static final double SCALING_DIVISOR = 10.0;
     
     /**
-     * Confidence calculation constants
+     * Minimum scaling factor for signal-based accuracy adjustment.
      * 
-     * SIGNAL_QUALITY_RANGE_MIN (-95.0 dBm):
-     * - Minimum signal strength considered for quality calculation
-     * - Below this threshold, signal quality = 0
-     * - Rationale: -95dBm is near WiFi receiver sensitivity limit
-     * 
-     * SIGNAL_QUALITY_RANGE_SPAN (45.0 dB):
-     * - Range from min (-95dBm) to max (-50dBm) signal strengths
-     * - Used to normalize signal strength to [0,1] quality range
-     * - Formula: (signalStrength + 95.0) / 45.0
-     * - Rationale: Covers practical WiFi signal strength operating range
+     * Rationale: 1.0 ensures that even the strongest signals don't improve accuracy
+     * beyond the base accuracy. Prevents unrealistic accuracy improvements.
      */
-    private static final double SIGNAL_QUALITY_RANGE_MIN = -95.0;
-    private static final double SIGNAL_QUALITY_RANGE_SPAN = 45.0; // From -95 to -50 dBm
+    private static final double MIN_SCALING_FACTOR = 1.0;
     
     /**
-     * DEFAULT_SIGNAL_QUALITY (0.5):
-     * - Used when signal quality cannot be calculated
-     * - Represents moderate confidence in positioning
-     * - Rationale: Conservative middle-ground estimate
+     * Maximum scaling factor for signal-based accuracy adjustment.
+     * 
+     * Rationale: 3.0 limits accuracy degradation to 3x the base accuracy even for
+     * very weak signals. Prevents extremely pessimistic accuracy estimates.
+     */
+    private static final double MAX_SCALING_FACTOR = 3.0;
+
+    // ========================================================================================
+    // CONFIDENCE CALCULATION CONSTANTS
+    // ========================================================================================
+    
+    /**
+     * Signal strength offset for quality normalization (converting dBm to [0,1] range).
+     * 
+     * Mathematical Purpose:
+     * Used in formula: signalQuality = (signalStrength + SIGNAL_OFFSET) / SIGNAL_RANGE
+     * 
+     * Rationale: 95.0 dBm offset maps typical WiFi signal range [-95, -50] dBm
+     * to a normalized range starting from 0. Very weak signals (-95 dBm) become 0.
+     */
+    private static final double SIGNAL_OFFSET = 95.0;
+    
+    /**
+     * Signal strength range for quality normalization (dB span).
+     * 
+     * Mathematical Purpose:
+     * Completes the normalization: signalQuality = (signalStrength + 95.0) / 45.0
+     * 
+     * Rationale: 45.0 dB span covers typical WiFi range [-95, -50] dBm.
+     * Maps to [0,1] range where 0 = very weak signal, 1 = very strong signal.
+     */
+    private static final double SIGNAL_RANGE = 45.0;
+    
+    /**
+     * Default signal quality when normalization calculation fails.
+     * 
+     * Rationale: 0.5 represents moderate signal quality, providing a neutral
+     * baseline that neither penalizes nor rewards the confidence calculation.
      */
     private static final double DEFAULT_SIGNAL_QUALITY = 0.5;
     
     /**
-     * Confidence limits and thresholds
+     * Maximum confidence level achievable by the algorithm.
      * 
-     * MAX_CONFIDENCE (0.85):
-     * - Maximum confidence level for RSSI ratio algorithm
-     * - Rationale: RSSI ratio has inherent limitations vs. geometric methods
-     * - Prevents overconfidence in positioning estimates
-     * 
-     * STRONG_SIGNAL_THRESHOLD (-70.0 dBm):
-     * - Threshold above which signals are considered "strong"
-     * - Strong signals get boosted confidence (minimum 0.7)
-     * - Rationale: -70dBm represents good indoor WiFi signal strength
-     * 
-     * STRONG_SIGNAL_MIN_CONFIDENCE (0.7):
-     * - Minimum confidence for scenarios with strong signals
-     * - Ensures good positioning confidence when signal quality is high
-     * - Rationale: Strong signals should inspire reasonable confidence
-     * 
-     * SIGNAL_QUALITY_CONFIDENCE_BOOST (1.0):
-     * - Multiplier for signal quality contribution to confidence
-     * - Formula: baseConfidence + (signalQuality * boost)
-     * - Rationale: Linear relationship between signal quality and confidence
+     * Rationale: 0.85 represents high but not perfect confidence, acknowledging
+     * the inherent limitations of RSSI-based positioning. Prevents overconfidence.
      */
     private static final double MAX_CONFIDENCE = 0.85;
+    
+    /**
+     * Signal quality multiplier for confidence boost calculation.
+     * 
+     * Mathematical Purpose:
+     * Used in formula: confidence = baseConfidence + (signalQuality × CONFIDENCE_BOOST)
+     * 
+     * Rationale: 1.0 provides a direct linear relationship between signal quality
+     * and confidence improvement, up to the maximum confidence limit.
+     */
+    private static final double CONFIDENCE_BOOST = 1.0;
+    
+    /**
+     * Strong signal threshold for confidence floor calculation.
+     * 
+     * Rationale: -70.0 dBm represents a strong signal boundary. Signals stronger
+     * than this receive a minimum confidence floor of HIGH_CONFIDENCE_FLOOR.
+     */
     private static final double STRONG_SIGNAL_THRESHOLD = -70.0;
-    private static final double STRONG_SIGNAL_MIN_CONFIDENCE = 0.7;
-    private static final double SIGNAL_QUALITY_CONFIDENCE_BOOST = 1.0;
+    
+    /**
+     * Minimum confidence floor for strong signals.
+     * 
+     * Rationale: 0.7 ensures that strong signals always maintain high confidence,
+     * even if other factors (like geometry) might reduce the calculated confidence.
+     */
+    private static final double HIGH_CONFIDENCE_FLOOR = 0.7;
+
+    // ========================================================================================
+    // ALGORITHM SELECTION FRAMEWORK CONSTANTS
+    // ========================================================================================
+    // These constants define how the algorithm integrates with the hybrid selection framework
     
     /**
      * Weight constants from the algorithm selection framework.
@@ -256,17 +294,36 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
     private static final double RSSI_RATIO_MIXED_SIGNALS_MULTIPLIER = 0.9;   // Slight reduction for mixed signals
     private static final double RSSI_RATIO_SIGNAL_OUTLIERS_MULTIPLIER = 0.7; // Significant reduction for outliers
 
+    // ========================================================================================
+    // HELPER CLASSES
+    // ========================================================================================
+    
     /**
-     * Helper class to store weighted position calculation results
+     * Immutable data class for storing weighted position calculation results.
+     * 
+     * This class encapsulates the result of processing a single AP pair,
+     * including the weighted coordinates and metadata about altitude availability.
+     * 
+     * Thread Safety: This class is immutable and thread-safe.
      */
-    private static class WeightedPositionResult {
-        final double weightedLat;
-        final double weightedLon;
-        final double weightedAlt;
-        final double weight;
-        final boolean hasAltitudeData;
+    private static final class WeightedPositionResult {
+        private final double weightedLat;
+        private final double weightedLon;
+        private final double weightedAlt;
+        private final double weight;
+        private final boolean hasAltitudeData;
 
-        WeightedPositionResult(double weightedLat, double weightedLon, double weightedAlt, double weight, boolean hasAltitudeData) {
+        /**
+         * Creates a weighted position result with all parameters.
+         * 
+         * @param weightedLat latitude weighted by signal strength ratio
+         * @param weightedLon longitude weighted by signal strength ratio  
+         * @param weightedAlt altitude weighted by signal strength ratio
+         * @param weight the calculated weight for this AP pair
+         * @param hasAltitudeData whether both APs in the pair had altitude data
+         */
+        WeightedPositionResult(double weightedLat, double weightedLon, double weightedAlt, 
+                             double weight, boolean hasAltitudeData) {
             this.weightedLat = weightedLat;
             this.weightedLon = weightedLon;
             this.weightedAlt = weightedAlt;
@@ -274,52 +331,57 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
             this.hasAltitudeData = hasAltitudeData;
         }
         
+        /**
+         * Creates a weighted position result assuming altitude data is available.
+         * 
+         * @param weightedLat latitude weighted by signal strength ratio
+         * @param weightedLon longitude weighted by signal strength ratio
+         * @param weightedAlt altitude weighted by signal strength ratio
+         * @param weight the calculated weight for this AP pair
+         */
         WeightedPositionResult(double weightedLat, double weightedLon, double weightedAlt, double weight) {
             this(weightedLat, weightedLon, weightedAlt, weight, true);
         }
     }
 
-    /**
-     * Performance optimization constants for stream processing
-     * 
-     * PARALLEL_THRESHOLD (100):
-     * - Minimum number of AP pairs to justify parallel processing overhead
-     * - Based on empirical testing: parallel streams have overhead that only pays off
-     *   for computationally intensive operations with sufficient data volume
-     * - Rationale: For n APs, we calculate n*(n-1)/2 pairs. Parallel processing
-     *   becomes beneficial when pair count > 100 (roughly 15+ APs)
-     * 
-     * STREAM_CHUNK_SIZE (1000):
-     * - Optimal chunk size for parallel stream processing
-     * - Balances parallelization overhead with computational workload
-     * - Rationale: Java's default ForkJoinPool works efficiently with chunks of this size
-     */
-    private static final int PARALLEL_PROCESSING_THRESHOLD = 100;
-    private static final int OPTIMAL_STREAM_CHUNK_SIZE = 1000;
+    // ========================================================================================
+    // MAIN ALGORITHM IMPLEMENTATION
+    // ========================================================================================
 
     @Override
     public Position calculatePosition(List<WifiScanResult> wifiScan, List<WifiAccessPoint> knownAPs) {
         validateInputs(wifiScan, knownAPs);
         
+        // Create thread-safe AP lookup map
         Map<String, WifiAccessPoint> apMap = createAccessPointMap(knownAPs);
-        List<WeightedPositionResult> results = calculateWeightedPositionResults(wifiScan, apMap);
         
-        if (results.isEmpty()) {
+        // Calculate weighted positions from all AP pairs
+        List<WeightedPositionResult> results = calculateWeightedPositions(wifiScan, apMap);
+        
+        // Aggregate all weighted position results
+        PositionAggregation aggregation = aggregatePositionResults(results);
+        
+        if (aggregation.totalWeight() == 0) {
             throw new IllegalArgumentException("No valid AP pairs found for position calculation");
         }
+
+        // Calculate final position components
+        double finalLatitude = aggregation.weightedLat() / aggregation.totalWeight();
+        double finalLongitude = aggregation.weightedLon() / aggregation.totalWeight();
+        double finalAltitude = calculateFinalAltitude(aggregation);
         
-        PositionAccumulator accumulator = combineWeightedResults(results);
-        AccuracyConfidenceMetrics metrics = calculateAccuracyAndConfidence(wifiScan, knownAPs, accumulator);
-        
-        return buildFinalPosition(accumulator, metrics);
+        // Calculate accuracy and confidence metrics
+        double accuracy = calculateAccuracy(wifiScan, knownAPs);
+        double confidence = calculateConfidence(wifiScan, aggregation.totalWeight());
+
+        return new Position(finalLatitude, finalLongitude, finalAltitude, accuracy, confidence);
     }
 
     /**
      * Validates input parameters for the position calculation.
-     * Ensures all required data is present and meets minimum requirements.
      * 
-     * @param wifiScan List of WiFi scan results
-     * @param knownAPs List of known access points
+     * @param wifiScan list of WiFi scan results
+     * @param knownAPs list of known access points
      * @throws IllegalArgumentException if inputs are invalid
      */
     private void validateInputs(List<WifiScanResult> wifiScan, List<WifiAccessPoint> knownAPs) {
@@ -330,16 +392,16 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
             throw new IllegalArgumentException("WiFi scan and known APs cannot be empty");
         }
         if (wifiScan.size() < MIN_REQUIRED_APS) {
-            throw new IllegalArgumentException("At least " + MIN_REQUIRED_APS + " APs are required for RSSI ratio calculation");
+            throw new IllegalArgumentException("At least " + MIN_REQUIRED_APS + 
+                " APs are required for RSSI ratio calculation");
         }
     }
 
     /**
-     * Creates a thread-safe map of MAC addresses to access points.
-     * Uses ConcurrentHashMap to support parallel processing.
+     * Creates a thread-safe map for AP lookups by MAC address.
      * 
-     * @param knownAPs List of known access points
-     * @return Map from MAC address to WifiAccessPoint
+     * @param knownAPs list of known access points
+     * @return concurrent map from MAC address to access point
      */
     private Map<String, WifiAccessPoint> createAccessPointMap(List<WifiAccessPoint> knownAPs) {
         return knownAPs.stream()
@@ -351,134 +413,69 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
     }
 
     /**
-     * Calculates weighted position results for all valid AP pairs.
+     * Calculates weighted positions from all AP pairs using parallel processing.
      * 
-     * STREAM OPTIMIZATION NOTES:
-     * - Removed nested parallel() calls to fix SonarCube issue
-     * - Single-level parallelization is more efficient than nested parallel streams
-     * - Uses sequential inner processing to avoid ForkJoinPool overhead conflicts
-     * - Applies parallel processing only when number of pairs exceeds threshold
+     * Mathematical Process:
+     * For each AP pair (APᵢ, APⱼ):
+     * 1. Calculate signal ratio: r = 10^((RSSIᵢ - RSSIⱼ) / 20.0)
+     * 2. Calculate position weight: w = |RSSIᵢ - RSSIⱼ| / 30.0  
+     * 3. Interpolate position: P = (Pᵢ + r × Pⱼ) / (1 + r)
+     * 4. Apply weight: weightedP = P × w
      * 
-     * Mathematical Foundation:
-     * For each AP pair (i,j) where i < j:
-     * 1. Calculate RSSI ratio: ratio = 10^((RSSI_i - RSSI_j)/20)
-     * 2. Calculate weight: weight = |RSSI_i - RSSI_j| / 30
-     * 3. Calculate weighted position: P = (P_i + ratio * P_j) / (1 + ratio)
-     * 
-     * Computational Complexity:
-     * - Number of pairs: n*(n-1)/2 for n APs
-     * - Time complexity: O(n²) for pair generation + O(n²) for position calculation
-     * - Space complexity: O(n²) for storing all pair results
-     * 
-     * @param wifiScan List of WiFi scan results
-     * @param apMap Map of MAC addresses to access points
-     * @return List of weighted position results
+     * @param wifiScan list of WiFi scan results
+     * @param apMap map from MAC address to access point
+     * @return list of weighted position results
      */
-    private List<WeightedPositionResult> calculateWeightedPositionResults(
-            List<WifiScanResult> wifiScan, 
-            Map<String, WifiAccessPoint> apMap) {
+    private List<WeightedPositionResult> calculateWeightedPositions(
+            List<WifiScanResult> wifiScan, Map<String, WifiAccessPoint> apMap) {
         
-        int apCount = wifiScan.size();
-        int expectedPairCount = apCount * (apCount - 1) / 2;
-        
-        // Use parallel processing only for large datasets to avoid overhead
-        boolean useParallel = expectedPairCount > PARALLEL_PROCESSING_THRESHOLD;
-        
-        return generateAPPairIndices(wifiScan.size(), useParallel)
-            .map(pair -> calculateAPPairResult(
-                wifiScan.get(pair.firstIndex()), 
-                wifiScan.get(pair.secondIndex()), 
-                apMap))
+        return IntStream.range(0, wifiScan.size())
+            .parallel()
+            .boxed()
+            .flatMap(i -> createAccessPointPairsForIndex(i, wifiScan, apMap))
             .filter(result -> result != null)
             .collect(Collectors.toList());
     }
 
     /**
-     * Generates all unique AP pair indices for position calculation.
+     * Creates WeightedPositionResult stream for all AP pairs involving the given index.
      * 
-     * STREAM ARCHITECTURE:
-     * - Replaces nested IntStream with single-level stream processing
-     * - Uses custom APPair record to represent index pairs cleanly
-     * - Avoids boxed() operation by working directly with stream of pairs
-     * - Conditionally applies parallel() based on computational load
+     * This method processes all AP pairs where the first AP is at the given index
+     * and the second AP is at any subsequent index. This ensures each pair is
+     * processed exactly once without duplication.
      * 
-     * Mathematical Background:
-     * For n APs, we need to calculate all combinations C(n,2) = n!/(2!(n-2)!) = n*(n-1)/2
-     * Each pair (i,j) where i < j represents one positioning calculation
-     * 
-     * Performance Considerations:
-     * - Sequential processing for small datasets (< 100 pairs)
-     * - Parallel processing for large datasets (≥ 100 pairs)
-     * - Eliminates nested parallel streams that compete for ForkJoinPool threads
-     * 
-     * @param apCount Number of access points
-     * @param useParallel Whether to use parallel stream processing
-     * @return Stream of AP index pairs
+     * @param firstApIndex index of the first AP in the pair
+     * @param wifiScan list of WiFi scan results
+     * @param apMap map from MAC address to access point
+     * @return stream of weighted position results for this index
      */
-    private Stream<APPair> generateAPPairIndices(int apCount, boolean useParallel) {
-        List<APPair> pairs = new ArrayList<>(apCount * (apCount - 1) / 2);
+    private Stream<WeightedPositionResult> createAccessPointPairsForIndex(
+            int firstApIndex, List<WifiScanResult> wifiScan, Map<String, WifiAccessPoint> apMap) {
         
-        // Generate all unique pairs (i,j) where i < j
-        for (int i = 0; i < apCount; i++) {
-            for (int j = i + 1; j < apCount; j++) {
-                pairs.add(new APPair(i, j));
-            }
-        }
-        
-        return useParallel ? pairs.parallelStream() : pairs.stream();
+        return IntStream.range(firstApIndex + 1, wifiScan.size())
+            .parallel()
+            .mapToObj(secondApIndex -> processAccessPointPair(
+                wifiScan.get(firstApIndex), 
+                wifiScan.get(secondApIndex), 
+                apMap
+            ));
     }
 
     /**
-     * Record representing a pair of AP indices for position calculation.
+     * Processes a single AP pair to calculate weighted position contribution.
      * 
-     * DESIGN RATIONALE:
-     * - Uses Java 17+ record for immutable data representation
-     * - Follows DOP (Data-Oriented Programming) principles
-     * - Cleaner than using arrays or custom classes
-     * - Zero-overhead abstraction with automatic equals/hashCode/toString
+     * Mathematical Implementation:
+     * - Signal Ratio: ratio = 10^((RSSI₁ - RSSI₂) / PATH_LOSS_COEFFICIENT)
+     * - Weight: weight = |RSSI₁ - RSSI₂| / WEIGHT_NORMALIZATION_FACTOR
+     * - Position: P = (P₁ + ratio × P₂) / (1 + ratio)
      * 
-     * @param firstIndex Index of first AP in the pair
-     * @param secondIndex Index of second AP in the pair
+     * @param scan1 first WiFi scan result
+     * @param scan2 second WiFi scan result
+     * @param apMap map from MAC address to access point
+     * @return weighted position result or null if APs not found
      */
-    private record APPair(int firstIndex, int secondIndex) {
-        APPair {
-            if (firstIndex < 0 || secondIndex < 0) {
-                throw new IllegalArgumentException("AP indices must be non-negative");
-            }
-            if (firstIndex >= secondIndex) {
-                throw new IllegalArgumentException("First index must be less than second index");
-            }
-        }
-    }
-
-    /**
-     * Calculates weighted position result for a single AP pair.
-     * 
-     * RSSI Ratio Formula:
-     * ratio = 10^((RSSI1 - RSSI2) / RSSI_PATH_LOSS_COEFFICIENT)
-     * 
-     * This formula derives from the free space path loss model:
-     * - Path loss difference = 20*log10(d1/d2)
-     * - Therefore: d1/d2 = 10^((PL1-PL2)/20)
-     * - Since PL ∝ -RSSI: ratio = 10^((RSSI1-RSSI2)/20)
-     * 
-     * Position Interpolation:
-     * position = (P1 + ratio * P2) / (1 + ratio)
-     * 
-     * This creates a weighted interpolation where:
-     * - If RSSI1 > RSSI2: ratio > 1, position closer to P2
-     * - If RSSI1 < RSSI2: ratio < 1, position closer to P1
-     * - Equal signals: ratio = 1, position at midpoint
-     * 
-     * @param scan1 First WiFi scan result
-     * @param scan2 Second WiFi scan result
-     * @param apMap Map of access points
-     * @return WeightedPositionResult or null if APs not found
-     */
-    private WeightedPositionResult calculateAPPairResult(
-            WifiScanResult scan1, 
-            WifiScanResult scan2, 
-            Map<String, WifiAccessPoint> apMap) {
+    private WeightedPositionResult processAccessPointPair(
+            WifiScanResult scan1, WifiScanResult scan2, Map<String, WifiAccessPoint> apMap) {
         
         WifiAccessPoint ap1 = apMap.get(scan1.macAddress());
         WifiAccessPoint ap2 = apMap.get(scan2.macAddress());
@@ -487,23 +484,23 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
             return null;
         }
 
-        // Calculate RSSI ratio using free space path loss model
-        double ratio = Math.pow(10, (scan1.signalStrength() - scan2.signalStrength()) / RSSI_PATH_LOSS_COEFFICIENT);
+        // Calculate signal strength ratio using path loss model
+        double signalDifference = scan1.signalStrength() - scan2.signalStrength();
+        double ratio = Math.pow(10, signalDifference / PATH_LOSS_COEFFICIENT);
         
-        // Calculate weight based on signal strength difference
-        // Higher differences get more weight as they provide more positioning information
-        double weight = Math.abs(scan1.signalStrength() - scan2.signalStrength()) / WEIGHT_NORMALIZATION_FACTOR;
+        // Calculate weight based on signal strength difference magnitude
+        double weight = Math.abs(signalDifference) / WEIGHT_NORMALIZATION_FACTOR;
 
-        // Calculate weighted interpolated position
-        double lat = (ap1.getLatitude() + ratio * ap2.getLatitude()) / (1 + ratio);
-        double lon = (ap1.getLongitude() + ratio * ap2.getLongitude()) / (1 + ratio);
+        // Interpolate position using weighted ratio
+        double lat = interpolateCoordinate(ap1.getLatitude(), ap2.getLatitude(), ratio);
+        double lon = interpolateCoordinate(ap1.getLongitude(), ap2.getLongitude(), ratio);
         
-        // Handle altitude calculation - only if both APs have altitude data
+        // Handle altitude calculation with null safety
         double alt = 0.0;
         boolean hasAltitudeData = false;
         
         if (ap1.getAltitude() != null && ap2.getAltitude() != null) {
-            alt = (ap1.getAltitude() + ratio * ap2.getAltitude()) / (1 + ratio);
+            alt = interpolateCoordinate(ap1.getAltitude(), ap2.getAltitude(), ratio);
             hasAltitudeData = true;
         }
 
@@ -511,234 +508,171 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
     }
 
     /**
-     * Combines all weighted position results into accumulated totals.
-     * Uses atomic accumulators for thread-safe aggregation.
+     * Interpolates a single coordinate using the signal strength ratio.
      * 
-     * @param results List of weighted position results
-     * @return PositionAccumulator with combined results
+     * Mathematical Formula:
+     * coordinate = (coord₁ + ratio × coord₂) / (1 + ratio)
+     * 
+     * This formula provides a weighted interpolation where stronger signals
+     * (higher ratio) bias the result toward the second coordinate.
+     * 
+     * @param coord1 first coordinate value
+     * @param coord2 second coordinate value
+     * @param ratio signal strength ratio
+     * @return interpolated coordinate
      */
-    private PositionAccumulator combineWeightedResults(List<WeightedPositionResult> results) {
-        PositionAccumulator accumulator = new PositionAccumulator();
-        
+    private double interpolateCoordinate(double coord1, double coord2, double ratio) {
+        return (coord1 + ratio * coord2) / (1 + ratio);
+    }
+
+    /**
+     * Aggregates all weighted position results using thread-safe accumulators.
+     * 
+     * @param results list of weighted position results
+     * @return aggregated position data
+     */
+    private PositionAggregation aggregatePositionResults(List<WeightedPositionResult> results) {
+        DoubleAdder totalWeight = new DoubleAdder();
+        DoubleAdder weightedLat = new DoubleAdder();
+        DoubleAdder weightedLon = new DoubleAdder();
+        DoubleAdder weightedAlt = new DoubleAdder();
+        DoubleAdder altitudeWeightSum = new DoubleAdder();
+
         results.forEach(result -> {
-            accumulator.weightedLat.add(result.weightedLat);
-            accumulator.weightedLon.add(result.weightedLon);
-            accumulator.weightedAlt.add(result.weightedAlt);
-            accumulator.totalWeight.add(result.weight);
+            weightedLat.add(result.weightedLat);
+            weightedLon.add(result.weightedLon);
+            weightedAlt.add(result.weightedAlt);
+            totalWeight.add(result.weight);
             
-            // Only add to altitude weight sum if result has altitude data
             if (result.hasAltitudeData) {
-                accumulator.altitudeWeightSum.add(result.weight);
+                altitudeWeightSum.add(result.weight);
             }
         });
-        
-        return accumulator;
+
+        return new PositionAggregation(
+            totalWeight.doubleValue(),
+            weightedLat.doubleValue(),
+            weightedLon.doubleValue(),
+            weightedAlt.doubleValue(),
+            altitudeWeightSum.doubleValue()
+        );
     }
 
     /**
-     * Calculates accuracy and confidence metrics for the positioning result.
+     * Record for aggregated position calculation results.
      * 
-     * Accuracy Calculation:
-     * 1. Get average signal strength and base accuracy from APs
-     * 2. Scale accuracy based on signal strength: 
-     *    scaleFactor = max(1, min(3, (-avgSignal - 50) / 10))
-     * 3. finalAccuracy = baseAccuracy * scaleFactor
-     * 
-     * Confidence Calculation:
-     * 1. Normalize signal strength to quality: (signal + 95) / 45
-     * 2. Calculate base confidence from weight coverage
-     * 3. Boost confidence for strong signals
-     * 
-     * @param wifiScan Original WiFi scan results
-     * @param knownAPs Known access points
-     * @param accumulator Combined position data
-     * @return AccuracyConfidenceMetrics
+     * @param totalWeight sum of all position weights
+     * @param weightedLat sum of all weighted latitudes
+     * @param weightedLon sum of all weighted longitudes
+     * @param weightedAlt sum of all weighted altitudes
+     * @param altitudeWeightSum sum of weights for positions with altitude data
      */
-    private AccuracyConfidenceMetrics calculateAccuracyAndConfidence(
-            List<WifiScanResult> wifiScan, 
-            List<WifiAccessPoint> knownAPs, 
-            PositionAccumulator accumulator) {
-        
-        double avgSignalStrength = calculateAverageSignalStrength(wifiScan);
-        double baseAccuracy = calculateBaseAccuracy(knownAPs);
-        double accuracy = calculateScaledAccuracy(avgSignalStrength, baseAccuracy);
-        
-        double signalQuality = calculateSignalQuality(wifiScan);
-        double confidence = calculateConfidence(wifiScan, accumulator, signalQuality, avgSignalStrength);
-        
-        return new AccuracyConfidenceMetrics(accuracy, confidence);
+    private record PositionAggregation(
+        double totalWeight,
+        double weightedLat,
+        double weightedLon,
+        double weightedAlt,
+        double altitudeWeightSum
+    ) {}
+
+    /**
+     * Calculates the final altitude, handling cases where not all APs have altitude data.
+     * 
+     * @param aggregation aggregated position results
+     * @return final altitude value (0.0 if no altitude data available)
+     */
+    private double calculateFinalAltitude(PositionAggregation aggregation) {
+        if (aggregation.altitudeWeightSum() > 0) {
+            return aggregation.weightedAlt() / aggregation.altitudeWeightSum();
+        }
+        return 0.0;
     }
 
     /**
-     * Calculates the average signal strength from WiFi scan results.
+     * Calculates position accuracy based on signal strength and AP accuracy.
      * 
-     * @param wifiScan List of WiFi scan results
-     * @return Average signal strength in dBm
+     * Mathematical Model:
+     * 1. Calculate average signal strength
+     * 2. Calculate base accuracy from AP horizontal accuracy values
+     * 3. Scale accuracy based on signal strength:
+     *    signalFactor = max(1, min(3, (-avgSignal - 50) / 10))
+     * 4. finalAccuracy = baseAccuracy × signalFactor
+     * 
+     * Rationale: Weaker signals lead to less reliable distance estimates,
+     * degrading overall position accuracy. The scaling is capped between
+     * 1x (no degradation) and 3x (maximum degradation).
+     * 
+     * @param wifiScan list of WiFi scan results
+     * @param knownAPs list of known access points
+     * @return estimated position accuracy in meters
      */
-    private double calculateAverageSignalStrength(List<WifiScanResult> wifiScan) {
-        return wifiScan.stream()
+    private double calculateAccuracy(List<WifiScanResult> wifiScan, List<WifiAccessPoint> knownAPs) {
+        double avgSignalStrength = wifiScan.stream()
             .mapToDouble(WifiScanResult::signalStrength)
             .average()
-            .orElse(DEFAULT_SIGNAL_STRENGTH);
-    }
+            .orElse(DEFAULT_AVERAGE_SIGNAL_STRENGTH);
 
-    /**
-     * Calculates base accuracy from known access points.
-     * 
-     * @param knownAPs List of known access points
-     * @return Base accuracy in meters
-     */
-    private double calculateBaseAccuracy(List<WifiAccessPoint> knownAPs) {
-        return knownAPs.parallelStream()
+        double baseAccuracy = knownAPs.parallelStream()
             .mapToDouble(WifiAccessPoint::getHorizontalAccuracy)
             .average()
             .orElse(DEFAULT_BASE_ACCURACY);
+
+        // Scale accuracy based on signal strength - weak signals get worse accuracy
+        double signalFactor = Math.max(MIN_SCALING_FACTOR, 
+            Math.min(MAX_SCALING_FACTOR, (-avgSignalStrength + SIGNAL_THRESHOLD) / SCALING_DIVISOR));
+        
+        return baseAccuracy * signalFactor;
     }
 
     /**
-     * Scales accuracy based on signal strength quality.
+     * Calculates position confidence based on signal quality and weight distribution.
      * 
      * Mathematical Model:
-     * scaleFactor = max(1, min(3, (-avgSignal - 50) / 10))
+     * 1. Signal Quality: normalized signal strength in range [0,1]
+     *    signalQuality = (signalStrength + SIGNAL_OFFSET) / SIGNAL_RANGE
+     * 2. Base Confidence: ratio of actual weights to maximum possible weights
+     *    baseConfidence = min(0.85, totalWeight / maxPossibleWeight)
+     * 3. Enhanced Confidence: baseConfidence + signalQuality
+     * 4. Strong Signal Floor: if avgSignal ≥ -70dBm, confidence ≥ 0.7
      * 
-     * Logic:
-     * - Signals stronger than -50dBm get no degradation (factor = 1)
-     * - Each 10dB weaker degrades accuracy by factor of 1
-     * - Maximum degradation factor is 3 (for very weak signals)
+     * Rationale: Confidence increases with signal quality and weight coverage.
+     * Strong signals receive a confidence floor to ensure reliable reporting.
      * 
-     * For strong signals (-65 to -50 dBm), the scale factor should be close to 1.0
-     * to maintain the base accuracy from APs (5.0m → 5-6m final accuracy)
-     * 
-     * @param avgSignalStrength Average signal strength in dBm
-     * @param baseAccuracy Base accuracy in meters
-     * @return Scaled accuracy in meters
+     * @param wifiScan list of WiFi scan results
+     * @param totalWeight sum of all calculated weights
+     * @return confidence level between 0.0 and 1.0
      */
-    private double calculateScaledAccuracy(double avgSignalStrength, double baseAccuracy) {
-        // For very strong signals (better than -50dBm), use base accuracy
-        if (avgSignalStrength >= SIGNAL_STRENGTH_REFERENCE) {
-            return baseAccuracy;
-        }
-        
-        // Calculate degradation factor for weaker signals
-        double signalFactor = Math.max(MIN_ACCURACY_SCALE, 
-            Math.min(MAX_ACCURACY_SCALE, (-avgSignalStrength - SIGNAL_STRENGTH_REFERENCE) / ACCURACY_SCALE_DIVISOR));
-        
-        // For strong signals in the -65 to -50 dBm range, add minimal degradation
-        // This ensures test expectations of 5-8m for base accuracy of 5m
-        double scaledAccuracy = baseAccuracy * signalFactor;
-        
-        // Apply a small additional factor for strong signals to meet test expectations
-        if (avgSignalStrength >= -70) {
-            // For signals from -70 to -50 dBm, add 0-3m to base accuracy
-            double strongSignalBoost = Math.abs(avgSignalStrength + 70) * 0.2; // 0-4m boost
-            scaledAccuracy = baseAccuracy + strongSignalBoost;
-        }
-        
-        return scaledAccuracy;
-    }
+    private double calculateConfidence(List<WifiScanResult> wifiScan, double totalWeight) {
+        double avgSignalStrength = wifiScan.stream()
+            .mapToDouble(WifiScanResult::signalStrength)
+            .average()
+            .orElse(DEFAULT_AVERAGE_SIGNAL_STRENGTH);
 
-    /**
-     * Calculates signal quality metric from WiFi scan results.
-     * 
-     * Mathematical Model:
-     * quality = (signalStrength - (-95)) / 45
-     * 
-     * This normalizes signal strength from the range [-95, -50] dBm to [0, 1]:
-     * - -95dBm (sensitivity limit) → quality = 0
-     * - -50dBm (very strong) → quality = 1
-     * - Values are clamped to [0, 1] range
-     * 
-     * @param wifiScan List of WiFi scan results
-     * @return Average signal quality in range [0, 1]
-     */
-    private double calculateSignalQuality(List<WifiScanResult> wifiScan) {
-        return wifiScan.stream()
+        double signalQuality = wifiScan.stream()
             .mapToDouble(scan -> Math.min(1.0, Math.max(0.0, 
-                (scan.signalStrength() - SIGNAL_QUALITY_RANGE_MIN) / SIGNAL_QUALITY_RANGE_SPAN)))
+                (scan.signalStrength() + SIGNAL_OFFSET) / SIGNAL_RANGE)))
             .average()
             .orElse(DEFAULT_SIGNAL_QUALITY);
-    }
 
-    /**
-     * Calculates final confidence level for the positioning result.
-     * 
-     * Mathematical Model:
-     * 1. baseConfidence = min(0.85, totalWeight / maxPossibleWeight)
-     * 2. computedConfidence = min(0.85, baseConfidence + signalQuality)
-     * 3. If avgSignal >= -70dBm: confidence = max(0.7, computedConfidence)
-     * 
-     * Logic:
-     * - Base confidence reflects weight coverage (how many AP pairs contributed)
-     * - Signal quality boosts confidence for good signals
-     * - Strong signals get guaranteed minimum confidence of 0.7
-     * - Maximum confidence is capped at 0.85 for this algorithm
-     * 
-     * @param wifiScan WiFi scan results
-     * @param accumulator Position accumulator with weights
-     * @param signalQuality Signal quality metric [0, 1]
-     * @param avgSignalStrength Average signal strength in dBm
-     * @return Final confidence level [0, 1]
-     */
-    private double calculateConfidence(
-            List<WifiScanResult> wifiScan, 
-            PositionAccumulator accumulator, 
-            double signalQuality, 
-            double avgSignalStrength) {
-        
-        // Calculate maximum possible weight (all possible AP pairs)
+        // Calculate maximum possible weight for n APs: n*(n-1)/2 pairs
         int apCount = wifiScan.size();
         double maxPossibleWeight = apCount * (apCount - 1) / 2.0;
         
-        // Base confidence from weight coverage
-        double baseConfidence = Math.min(MAX_CONFIDENCE, accumulator.totalWeight.doubleValue() / maxPossibleWeight);
-        
-        // Boost confidence based on signal quality
+        double baseConfidence = Math.min(MAX_CONFIDENCE, totalWeight / maxPossibleWeight);
         double computedConfidence = Math.min(MAX_CONFIDENCE, 
-            baseConfidence + (signalQuality * SIGNAL_QUALITY_CONFIDENCE_BOOST));
+            baseConfidence + (signalQuality * CONFIDENCE_BOOST));
         
-        // Strong signals get guaranteed minimum confidence
-        return (avgSignalStrength >= STRONG_SIGNAL_THRESHOLD) ? 
-            Math.max(STRONG_SIGNAL_MIN_CONFIDENCE, computedConfidence) : computedConfidence;
-    }
-
-    /**
-     * Builds the final Position object from accumulated data and metrics.
-     * 
-     * @param accumulator Combined weighted position data
-     * @param metrics Accuracy and confidence metrics
-     * @return Final Position object
-     */
-    private Position buildFinalPosition(PositionAccumulator accumulator, AccuracyConfidenceMetrics metrics) {
-        // Calculate final coordinates
-        double latitude = accumulator.weightedLat.doubleValue() / accumulator.totalWeight.doubleValue();
-        double longitude = accumulator.weightedLon.doubleValue() / accumulator.totalWeight.doubleValue();
-        
-        // Calculate altitude only if we have valid altitude data
-        double altitude = 0.0;
-        if (accumulator.altitudeWeightSum.doubleValue() > 0) {
-            altitude = accumulator.weightedAlt.doubleValue() / accumulator.altitudeWeightSum.doubleValue();
+        // Apply confidence floor for strong signals
+        if (avgSignalStrength >= STRONG_SIGNAL_THRESHOLD) {
+            return Math.max(HIGH_CONFIDENCE_FLOOR, computedConfidence);
         }
-
-        return new Position(latitude, longitude, altitude, metrics.accuracy, metrics.confidence);
+        
+        return computedConfidence;
     }
 
-    /**
-     * Helper class to accumulate weighted position data using atomic operations.
-     * Provides thread-safe aggregation for parallel processing.
-     */
-    private static class PositionAccumulator {
-        final DoubleAdder totalWeight = new DoubleAdder();
-        final DoubleAdder weightedLat = new DoubleAdder();
-        final DoubleAdder weightedLon = new DoubleAdder();
-        final DoubleAdder weightedAlt = new DoubleAdder();
-        final DoubleAdder altitudeWeightSum = new DoubleAdder();
-    }
-
-    /**
-     * Helper class to store accuracy and confidence metrics.
-     * Uses record for immutability and clean data representation.
-     */
-    private record AccuracyConfidenceMetrics(double accuracy, double confidence) {}
+    // ========================================================================================
+    // ALGORITHM FRAMEWORK INTEGRATION METHODS
+    // ========================================================================================
 
     @Override
     public double getConfidence() {
@@ -752,63 +686,44 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
     
     @Override
     public double getBaseWeight(APCountFactor factor) {
-        switch (factor) {
-            case SINGLE_AP:
-                return RSSI_RATIO_SINGLE_AP_WEIGHT;      // Not applicable for single AP
-            case TWO_APS:
-                return RSSI_RATIO_TWO_APS_WEIGHT;        // Optimal for two APs
-            case THREE_APS:
-                return RSSI_RATIO_THREE_APS_WEIGHT;      // Good for three APs
-            case FOUR_PLUS_APS:
-                return RSSI_RATIO_FOUR_PLUS_APS_WEIGHT;  // Useful but not optimal for 4+ APs
-            default:
-                return 0.0;
-        }
+        return switch (factor) {
+            case SINGLE_AP -> RSSI_RATIO_SINGLE_AP_WEIGHT;      // Not applicable for single AP
+            case TWO_APS -> RSSI_RATIO_TWO_APS_WEIGHT;          // Optimal for two APs
+            case THREE_APS -> RSSI_RATIO_THREE_APS_WEIGHT;      // Good for three APs
+            case FOUR_PLUS_APS -> RSSI_RATIO_FOUR_PLUS_APS_WEIGHT; // Useful but not optimal for 4+ APs
+            default -> 0.0;
+        };
     }
     
     @Override
     public double getSignalQualityMultiplier(SignalQualityFactor factor) {
-        switch (factor) {
-            case STRONG_SIGNAL:
-                return RSSI_RATIO_STRONG_SIGNAL_MULTIPLIER;
-            case MEDIUM_SIGNAL:
-                return RSSI_RATIO_MEDIUM_SIGNAL_MULTIPLIER;
-            case WEAK_SIGNAL:
-                return RSSI_RATIO_WEAK_SIGNAL_MULTIPLIER;
-            case VERY_WEAK_SIGNAL:
-                return RSSI_RATIO_VERY_WEAK_SIGNAL_MULTIPLIER;
-            default:
-                return RSSI_RATIO_MEDIUM_SIGNAL_MULTIPLIER;
-        }
+        return switch (factor) {
+            case STRONG_SIGNAL -> RSSI_RATIO_STRONG_SIGNAL_MULTIPLIER;
+            case MEDIUM_SIGNAL -> RSSI_RATIO_MEDIUM_SIGNAL_MULTIPLIER;
+            case WEAK_SIGNAL -> RSSI_RATIO_WEAK_SIGNAL_MULTIPLIER;
+            case VERY_WEAK_SIGNAL -> RSSI_RATIO_VERY_WEAK_SIGNAL_MULTIPLIER;
+            default -> RSSI_RATIO_MEDIUM_SIGNAL_MULTIPLIER;
+        };
     }
     
     @Override
     public double getGeometricQualityMultiplier(GeometricQualityFactor factor) {
-        switch (factor) {
-            case EXCELLENT_GDOP:
-                return RSSI_RATIO_EXCELLENT_GDOP_MULTIPLIER;
-            case GOOD_GDOP:
-                return RSSI_RATIO_GOOD_GDOP_MULTIPLIER;
-            case FAIR_GDOP:
-                return RSSI_RATIO_FAIR_GDOP_MULTIPLIER;
-            case POOR_GDOP:
-                return RSSI_RATIO_POOR_GDOP_MULTIPLIER;
-            default:
-                return RSSI_RATIO_GOOD_GDOP_MULTIPLIER;
-        }
+        return switch (factor) {
+            case EXCELLENT_GDOP -> RSSI_RATIO_EXCELLENT_GDOP_MULTIPLIER;
+            case GOOD_GDOP -> RSSI_RATIO_GOOD_GDOP_MULTIPLIER;
+            case FAIR_GDOP -> RSSI_RATIO_FAIR_GDOP_MULTIPLIER;
+            case POOR_GDOP -> RSSI_RATIO_POOR_GDOP_MULTIPLIER;
+            default -> RSSI_RATIO_GOOD_GDOP_MULTIPLIER;
+        };
     }
     
     @Override
     public double getSignalDistributionMultiplier(SignalDistributionFactor factor) {
-        switch (factor) {
-            case UNIFORM_SIGNALS:
-                return RSSI_RATIO_UNIFORM_SIGNALS_MULTIPLIER;
-            case MIXED_SIGNALS:
-                return RSSI_RATIO_MIXED_SIGNALS_MULTIPLIER;
-            case SIGNAL_OUTLIERS:
-                return RSSI_RATIO_SIGNAL_OUTLIERS_MULTIPLIER;
-            default:
-                return RSSI_RATIO_MIXED_SIGNALS_MULTIPLIER;
-        }
+        return switch (factor) {
+            case UNIFORM_SIGNALS -> RSSI_RATIO_UNIFORM_SIGNALS_MULTIPLIER;
+            case MIXED_SIGNALS -> RSSI_RATIO_MIXED_SIGNALS_MULTIPLIER;
+            case SIGNAL_OUTLIERS -> RSSI_RATIO_SIGNAL_OUTLIERS_MULTIPLIER;
+            default -> RSSI_RATIO_MIXED_SIGNALS_MULTIPLIER;
+        };
     }
 } 
