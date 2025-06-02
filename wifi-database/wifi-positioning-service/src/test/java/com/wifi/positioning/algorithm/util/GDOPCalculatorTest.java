@@ -36,7 +36,6 @@ class GDOPCalculatorTest {
             double[] position = {50.0, 28.87, 0.0};  // Center of triangle
             
             double gdop = GDOPCalculator.calculateGDOP(coordinates, position, true);
-            System.out.println("GDOP for triangular geometry: " + gdop);
             
             // Should return a valid GDOP value (capped at MAX_ALLOWED_GDOP)
             assertTrue(gdop <= GDOPCalculator.MAX_ALLOWED_GDOP, 
@@ -93,7 +92,7 @@ class GDOPCalculatorTest {
             
             // Should be excellent GDOP (< 2.0)
             assertTrue(gdop < GDOPCalculator.EXCELLENT_GDOP, 
-                "Expected excellent GDOP for 2D triangular geometry");
+                "Expected excellent GDOP for 2D triangular geometry, got " + gdop);
         }
     }
     
