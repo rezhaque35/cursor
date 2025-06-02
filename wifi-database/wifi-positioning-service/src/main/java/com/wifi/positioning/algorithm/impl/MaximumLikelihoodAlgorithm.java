@@ -373,7 +373,7 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
     // ============================================================================
     // ALGORITHM SELECTION FRAMEWORK WEIGHTS
     // ============================================================================
-    
+
     /**
      * Weight constants from the algorithm selection framework.
      * These reflect the strengths and weaknesses of the Maximum Likelihood algorithm:
@@ -405,7 +405,7 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
     private static final double MAXIMUM_LIKELIHOOD_UNIFORM_SIGNALS_MULTIPLIER = 0.9;  // Slightly reduced with uniform signals
     private static final double MAXIMUM_LIKELIHOOD_MIXED_SIGNALS_MULTIPLIER = 1.1;    // Some improvement with mixed signals
     private static final double MAXIMUM_LIKELIHOOD_SIGNAL_OUTLIERS_MULTIPLIER = 1.2;  // Significant improvement with outliers
-
+    
     /**
      * Calculates position using Maximum Likelihood Estimation.
      * 
@@ -738,7 +738,7 @@ public class MaximumLikelihoodAlgorithm implements PositioningAlgorithm {
         
         // Calculate initial accuracy based on signal strength and geometry
         double initialAccuracy = calculateInitialAccuracy(avgSignalStrength, gdopFactor);
-        
+
         return new Position(
             weightedResult.latitude, 
             weightedResult.longitude, 
