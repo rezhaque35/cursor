@@ -163,7 +163,7 @@ public class WeightedCentroidAlgorithm implements PositioningAlgorithm {
     private static final double WEIGHTED_CENTROID_UNIFORM_SIGNALS_MULTIPLIER = 1.0;  // No change for uniform signals
     private static final double WEIGHTED_CENTROID_MIXED_SIGNALS_MULTIPLIER = 1.8;    // Better with mixed signals
     private static final double WEIGHTED_CENTROID_SIGNAL_OUTLIERS_MULTIPLIER = 1.4;  // Best with signal outliers
-
+    
     /**
      * Immutable data class to store weighted position calculation results.
      * 

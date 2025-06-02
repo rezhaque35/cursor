@@ -372,7 +372,7 @@ public class AlgorithmSelector {
         
         // ---------- STEP 1: THRESHOLD FILTER ----------
         // Remove algorithms with weight below 0.4
-        double minimumWeightThreshold = weightedAlgorithms.size() == 1 ? weightedAlgorithms.stream().findFirst().map(WeightedAlgorithm::weight).orElse(0.4) : 4.0;
+        double minimumWeightThreshold = weightedAlgorithms.size() == 1 ? weightedAlgorithms.stream().findFirst().map(WeightedAlgorithm::weight).orElse(0.4) : 0.4;
         weightedAlgorithms = weightedAlgorithms.stream()
             .filter(algorithm -> algorithm.weight() >= minimumWeightThreshold)
             .collect(Collectors.toSet());

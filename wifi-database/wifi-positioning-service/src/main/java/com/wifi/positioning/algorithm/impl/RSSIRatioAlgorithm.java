@@ -395,7 +395,7 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
             throw new IllegalArgumentException("At least " + MIN_REQUIRED_APS + 
                 " APs are required for RSSI ratio calculation");
         }
-    }
+        }
 
     /**
      * Creates a thread-safe map for AP lookups by MAC address.
@@ -453,7 +453,7 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
             int firstApIndex, List<WifiScanResult> wifiScan, Map<String, WifiAccessPoint> apMap) {
         
         return IntStream.range(firstApIndex + 1, wifiScan.size())
-            .parallel()
+                .parallel()
             .mapToObj(secondApIndex -> processAccessPointPair(
                 wifiScan.get(firstApIndex), 
                 wifiScan.get(secondApIndex), 
@@ -476,13 +476,13 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
      */
     private WeightedPositionResult processAccessPointPair(
             WifiScanResult scan1, WifiScanResult scan2, Map<String, WifiAccessPoint> apMap) {
-        
-        WifiAccessPoint ap1 = apMap.get(scan1.macAddress());
-        WifiAccessPoint ap2 = apMap.get(scan2.macAddress());
 
-        if (ap1 == null || ap2 == null) {
-            return null;
-        }
+                    WifiAccessPoint ap1 = apMap.get(scan1.macAddress());
+                    WifiAccessPoint ap2 = apMap.get(scan2.macAddress());
+
+                    if (ap1 == null || ap2 == null) {
+                        return null;
+                    }
 
         // Calculate signal strength ratio using path loss model
         double signalDifference = scan1.signalStrength() - scan2.signalStrength();
@@ -494,17 +494,17 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
         // Interpolate position using weighted ratio
         double lat = interpolateCoordinate(ap1.getLatitude(), ap2.getLatitude(), ratio);
         double lon = interpolateCoordinate(ap1.getLongitude(), ap2.getLongitude(), ratio);
-        
+                    
         // Handle altitude calculation with null safety
-        double alt = 0.0;
-        boolean hasAltitudeData = false;
-        
-        if (ap1.getAltitude() != null && ap2.getAltitude() != null) {
+                    double alt = 0.0;
+                    boolean hasAltitudeData = false;
+                    
+                    if (ap1.getAltitude() != null && ap2.getAltitude() != null) {
             alt = interpolateCoordinate(ap1.getAltitude(), ap2.getAltitude(), ratio);
-            hasAltitudeData = true;
-        }
+                        hasAltitudeData = true;
+                    }
 
-        return new WeightedPositionResult(lat * weight, lon * weight, alt * weight, weight, hasAltitudeData);
+                    return new WeightedPositionResult(lat * weight, lon * weight, alt * weight, weight, hasAltitudeData);
     }
 
     /**
@@ -657,7 +657,7 @@ public class RSSIRatioAlgorithm implements PositioningAlgorithm {
         // Calculate maximum possible weight for n APs: n*(n-1)/2 pairs
         int apCount = wifiScan.size();
         double maxPossibleWeight = apCount * (apCount - 1) / 2.0;
-        
+
         double baseConfidence = Math.min(MAX_CONFIDENCE, totalWeight / maxPossibleWeight);
         double computedConfidence = Math.min(MAX_CONFIDENCE, 
             baseConfidence + (signalQuality * CONFIDENCE_BOOST));

@@ -154,7 +154,7 @@ public class WifiPositioningCalculator {
     /**
      * Calculates positions using multiple algorithms in parallel with proper exception handling.
      * Each algorithm runs in its own thread with a timeout to prevent hanging.
-     * 
+     *
      * Exception Handling Strategy:
      * - TimeoutException: Algorithm took too long, logged as warning
      * - InterruptedException: Thread was interrupted, preserves interrupt status  
@@ -171,7 +171,7 @@ public class WifiPositioningCalculator {
      * result confidence contribute to the final position calculation.
      *
      * @param weightedAlgorithms Map of algorithms and their base weights from selection process
-     * @param validScans List of valid WiFi scan results  
+     * @param validScans List of valid WiFi scan results
      * @param knownAPs List of known access points
      * @return List of weighted positions calculated by successful algorithms
      */
@@ -242,11 +242,11 @@ public class WifiPositioningCalculator {
                 return new PositionCombiner.WeightedPosition(position, weight);
             }
             return null;
-        } catch (Exception e) {
+                } catch (Exception e) {
             logger.warn("Algorithm {} failed during execution: {}", 
                        algorithm.getName(), e.getMessage());
-            return null;
-        }
+                    return null;
+                }
     }
 
     /**
@@ -336,7 +336,7 @@ public class WifiPositioningCalculator {
         }
     }
 
-    /**
+        /**
      * Result of positioning calculation containing the calculated position,
      * information about algorithms used, reasons for algorithm selection, and selection context.
      */
