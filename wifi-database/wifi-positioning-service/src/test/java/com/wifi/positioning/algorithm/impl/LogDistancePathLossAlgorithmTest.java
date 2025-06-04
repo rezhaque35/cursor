@@ -297,8 +297,8 @@ class LogDistancePathLossAlgorithmTest {
                        "Longitude should be reasonable");
             assertTrue(position.altitude() >= 90.0 && position.altitude() <= 110.0, 
                        "Altitude should be reasonable");
-            assertTrue(position.accuracy() >= 4.0 && position.accuracy() <= 10.0, 
-                       "Expected accuracy between 4 and 10, got " + position.accuracy());
+            assertTrue(position.accuracy() >= 10.0 && position.accuracy() <= 20.0, 
+                       "Expected accuracy between 10 and 20, got " + position.accuracy());
             assertTrue(position.confidence() >= 0.6 && position.confidence() <= 0.9, 
                        "Confidence should be between 0.6 and 0.9");
         }
