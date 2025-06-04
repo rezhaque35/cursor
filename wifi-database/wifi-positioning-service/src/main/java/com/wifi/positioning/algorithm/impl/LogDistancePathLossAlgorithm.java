@@ -134,7 +134,6 @@ public class LogDistancePathLossAlgorithm implements PositioningAlgorithm {
     // Environment and signal propagation constants
     private static final double DEFAULT_PATH_LOSS_EXPONENT = 3.0;
     private static final double REFERENCE_DISTANCE = 1.0; // 1 meter
-    private static final double SPEED_OF_LIGHT = 299792458.0; // meters per second
     
     // Confidence calculation constants
     private static final double BASE_CONFIDENCE = 0.85;  // Base confidence for the algorithm
@@ -292,12 +291,11 @@ public class LogDistancePathLossAlgorithm implements PositioningAlgorithm {
 
                 boolean hasVendorInfo = ap.getVendor() != null && !ap.getVendor().isEmpty();
                 double pathLossExponent = getPathLossExponent(ap.getVendor(), scan.signalStrength());
-                double wavelength = SPEED_OF_LIGHT / (scan.frequency() * 1_000_000.0);
                 
                 // Get reference signal strength based on frequency instead of using historical data
                 double referenceRSSI = getReferenceSignalStrength(scan.frequency());
                 
-                double distance = calculateDistance(wavelength, scan.signalStrength(), 
+                double distance = calculateDistance(scan.signalStrength(), 
                     referenceRSSI, pathLossExponent);
                 double weight = calculateWeight(scan.signalStrength(), ap.getConfidence(), hasVendorInfo);
 
@@ -428,14 +426,6 @@ public class LogDistancePathLossAlgorithm implements PositioningAlgorithm {
     }
 
     /**
-     * Calculates the free space path loss at a given distance.
-     * FSPL = 20 * log10(4 * PI * d / λ)
-     */
-    private double calculateFreeSpacePathLoss(double wavelength, double distance) {
-        return 20 * Math.log10((4 * Math.PI * distance) / wavelength);
-    }
-
-    /**
      * Determines the path loss exponent based on the vendor and signal characteristics.
      * If vendor information is missing, estimates based on signal strength.
      */
@@ -535,13 +525,12 @@ public class LogDistancePathLossAlgorithm implements PositioningAlgorithm {
      *    - 5 GHz: -45 dBm at 1m (IEEE 802.11a/n/ac higher attenuation)
      *    Based on "Propagation Engineering Principles" and ITU-R recommendations
      * 
-     * @param wavelength Signal wavelength in meters
      * @param signalStrength Measured signal strength in dBm
      * @param referenceSignalStrength Reference signal strength in dBm at 1m
      * @param pathLossExponent Path loss exponent for environment
      * @return Scientifically validated distance estimate in meters
      */
-    private double calculateDistance(double wavelength, double signalStrength, double referenceSignalStrength, double pathLossExponent) {
+    private double calculateDistance(double signalStrength, double referenceSignalStrength, double pathLossExponent) {
         // Calculate path loss in dB using the standard IEEE 802.11 model
         double actualPathLoss = Math.abs(referenceSignalStrength - signalStrength);
         
