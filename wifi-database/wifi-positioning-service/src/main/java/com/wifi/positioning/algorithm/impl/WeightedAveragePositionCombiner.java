@@ -139,8 +139,17 @@ public class WeightedAveragePositionCombiner implements PositionCombiner {
             accuracies.add(wp.position().accuracy());
         }
         
-        // Calculate covariance matrix elements
-        double[] covarianceElements = calculateCovarianceMatrix(positions, meanLat, meanLon);
+        // Extract position arrays for covariance calculation
+        double[] latitudes = positions.stream()
+            .mapToDouble(wp -> wp.position().latitude())
+            .toArray();
+        double[] longitudes = positions.stream()
+            .mapToDouble(wp -> wp.position().longitude())
+            .toArray();
+        
+        // Calculate covariance matrix elements using centralized GDOPCalculator method
+        double[] covarianceElements = GDOPCalculator.calculatePositionCovarianceMatrix(
+            latitudes, longitudes, meanLat, meanLon);
         double covLatLat = covarianceElements[0];
         double covLonLon = covarianceElements[1];
         double covLatLon = covarianceElements[2];
@@ -189,53 +198,6 @@ public class WeightedAveragePositionCombiner implements PositionCombiner {
         Position result = new Position(weightedLat, weightedLon, weightedAlt, adjustedAccuracy, adjustedConfidence);
         logger.debug("Final position: {}", result);
         return result;
-    }
-    
-    /**
-     * Calculates the covariance matrix elements for the position distribution.
-     * The covariance matrix quantifies how the positions vary together and is used
-     * to assess the geometric quality of the position distribution.
-     * 
-     * Mathematical formula:
-     * Cov(X,Y) = (1/n) * Σ[(Xi - X_mean)(Yi - Y_mean)]
-     * 
-     * Where:
-     * - n is the number of positions
-     * - Xi represents latitude values
-     * - Yi represents longitude values
-     * - X_mean is the mean latitude
-     * - Y_mean is the mean longitude
-     * 
-     * The covariance matrix has the form:
-     * [Cov(lat,lat)  Cov(lat,lon)]
-     * [Cov(lon,lat)  Cov(lon,lon)]
-     * 
-     * @param positions List of weighted positions
-     * @param meanLat Mean latitude of all positions
-     * @param meanLon Mean longitude of all positions
-     * @return Array containing [covLatLat, covLonLon, covLatLon]
-     */
-    private double[] calculateCovarianceMatrix(List<WeightedPosition> positions, double meanLat, double meanLon) {
-        double covLatLat = 0, covLonLon = 0, covLatLon = 0;
-        int n = positions.size();
-        
-        for (WeightedPosition wp : positions) {
-            double latDiff = wp.position().latitude() - meanLat;
-            double lonDiff = wp.position().longitude() - meanLon;
-            
-            covLatLat += latDiff * latDiff;
-            covLonLon += lonDiff * lonDiff;
-            covLatLon += latDiff * lonDiff;
-        }
-        
-        covLatLat /= n;
-        covLonLon /= n;
-        covLatLon /= n;
-        
-        logger.debug("Covariance matrix: [{}, {}; {}, {}]", 
-            covLatLat, covLatLon, covLatLon, covLonLon);
-            
-        return new double[] {covLatLat, covLonLon, covLatLon};
     }
     
     /**

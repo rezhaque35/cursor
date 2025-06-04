@@ -744,4 +744,73 @@ public class GDOPCalculator {
             }
         }
     }
+
+    /**
+     * Calculates statistical covariance matrix for position estimate distribution.
+     * This method computes the covariance matrix of position estimates from different algorithms
+     * to assess the geometric quality and agreement of positioning results.
+     * 
+     * MATHEMATICAL FOUNDATION:
+     * Statistical covariance quantifies how position estimates vary together:
+     * Cov(X,Y) = (1/n) * Σ[(Xi - X_mean)(Yi - Y_mean)]
+     * 
+     * The resulting covariance matrix has the form:
+     * [Cov(lat,lat)  Cov(lat,lon)]
+     * [Cov(lon,lat)  Cov(lon,lon)]
+     * 
+     * GEOMETRIC INTERPRETATION:
+     * - High covariance values indicate wide spread of position estimates
+     * - Low covariance values indicate tight clustering of estimates
+     * - Cross-covariance reveals correlation between latitude and longitude errors
+     * 
+     * ACADEMIC BASIS:
+     * This follows standard statistical covariance calculation from:
+     * - Johnson, R.A. & Wichern, D.W. (2007). "Applied Multivariate Statistical Analysis"
+     * - Anderson, T.W. (2003). "An Introduction to Multivariate Statistical Analysis"
+     * 
+     * Used for:
+     * 1. Condition number calculation for geometric quality assessment
+     * 2. Algorithm agreement analysis
+     * 3. Confidence adjustment based on estimate consistency
+     * 
+     * @param latitudes Array of latitude estimates from different algorithms
+     * @param longitudes Array of longitude estimates from different algorithms  
+     * @param meanLat Mean latitude of all position estimates
+     * @param meanLon Mean longitude of all position estimates
+     * @return Array containing [covLatLat, covLonLon, covLatLon] covariance matrix elements
+     * @throws IllegalArgumentException if arrays have different lengths or are empty
+     */
+    public static double[] calculatePositionCovarianceMatrix(double[] latitudes, double[] longitudes, 
+                                                           double meanLat, double meanLon) {
+        // Input validation
+        if (latitudes.length != longitudes.length) {
+            throw new IllegalArgumentException("Latitude and longitude arrays must have the same length");
+        }
+        if (latitudes.length == 0) {
+            throw new IllegalArgumentException("Position arrays cannot be empty");
+        }
+        
+        double covLatLat = 0, covLonLon = 0, covLatLon = 0;
+        int n = latitudes.length;
+        
+        // Calculate covariance matrix elements
+        for (int i = 0; i < n; i++) {
+            double latDiff = latitudes[i] - meanLat;
+            double lonDiff = longitudes[i] - meanLon;
+            
+            covLatLat += latDiff * latDiff;
+            covLonLon += lonDiff * lonDiff;
+            covLatLon += latDiff * lonDiff;  // Cross-covariance
+        }
+        
+        // Normalize by sample size
+        covLatLat /= n;
+        covLonLon /= n;
+        covLatLon /= n;
+        
+        logger.debug("Position covariance matrix: [{}, {}; {}, {}]", 
+            covLatLat, covLatLon, covLatLon, covLonLon);
+            
+        return new double[] {covLatLat, covLonLon, covLatLon};
+    }
 } 
