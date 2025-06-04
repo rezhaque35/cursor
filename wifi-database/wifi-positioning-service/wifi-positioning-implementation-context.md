@@ -662,6 +662,15 @@ For remaining eligible algorithms, we apply base weights according to AP count:
 | Poor GDOP (> 6) | ×1.0 | ×0.8 | ×1.3 | ×0.3 | ×0.7 | ×0.7 |
 | Collinear APs | ×1.0 | ×0.7 | ×1.4 | ×0.0 | ×0.5 | ×0.6 |
 
+### Signal Distribution Adjustments
+
+| Distribution Pattern | Proximity | RSSI Ratio | Weighted Centroid | Trilateration | Maximum Likelihood | Log Distance |
+|----------------------|-----------|------------|-------------------|---------------|-------------------|--------------|
+| Uniform signal levels | ×1.0 | ×1.2 | ×1.0 | ×1.1 | ×0.9 | ×1.1 |
+| Mixed signal levels | ×0.7 | ×0.9 | ×1.8 | ×0.8 | ×1.1 | ×0.8 |
+| Signal outliers present | ×0.9 | ×0.7 | ×1.4 | ×0.5 | ×1.2 | ×0.8 |
+
+
 #### Test Case Examples and Algorithm Selection
 
 ##### 1. Single AP Test (Test Case 1)
