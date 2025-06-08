@@ -109,16 +109,16 @@ class WifiAccessPointRepositoryBatchTest {
     }
     
     @Test
-    @DisplayName("Batch find with multiple versions takes the first version")
-    void batchFindWithMultipleVersions() {
-        // Add another version of the first AP
-        WifiAccessPoint ap1v2 = WifiAccessPoint.builder()
+    @DisplayName("Batch find after update returns the updated version")
+    void batchFindAfterUpdateReturnsUpdatedVersion() {
+        // Update the first AP with new coordinates
+        WifiAccessPoint updatedAp1 = WifiAccessPoint.builder()
                 .macAddress(MAC_1)
                 .version(VERSION_2)
                 .latitude(37.7752)
                 .longitude(-122.4197)
                 .build();
-        testRepository.save(ap1v2);
+        testRepository.save(updatedAp1);
         
         // Execute the batch find
         Map<String, WifiAccessPoint> results = repository.findByMacAddresses(
@@ -129,9 +129,11 @@ class WifiAccessPointRepositoryBatchTest {
         assertEquals(1, results.size());
         assertTrue(results.containsKey(MAC_1));
         
-        // Verify one of the versions is returned (depending on implementation)
+        // Verify the updated version is returned (since table only has partition key)
         WifiAccessPoint ap = results.get(MAC_1);
         assertEquals(MAC_1, ap.getMacAddress());
-        assertTrue(VERSION_1.equals(ap.getVersion()) || VERSION_2.equals(ap.getVersion()));
+        assertEquals(VERSION_2, ap.getVersion());
+        assertEquals(37.7752, ap.getLatitude(), 0.0001);
+        assertEquals(-122.4197, ap.getLongitude(), 0.0001);
     }
 } 

@@ -15,17 +15,19 @@ import java.util.stream.Collectors;
 /**
  * In-memory implementation of the WifiAccessPointRepository interface for testing.
  * This implementation does not require any external dependencies like DynamoDB.
+ * Since the real DynamoDB table only has a partition key (mac_addr), each MAC address
+ * can only have one entry, which is reflected in this implementation.
  */
 @Profile("test")
 public class InMemoryWifiAccessPointRepository implements WifiAccessPointRepository, TestWifiAccessPointRepository {
     
-    // Map of MAC address to list of access points (for different versions)
-    private final Map<String, List<WifiAccessPoint>> dataStore = new ConcurrentHashMap<>();
+    // Map of MAC address to access point (single entry per MAC since only partition key exists)
+    private final Map<String, WifiAccessPoint> dataStore = new ConcurrentHashMap<>();
     
     @Override
     public Optional<WifiAccessPoint> findByMacAddress(String macAddress) {
-        List<WifiAccessPoint> accessPoints = dataStore.getOrDefault(macAddress, Collections.emptyList());
-        return accessPoints.isEmpty() ? Optional.empty() : Optional.of(accessPoints.get(0));
+        WifiAccessPoint accessPoint = dataStore.get(macAddress);
+        return Optional.ofNullable(accessPoint);
     }
     
     /**
@@ -45,19 +47,23 @@ public class InMemoryWifiAccessPointRepository implements WifiAccessPointReposit
         
         // Lookup each MAC address and add to the result map
         for (String macAddress : macAddresses) {
-            Optional<WifiAccessPoint> accessPoint = findByMacAddress(macAddress);
-            accessPoint.ifPresent(ap -> result.put(macAddress, ap));
+            WifiAccessPoint accessPoint = dataStore.get(macAddress);
+            if (accessPoint != null) {
+                result.put(macAddress, accessPoint);
+            }
         }
         
         return result;
     }
     
     /**
-     * Find an access point by MAC address and version
+     * Find an access point by MAC address and version.
+     * Since the table only has a partition key, this method checks if the stored
+     * access point matches the requested version.
      * 
      * @param macAddress MAC address of the access point
      * @param version Version identifier
-     * @return Optional containing the access point if found
+     * @return Optional containing the access point if found and version matches
      */
     @Override
     public Optional<WifiAccessPoint> findByMacAddressAndVersion(String macAddress, String version) {
@@ -65,14 +71,17 @@ public class InMemoryWifiAccessPointRepository implements WifiAccessPointReposit
             return Optional.empty();
         }
         
-        List<WifiAccessPoint> accessPoints = dataStore.getOrDefault(macAddress, Collections.emptyList());
-        return accessPoints.stream()
-                .filter(ap -> version.equals(ap.getVersion()))
-                .findFirst();
+        WifiAccessPoint accessPoint = dataStore.get(macAddress);
+        if (accessPoint != null && version.equals(accessPoint.getVersion())) {
+            return Optional.of(accessPoint);
+        }
+        return Optional.empty();
     }
     
     /**
-     * Save an access point to the repository
+     * Save an access point to the repository.
+     * Since the table only has a partition key, this replaces any existing entry
+     * for the same MAC address.
      * 
      * @param accessPoint The access point to save
      */
@@ -82,17 +91,8 @@ public class InMemoryWifiAccessPointRepository implements WifiAccessPointReposit
             return;
         }
         
-        String macAddress = accessPoint.getMacAddress();
-        List<WifiAccessPoint> existing = dataStore.getOrDefault(macAddress, new ArrayList<>());
-        
-        // Remove any existing version with the same version identifier
-        if (accessPoint.getVersion() != null) {
-            existing.removeIf(ap -> accessPoint.getVersion().equals(ap.getVersion()));
-        }
-        
-        // Add the new access point
-        existing.add(accessPoint);
-        dataStore.put(macAddress, existing);
+        // Simply store the access point, replacing any existing entry
+        dataStore.put(accessPoint.getMacAddress(), accessPoint);
     }
     
     /**
@@ -114,7 +114,9 @@ public class InMemoryWifiAccessPointRepository implements WifiAccessPointReposit
     }
     
     /**
-     * Delete an access point by MAC address and version
+     * Delete an access point by MAC address and version.
+     * Since the table only has a partition key, this deletes the entry
+     * only if the version matches.
      * 
      * @param macAddress MAC address of the access point
      * @param version Version identifier
@@ -125,13 +127,9 @@ public class InMemoryWifiAccessPointRepository implements WifiAccessPointReposit
             return;
         }
         
-        List<WifiAccessPoint> existing = dataStore.getOrDefault(macAddress, Collections.emptyList());
-        existing.removeIf(ap -> version.equals(ap.getVersion()));
-        
-        if (existing.isEmpty()) {
+        WifiAccessPoint existing = dataStore.get(macAddress);
+        if (existing != null && version.equals(existing.getVersion())) {
             dataStore.remove(macAddress);
-        } else {
-            dataStore.put(macAddress, existing);
         }
     }
     
@@ -148,7 +146,6 @@ public class InMemoryWifiAccessPointRepository implements WifiAccessPointReposit
         }
         
         return dataStore.values().stream()
-                .flatMap(List::stream)
                 .filter(ap -> ap.getGeohash() != null && ap.getGeohash().startsWith(geohash))
                 .collect(Collectors.toList());
     }
@@ -165,7 +162,6 @@ public class InMemoryWifiAccessPointRepository implements WifiAccessPointReposit
     public List<WifiAccessPoint> findNearestByCoordinates(double latitude, double longitude, int limit) {
         // This is a simplified implementation that just sorts by distance
         return dataStore.values().stream()
-                .flatMap(List::stream)
                 .filter(ap -> ap.getLatitude() != null && ap.getLongitude() != null)
                 .sorted(Comparator.comparingDouble(ap -> 
                     calculateDistance(latitude, longitude, ap.getLatitude(), ap.getLongitude())))
@@ -188,15 +184,15 @@ public class InMemoryWifiAccessPointRepository implements WifiAccessPointReposit
     }
     
     /**
-     * Helper method for tests to add access points to the in-memory store
+     * Helper method for tests to add access points to the in-memory store.
+     * Since table only has partition key, this replaces any existing entry for the MAC address.
      */
     public void addAccessPoint(WifiAccessPoint accessPoint) {
         if (accessPoint == null || accessPoint.getMacAddress() == null) {
             return;
         }
         
-        dataStore.computeIfAbsent(accessPoint.getMacAddress(), k -> new ArrayList<>())
-                .add(accessPoint);
+        dataStore.put(accessPoint.getMacAddress(), accessPoint);
     }
     
     /**
@@ -416,8 +412,6 @@ public class InMemoryWifiAccessPointRepository implements WifiAccessPointReposit
      */
     @Override
     public long getApproximateItemCount() throws ResourceNotFoundException, DynamoDbException, Exception {
-        return dataStore.values().stream()
-                .mapToLong(List::size)
-                .sum();
+        return dataStore.size();
     }
 } 
