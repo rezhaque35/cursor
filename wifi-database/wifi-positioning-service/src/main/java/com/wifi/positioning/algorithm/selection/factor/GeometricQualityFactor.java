@@ -17,7 +17,83 @@ import org.apache.commons.math3.linear.RealMatrix;
 /**
  * Enum representing different geometric quality scenarios based on GDOP (Geometric Dilution of Precision)
  * that affect algorithm weights.
- * Based on the algorithm selection framework documentation.
+ * 
+ * GEOMETRIC DILUTION OF PRECISION (GDOP) METHODOLOGY:
+ * 
+ * This classification system is based on the industry-standard GDOP ratings used in satellite
+ * navigation and adapted for WiFi-based indoor positioning systems. GDOP quantifies how the
+ * geometric arrangement of reference points (access points) affects positioning accuracy.
+ * 
+ * INDUSTRY STANDARD REFERENCE:
+ * [1] Wikipedia: "Dilution of precision (navigation)"
+ *     https://en.wikipedia.org/wiki/Dilution_of_precision_(navigation)
+ *     - Comprehensive overview of GDOP theory and standard classification thresholds
+ * 
+ * STANDARD GDOP CLASSIFICATION (from satellite navigation):
+ * 
+ * | DOP Value | Rating    | Description |
+ * |-----------|-----------|-------------|
+ * | < 1       | Ideal     | Highest possible confidence, most sensitive applications |
+ * | 1-2       | Excellent | Accurate enough for all but most sensitive applications |
+ * | 2-5       | Good      | Minimum appropriate for business decisions, reliable navigation |
+ * | 5-10      | Moderate  | Usable for calculations but fix quality could be improved |
+ * | 10-20     | Fair      | Low confidence level, very rough estimates only |
+ * | > 20      | Poor      | Inaccurate measurements, should be discarded |
+ * 
+ * WIFI POSITIONING ADAPTATION:
+ * Our implementation adapts these standards for indoor WiFi positioning constraints:
+ * 
+ * EXCELLENT_GDOP (< 2.0):
+ * - Equivalent to "Ideal" to "Excellent" satellite navigation ratings
+ * - Optimal access point geometric distribution
+ * - Enables all positioning algorithms with maximum confidence
+ * - Typical scenario: APs well-distributed around user position
+ * - Algorithm Impact: Enhances trilateration and maximum likelihood weights (×1.3, ×1.2)
+ * 
+ * GOOD_GDOP (2.0-4.0):
+ * - Equivalent to "Good" satellite navigation rating
+ * - Good geometric distribution suitable for reliable positioning
+ * - Most algorithms perform well with standard weights
+ * - Typical scenario: APs reasonably spaced with minor clustering
+ * - Algorithm Impact: Standard weights with slight trilateration reduction (×0.9)
+ * 
+ * FAIR_GDOP (4.0-6.0):
+ * - Bridging "Good" to "Moderate" satellite navigation ratings
+ * - Acceptable geometry but with reduced precision expectations
+ * - Favors robust algorithms over precision methods
+ * - Typical scenario: APs somewhat clustered or irregularly distributed
+ * - Algorithm Impact: Reduces trilateration weight (×0.6), increases centroid weight (×1.2)
+ * 
+ * POOR_GDOP (> 6.0):
+ * - Equivalent to "Moderate" and worse satellite navigation ratings
+ * - Poor geometric distribution significantly affects accuracy
+ * - Only robust algorithms should be used
+ * - Typical scenario: APs highly clustered or forming poor geometric patterns
+ * - Algorithm Impact: Severely reduces trilateration (×0.3), emphasizes centroid methods (×1.3)
+ * 
+ * COLLINEAR (Special Case):
+ * - Not applicable to satellite navigation (satellites never collinear from Earth)
+ * - Unique to terrestrial positioning where reference points can align linearly
+ * - Makes trilateration mathematically impossible (×0.0 weight)
+ * - Requires alternative positioning approaches
+ * - Algorithm Impact: Disables trilateration, maximizes weighted centroid (×1.4)
+ * 
+ * THRESHOLD ADAPTATION RATIONALE:
+ * - Indoor WiFi positioning has tighter geometric constraints than satellite systems
+ * - Lower thresholds (2.0, 4.0, 6.0) vs. satellite standards (2.0, 5.0, 10.0) reflect:
+ *   * Limited 2D positioning (no altitude diversity like satellites)
+ *   * Constrained indoor environments with potential obstructions
+ *   * Need for more conservative quality assessment in confined spaces
+ * 
+ * MATHEMATICAL FOUNDATION:
+ * GDOP calculation follows standard navigation principles:
+ * - GDOP = √(trace(Q)) where Q = (H^T × H)^(-1)
+ * - H is the geometry matrix with unit vectors from position to each AP
+ * - Lower GDOP values indicate better geometric distribution
+ * - Values scale with position uncertainty magnification factor
+ * 
+ * Based on the algorithm selection framework documentation and adapted from
+ * satellite navigation standards for WiFi indoor positioning applications.
  */
 public enum GeometricQualityFactor {
     /** Excellent geometric distribution (GDOP < 2) */
