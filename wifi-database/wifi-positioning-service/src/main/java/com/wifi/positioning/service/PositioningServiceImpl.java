@@ -5,7 +5,6 @@ import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.WifiPositioningResponse;
 import com.wifi.positioning.dto.WifiPositioningResponse.WifiPosition;
 import com.wifi.positioning.dto.WifiScanResult;
-import com.wifi.positioning.controller.PositioningException;
 import com.wifi.positioning.dto.WifiAccessPoint;
 import com.wifi.positioning.repository.WifiAccessPointRepository;
 import org.slf4j.Logger;
@@ -38,6 +37,48 @@ import com.wifi.positioning.dto.WifiPositioningRequest;
 public class PositioningServiceImpl implements PositioningService {
 
     private static final Logger logger = LoggerFactory.getLogger(PositioningServiceImpl.class);
+    
+    /**
+     * Error message constants for consistent error reporting.
+     * These constants ensure standardized error messages across the application
+     * and make them easier to maintain and localize if needed.
+     */
+    
+    /**
+     * Error message when no WiFi scan results are provided in the request.
+     * Rationale: This is a client-side error indicating missing required data.
+     * The message is clear and actionable for API consumers.
+     */
+    private static final String ERROR_NO_SCAN_RESULTS = "No WiFi scan results provided";
+    
+    /**
+     * Error message when signal physics validation fails.
+     * Rationale: Indicates that the signal strength relationships between access points
+     * violate physical laws (e.g., signal strength increases with distance), suggesting
+     * measurement errors or data corruption.
+     */
+    private static final String ERROR_INVALID_SIGNAL_PHYSICS = "Physically impossible signal strength relationships";
+    
+    /**
+     * Error message when no known access points are found in the database.
+     * Rationale: Indicates that none of the scanned access points exist in our reference
+     * database, making position calculation impossible.
+     */
+    private static final String ERROR_NO_KNOWN_ACCESS_POINTS = "No known access points found in database";
+    
+    /**
+     * Error message when no access points with valid status are available.
+     * Rationale: While access points were found, none have "active" or "warning" status,
+     * so they cannot be used for reliable positioning calculations.
+     */
+    private static final String ERROR_NO_VALID_STATUS_ACCESS_POINTS = "No access points with valid status (active or warning) found";
+    
+    /**
+     * Base error message for position calculation failures.
+     * Rationale: Generic message for when the positioning algorithms cannot determine
+     * a location despite having valid input data.
+     */
+    private static final String ERROR_POSITION_CALCULATION_FAILED = "Position calculation failed: no position could be determined";
     
     /**
      * Default value for vertical accuracy when not provided by the positioning algorithms.
@@ -76,7 +117,8 @@ public class PositioningServiceImpl implements PositioningService {
         
         // Check if we have any scan results
         if (request.wifiScanResults().isEmpty()) {
-            throw new PositioningException("No WiFi scan results provided");
+            logger.warn(ERROR_NO_SCAN_RESULTS);
+            return WifiPositioningResponse.error(ERROR_NO_SCAN_RESULTS, request);
         }
         
         try {
@@ -84,9 +126,9 @@ public class PositioningServiceImpl implements PositioningService {
             
             // Check if the signal physics is valid
             if (!signalPhysicsValidator.isPhysicallyPossible(scanResults)) {
-                logger.warn("Physically impossible signal strength relationships detected");
+                logger.warn(ERROR_INVALID_SIGNAL_PHYSICS);
                 return WifiPositioningResponse.error(
-                    "Physically impossible signal strength relationships", 
+                    ERROR_INVALID_SIGNAL_PHYSICS, 
                     request
                 );
             }
@@ -95,7 +137,7 @@ public class PositioningServiceImpl implements PositioningService {
             List<WifiAccessPoint> knownAPs = lookupKnownAccessPoints(scanResults);
             
             if (knownAPs.isEmpty()) {
-                logger.warn("No known access points found in database");
+                logger.warn(ERROR_NO_KNOWN_ACCESS_POINTS);
                 return createPositionNotFoundResponse(scanResults.size(), request);
             }
             
@@ -103,7 +145,7 @@ public class PositioningServiceImpl implements PositioningService {
             List<WifiAccessPoint> validStatusAPs = filterAPsByStatus(knownAPs);
             
             if (validStatusAPs.isEmpty()) {
-                logger.warn("No access points with valid status (active or warning) found");
+                logger.warn(ERROR_NO_VALID_STATUS_ACCESS_POINTS);
                 return createPositionNotFoundResponse(scanResults.size(), request);
             }
             
@@ -113,17 +155,13 @@ public class PositioningServiceImpl implements PositioningService {
             long calculationTime = System.currentTimeMillis() - startTime;
             
             if (positioningResult == null || positioningResult.position() == null) {
-                logger.warn("Position calculation failed");
+                logger.warn(ERROR_POSITION_CALCULATION_FAILED);
                 return createPositionNotFoundResponse(scanResults.size(), request);
             }
 
             return createSuccessResponse(positioningResult, scanResults.size(), calculationTime, request, knownAPs);
             
         } catch (Exception e) {
-            if (e instanceof PositioningException) {
-                // For specific handled exceptions, propagate them
-                throw (PositioningException) e;
-            }
             // For unhandled exceptions, return an error response
             logger.error("Error calculating position", e);
             return WifiPositioningResponse.error(e.getMessage(), request);
@@ -146,7 +184,7 @@ public class PositioningServiceImpl implements PositioningService {
      * Create a response when position calculation fails
      */
     private WifiPositioningResponse createPositionNotFoundResponse(int apCount, WifiPositioningRequest request) {
-        String message = "Position calculation failed: no position could be determined";
+        String message = ERROR_POSITION_CALCULATION_FAILED;
         return WifiPositioningResponse.error(message, request);
     }
     

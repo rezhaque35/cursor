@@ -37,20 +37,7 @@ class GlobalExceptionHandlerTest {
         assertNull(response.getBody().wifiPosition());
     }
     
-    @Test
-    void should_ReturnCustomStatus_When_HandlingPositioningException() {
-        // Arrange
-        PositioningException exception = new PositioningException("No access points found", HttpStatus.NOT_FOUND);
-        
-        // Act
-        ResponseEntity<WifiPositioningResponse> response = handler.handlePositioningException(exception);
-        
-        // Assert
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertEquals("ERROR", response.getBody().result());
-        assertEquals("Error 404: No access points found", response.getBody().message());
-        assertNull(response.getBody().wifiPosition());
-    }
+
     
     @Test
     void should_ReturnValidationErrors_When_HandlingMethodArgumentNotValidException() {

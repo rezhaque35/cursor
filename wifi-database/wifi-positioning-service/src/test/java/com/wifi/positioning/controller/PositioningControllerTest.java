@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wifi.positioning.dto.WifiPositioningRequest;
 import com.wifi.positioning.dto.WifiPositioningResponse;
 import com.wifi.positioning.dto.WifiScanResult;
-import com.wifi.positioning.controller.PositioningException;
+
 import com.wifi.positioning.service.PositioningService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -138,18 +138,17 @@ class PositioningControllerTest {
     class ErrorHandlingTests {
 
     @Test
-        @DisplayName("Should return error response with correct status when PositioningException is thrown")
-        void should_ReturnErrorResponseWithCorrectStatus_When_PositioningExceptionIsThrown() throws Exception {
+        @DisplayName("Should return error response with HTTP 200 when service returns error response")
+        void should_ReturnErrorResponseWithOk_When_ServiceReturnsErrorResponse() throws Exception {
         // Arrange
-            PositioningException exception = new PositioningException("Error message", HttpStatus.BAD_REQUEST);
             when(positioningService.calculatePosition(any(WifiPositioningRequest.class)))
-            .thenThrow(exception);
+            .thenReturn(errorResponse);
 
             // Act & Assert
             mockMvc.perform(post("/api/positioning/calculate")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(testRequest)))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.result", is("ERROR")))
                 .andExpect(jsonPath("$.message", is("Error message")));
@@ -159,8 +158,8 @@ class PositioningControllerTest {
     }
 
     @Test
-        @DisplayName("Should return error with specific message when NullPointerException is thrown")
-        void should_ReturnErrorWithSpecificMessage_When_NullPointerExceptionIsThrown() throws Exception {
+        @DisplayName("Should return error with generic message when NullPointerException is thrown")
+        void should_ReturnErrorWithGenericMessage_When_NullPointerExceptionIsThrown() throws Exception {
         // Arrange
             when(positioningService.calculatePosition(any(WifiPositioningRequest.class)))
                     .thenThrow(new NullPointerException("Null pointer error"));
@@ -172,15 +171,15 @@ class PositioningControllerTest {
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.result", is("ERROR")))
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Error processing WiFi data")));
+                .andExpect(jsonPath("$.message", is("Null pointer error")));
         
             // Verify service interaction
             verify(positioningService).calculatePosition(any(WifiPositioningRequest.class));
     }
 
     @Test
-        @DisplayName("Should return bad request status when generic RuntimeException is thrown")
-        void should_ReturnBadRequestStatus_When_GenericRuntimeExceptionIsThrown() throws Exception {
+        @DisplayName("Should return internal server error status when generic RuntimeException is thrown")
+        void should_ReturnInternalServerErrorStatus_When_GenericRuntimeExceptionIsThrown() throws Exception {
         // Arrange
             when(positioningService.calculatePosition(any(WifiPositioningRequest.class)))
                     .thenThrow(new RuntimeException("Generic error"));
@@ -189,7 +188,7 @@ class PositioningControllerTest {
             mockMvc.perform(post("/api/positioning/calculate")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(testRequest)))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isInternalServerError())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.result", is("ERROR")))
                 .andExpect(jsonPath("$.message", is("Generic error")));

@@ -6,7 +6,7 @@ import com.wifi.positioning.dto.Position;
 import com.wifi.positioning.dto.WifiPositioningRequest;
 import com.wifi.positioning.dto.WifiPositioningResponse;
 import com.wifi.positioning.dto.WifiScanResult;
-import com.wifi.positioning.controller.PositioningException;
+
 import com.wifi.positioning.dto.WifiAccessPoint;
 import com.wifi.positioning.repository.WifiAccessPointRepository;
 import com.wifi.positioning.service.PositioningServiceImpl;
@@ -133,8 +133,8 @@ public class PositioningServiceTest {
     class ErrorHandlingTests {
     
     @Test
-        @DisplayName("Should throw exception when scan results are empty")
-        void should_ThrowException_When_ScanResultsAreEmpty() {
+        @DisplayName("Should return error response when scan results are empty")
+        void should_ReturnErrorResponse_When_ScanResultsAreEmpty() {
             // Arrange
             WifiPositioningRequest emptyRequest = new WifiPositioningRequest(
                 Collections.emptyList(),
@@ -144,8 +144,17 @@ public class PositioningServiceTest {
                 false
             );
         
-            // Act & Assert
-            assertThrows(PositioningException.class, () -> positioningService.calculatePosition(emptyRequest));
+            // Act
+            WifiPositioningResponse response = positioningService.calculatePosition(emptyRequest);
+            
+            // Assert
+            assertNotNull(response);
+            assertEquals("ERROR", response.result());
+            assertEquals("No WiFi scan results provided", response.message());
+            assertEquals("test-request-id", response.requestId());
+            assertEquals("test-client", response.client());
+            assertEquals("test-app", response.application());
+            assertNull(response.wifiPosition());
         }
         
         @Test

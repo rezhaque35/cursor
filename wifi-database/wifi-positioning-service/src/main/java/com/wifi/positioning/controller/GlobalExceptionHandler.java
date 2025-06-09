@@ -29,10 +29,7 @@ public class GlobalExceptionHandler {
         return errorResponseEntity(ex.getMessage(), HttpStatus.BAD_REQUEST);
     }
 
-    @ExceptionHandler(PositioningException.class)
-    public ResponseEntity<WifiPositioningResponse> handlePositioningException(PositioningException ex) {
-        return errorResponseEntity(ex.getMessage(), ex.getStatus());
-    }
+
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<WifiPositioningResponse> handleValidationExceptions(
