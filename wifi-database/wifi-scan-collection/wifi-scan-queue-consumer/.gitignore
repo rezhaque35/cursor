@@ -103,13 +103,7 @@ application-local.yml
 application-local.properties
 application-secrets.yml
 application-secrets.properties
-secrets/
-*.key
-*.pem
-*.p12
-*.jks
-*.keystore
-*.truststore
+
 
 # Test Reports
 /test-results/
