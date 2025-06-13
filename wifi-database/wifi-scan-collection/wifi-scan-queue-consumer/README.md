@@ -187,6 +187,313 @@ kafka:
       type: PKCS12
 ```
 
+## 🏥 Health Monitoring & Kubernetes Integration
+
+### Health Check Architecture
+
+The application implements a comprehensive health monitoring system with custom health indicators designed for production Kubernetes deployments. The system distinguishes between **infrastructure readiness** (can the service start?) and **operational liveness** (is the service working correctly?).
+
+### Health Endpoints
+
+All health endpoints are available at the following URLs:
+
+| Endpoint | Purpose | Kubernetes Integration |
+|----------|---------|----------------------|
+| `http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/` | Overall application health | General monitoring |
+| `http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/readiness` | Readiness probe endpoint | K8s readiness probe |
+| `http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/liveness` | Liveness probe endpoint | K8s liveness probe |
+| `http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/api/metrics/kafka` | Detailed operational metrics | Monitoring/alerting |
+
+### Kubernetes Readiness Probe 🟢
+
+**Purpose**: Determines if the application is ready to receive traffic and process messages.
+
+**Kubernetes Configuration**:
+```yaml
+readinessProbe:
+  httpGet:
+    path: /frisco-location-wifi-scan-vmb-consumer/health/readiness
+    port: 8080
+  initialDelaySeconds: 30    # Allow time for Kafka connection establishment
+  periodSeconds: 10          # Check every 10 seconds
+  timeoutSeconds: 5          # 5-second timeout per check
+  failureThreshold: 3        # 3 consecutive failures = remove from service
+  successThreshold: 1        # 1 success = ready to receive traffic
+```
+
+**Health Indicators Included**:
+- **`kafkaConsumerGroup`**: Consumer group registration and cluster connectivity
+- **`kafkaTopicAccessibility`**: Access to configured Kafka topics
+- **`sslCertificate`**: SSL/TLS certificate health and expiration monitoring
+- **`messageProcessingReadiness`**: Service readiness for message processing
+
+**Configuration**:
+```yaml
+health:
+  indicator:
+    timeout-seconds: 5
+    consumption-timeout-minutes: 30    # Increased for idle tolerance
+    certificate-expiration-warning-days: 30
+    retry-attempts: 3
+    enable-caching: true
+    cache-ttl-seconds: 30
+```
+
+### Kubernetes Liveness Probe 🔴
+
+**Purpose**: Determines if the application is still running and healthy (restart if unhealthy).
+
+**Kubernetes Configuration**:
+```yaml
+livenessProbe:
+  httpGet:
+    path: /frisco-location-wifi-scan-vmb-consumer/health/liveness
+    port: 8080
+  initialDelaySeconds: 60    # Allow for application startup
+  periodSeconds: 30          # Check every 30 seconds
+  timeoutSeconds: 10         # 10-second timeout per check
+  failureThreshold: 3        # 3 consecutive failures = restart pod
+  successThreshold: 1        # 1 success = healthy
+```
+
+**Health Indicators Included**:
+- **`messageConsumptionActivity`**: Consumer polling and message processing health
+- **`jvmMemory`**: JVM memory usage monitoring
+
+**Critical Fix**: The liveness probe now correctly handles **idle periods** where no messages are available for consumption. The service remains healthy during idle periods and immediately processes messages when they become available.
+
+### SSL Certificate Monitoring 🔐
+
+The application includes comprehensive SSL certificate monitoring with **proactive alerting timeline**:
+
+#### Certificate Expiry Warning Timeline
+
+| Days Before Expiry | Alert Level | Action Required | Kubernetes Behavior |
+|-------------------|-------------|-----------------|-------------------|
+| **30+ days** | 🟢 **HEALTHY** | No action needed | Pod remains in service |
+| **30 days** | 🟡 **WARNING** | Plan certificate renewal | Pod remains in service |
+| **15 days** | 🟠 **CRITICAL** | Execute certificate renewal | Pod remains in service |
+| **7 days** | 🔴 **URGENT** | Emergency renewal procedures | Pod remains in service |
+| **0 days (expired)** | ❌ **FAILED** | Manual certificate renewal | **Pod removed from service** |
+
+#### SSL Certificate Health Response
+
+**Healthy Certificate (>30 days)**:
+```json
+{
+  "status": "UP",
+  "details": {
+    "sslEnabled": true,
+    "sslConnectionHealthy": true,
+    "keystoreExpired": false,
+    "truststoreExpired": false,
+    "keystoreExpiringSoon": false,
+    "truststoreExpiringSoon": false,
+    "keystoreDaysUntilExpiry": 364,
+    "truststoreDaysUntilExpiry": 364,
+    "minimumDaysUntilExpiry": 364,
+    "checkTimestamp": 1674567890123
+  }
+}
+```
+
+**Certificate Expiring Soon (7-30 days)**:
+```json
+{
+  "status": "UP",
+  "details": {
+    "sslEnabled": true,
+    "sslConnectionHealthy": true,
+    "keystoreExpiringSoon": true,
+    "truststoreExpiringSoon": false,
+    "keystoreDaysUntilExpiry": 15,
+    "certificateWarning": "Certificate expires in 15 days - renewal recommended",
+    "alertLevel": "CRITICAL"
+  }
+}
+```
+
+#### SSL Configuration for Certificate Monitoring
+
+```yaml
+kafka:
+  ssl:
+    enabled: true
+    keystore:
+      location: ${KAFKA_SSL_KEYSTORE_LOCATION:scripts/kafka/secrets/kafka.keystore.p12}
+      password: ${KAFKA_KEYSTORE_PASSWORD:kafka123}
+      type: PKCS12
+    truststore:
+      location: ${KAFKA_SSL_TRUSTSTORE_LOCATION:scripts/kafka/secrets/kafka.truststore.p12}
+      password: ${KAFKA_TRUSTSTORE_PASSWORD:kafka123}
+      type: PKCS12
+
+health:
+  indicator:
+    certificate-expiration-warning-days: 30
+    certificate-expiration-critical-days: 15
+    certificate-expiration-urgent-days: 7
+```
+
+### Custom Health Indicators Detail
+
+#### 1. KafkaConsumerGroupHealthIndicator
+**Purpose**: Monitors consumer group registration and cluster connectivity
+```json
+{
+  "kafkaConsumerGroup": {
+    "status": "UP",
+    "details": {
+      "consumerConnected": true,
+      "consumerGroupActive": true,
+      "clusterNodeCount": 3,
+      "checkTimestamp": 1674567890123
+    }
+  }
+}
+```
+
+#### 2. TopicAccessibilityHealthIndicator
+**Purpose**: Verifies access to configured Kafka topics
+```json
+{
+  "kafkaTopicAccessibility": {
+    "status": "UP",
+    "details": {
+      "topicsAccessible": true,
+      "topicName": "wifi-scan-data",
+      "checkTimestamp": 1674567890123
+    }
+  }
+}
+```
+
+#### 3. MessageConsumptionActivityHealthIndicator
+**Purpose**: Monitors consumer activity and idle tolerance
+```json
+{
+  "messageConsumptionActivity": {
+    "status": "UP",
+    "details": {
+      "reason": "Consumer is alive and ready to process messages",
+      "consumerConnected": true,
+      "consumerGroupActive": true,
+      "consumptionRate": 2.5,
+      "totalMessagesConsumed": 150,
+      "totalMessagesProcessed": 148,
+      "successRate": 98.67,
+      "livenessNote": "Service remains healthy during idle periods",
+      "checkTimestamp": 1674567890123
+    }
+  }
+}
+```
+
+#### 4. JvmMemoryHealthIndicator
+**Purpose**: Monitors JVM memory usage
+```json
+{
+  "jvmMemory": {
+    "status": "UP",
+    "details": {
+      "memoryHealthy": true,
+      "memoryUsagePercentage": 65.2,
+      "usedMemoryMB": 512,
+      "totalMemoryMB": 1024,
+      "maxMemoryMB": 2048,
+      "threshold": 90,
+      "checkTimestamp": 1674567890123
+    }
+  }
+}
+```
+
+### Health Check Testing
+
+Test health endpoints using the provided scripts:
+
+```bash
+# Test overall health
+curl -s http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/ | jq '.'
+
+# Test readiness probe
+curl -s http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/readiness | jq '.'
+
+# Test liveness probe
+curl -s http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/liveness | jq '.'
+
+# Comprehensive validation (tests idle tolerance)
+./scripts/run-test-suite.sh
+
+# Test health after idle period
+./scripts/validate-service-health.sh --count 5 --interval 1 --timeout 60
+```
+
+### Operational Metrics
+
+Detailed operational metrics available at:
+```
+GET http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/api/metrics/kafka
+```
+
+**Sample Response**:
+```json
+{
+  "totalMessagesConsumed": 1250,
+  "totalMessagesProcessed": 1248,
+  "totalMessagesFailed": 2,
+  "successRate": 99.84,
+  "errorRate": 0.16,
+  "averageProcessingTimeMs": 15.7,
+  "consumptionRate": 2.8,
+  "isPollingActive": true,
+  "isConsumerConnected": true,
+  "consumerGroupActive": true,
+  "isConsumptionHealthy": true,
+  "memoryUsagePercentage": 67.3,
+  "timestamp": 1674567890123,
+  "metricsVersion": "2.0.0"
+}
+```
+
+### Configuration Properties
+
+```yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env,kafka
+  endpoint:
+    health:
+      show-details: always
+      group:
+        readiness:
+          include: kafkaConsumerGroup,kafkaTopicAccessibility,sslCertificate,messageProcessingReadiness
+        liveness:
+          include: messageConsumptionActivity,jvmMemory
+  health:
+    kafka:
+      enabled: true
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+health:
+  indicator:
+    timeout-seconds: 5
+    memory-threshold-percentage: 90
+    consumption-timeout-minutes: 30    # Increased for idle tolerance
+    minimum-consumption-rate: 0.0
+    certificate-expiration-warning-days: 30
+    certificate-expiration-critical-days: 15
+    certificate-expiration-urgent-days: 7
+    retry-attempts: 3
+    enable-caching: true
+    cache-ttl-seconds: 30
+```
+
 ## 💻 Development
 
 ### Project Structure
@@ -439,7 +746,7 @@ docker ps | grep kafka
 ./scripts/create-test-topic.sh
 
 # Test basic connectivity
-curl http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health
+curl http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/
 ```
 
 #### SSL/TLS Problems
@@ -452,6 +759,19 @@ curl http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health
 
 # Check certificate validity
 openssl x509 -in secrets/kafka.cert.pem -text -noout
+```
+
+#### Health Check Issues
+```bash
+# Test all health endpoints
+curl -s http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/ | jq '.'
+curl -s http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/readiness | jq '.'
+curl -s http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/liveness | jq '.'
+
+# Test idle tolerance (critical fix)
+./scripts/run-test-suite.sh
+sleep 600  # Wait 10 minutes
+./scripts/run-test-suite.sh  # Should still pass
 ```
 
 ### Debug Mode
@@ -525,5 +845,5 @@ For support and questions:
 ---
 
 **Version**: 1.0.0-SNAPSHOT  
-**Last Updated**: December 2024  
-**License**: [MIT License](LICENSE) 
+**Last Updated**: June 2025  
+**License**: [MIT License](LICENSE)

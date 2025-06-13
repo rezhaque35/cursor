@@ -5,6 +5,34 @@
 ### Implementation Overview
 Successfully implemented comprehensive health monitoring system for the Kafka SSL/TLS consumer application following Test-Driven Development principles. The implementation provides both health check endpoints for Kubernetes readiness/liveness probes and detailed operational metrics for monitoring systems.
 
+**🎯 CRITICAL FIX**: Resolved the **10-minute idle timeout issue** where the service incorrectly became unhealthy after periods of no message activity. The service now correctly remains healthy during idle periods and immediately processes messages when they become available.
+
+## 🔗 Health Endpoints (Correct URLs)
+
+All health endpoints are accessible at the following **verified URLs**:
+
+| Endpoint | Purpose | Kubernetes Integration |
+|----------|---------|----------------------|
+| `http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/` | Overall application health | General monitoring |
+| `http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/readiness` | Readiness probe endpoint | K8s readiness probe |
+| `http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/liveness` | Liveness probe endpoint | K8s liveness probe |
+| `http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/api/metrics/kafka` | Detailed operational metrics | Monitoring/alerting |
+
+**Testing URLs**:
+```bash
+# Test overall health
+curl -s http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/ | jq '.'
+
+# Test readiness probe
+curl -s http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/readiness | jq '.'
+
+# Test liveness probe  
+curl -s http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/health/liveness | jq '.'
+
+# Test operational metrics
+curl -s http://localhost:8080/frisco-location-wifi-scan-vmb-consumer/api/metrics/kafka | jq '.'
+```
+
 ## 🎯 Core Health Indicators Implemented
 
 ### **1. KafkaConsumerGroupHealthIndicator** ✅
@@ -14,7 +42,7 @@ Successfully implemented comprehensive health monitoring system for the Kafka SS
   - Consumer connection to Kafka cluster via `ConsumerFactory.createConsumer()`
   - Consumer group active status via `AdminClient.listConsumerGroups()`
   - Cluster node count via `AdminClient.describeCluster()`
-- **Endpoint Inclusion**: Main health (`/actuator/health`) and Readiness probe (`/actuator/health/readiness`)
+- **Endpoint Inclusion**: Main health (`/health/`) and Readiness probe (`/health/readiness`)
 - **Response Details**:
   ```json
   {
@@ -22,8 +50,8 @@ Successfully implemented comprehensive health monitoring system for the Kafka SS
     "details": {
       "consumerConnected": true,
       "consumerGroupActive": true,
-      "clusterNodeCount": 3,
-      "checkTimestamp": 1674567890123
+      "clusterNodeCount": 1,
+      "checkTimestamp": 1749849775637
     }
   }
   ```
@@ -42,7 +70,7 @@ Successfully implemented comprehensive health monitoring system for the Kafka SS
     "status": "UP|DOWN",
     "details": {
       "topicsAccessible": true,
-      "checkTimestamp": 1674567890123
+      "checkTimestamp": 1749849775680
     }
   }
   ```
@@ -50,24 +78,28 @@ Successfully implemented comprehensive health monitoring system for the Kafka SS
 ### **3. MessageConsumptionActivityHealthIndicator** ✅
 - **Purpose**: Monitors consumer polling activity and message processing health
 - **Component Name**: `messageConsumptionActivity`
+- **🔧 CRITICAL FIX**: Enhanced to handle idle periods correctly
 - **Checks Performed**:
-  - Consumer polling activity within configurable timeout (default: 5 minutes)
-  - Message consumption health based on consumed vs processed ratio (80% threshold)
-  - Message consumption rate calculation over 10-minute window
+  - Consumer polling activity within configurable timeout (increased to **30 minutes**)
+  - Message consumption health based on connectivity rather than message processing during idle periods
+  - Message consumption rate calculation over time windows
   - Integration with `KafkaConsumerMetrics` for detailed tracking
-- **Endpoint Inclusion**: Main health and Liveness probe (`/actuator/health/liveness`)
+- **Endpoint Inclusion**: Main health and Liveness probe (`/health/liveness`)
+- **Idle Tolerance Fix**: Service remains `UP` during periods with no messages available
 - **Response Details**:
   ```json
   {
-    "status": "UP|DOWN",
+    "status": "UP",
     "details": {
-      "consumptionHealthy": true,
-      "pollingActive": true,
-      "consumptionRate": 2.5,
-      "totalMessagesConsumed": 150,
-      "totalMessagesProcessed": 148,
-      "successRate": 98.67,
-      "checkTimestamp": 1674567890123
+      "reason": "Consumer is alive and ready to process messages",
+      "consumerConnected": true,
+      "consumerGroupActive": true,
+      "consumptionRate": 1.8125,
+      "totalMessagesConsumed": 92,
+      "totalMessagesProcessed": 92,
+      "successRate": 100.0,
+      "livenessNote": "This probe indicates application liveness, not active consumption",
+      "checkTimestamp": 1749852760445
     }
   }
   ```
@@ -83,16 +115,16 @@ Successfully implemented comprehensive health monitoring system for the Kafka SS
 - **Response Details**:
   ```json
   {
-    "status": "UP|DOWN",
+    "status": "UP",
     "details": {
       "memoryHealthy": true,
-      "memoryUsagePercentage": 65.2,
-      "usedMemoryMB": 512,
-      "totalMemoryMB": 1024,
-      "maxMemoryMB": 2048,
-      "freeMemoryMB": 512,
+      "memoryUsagePercentage": 36.4,
+      "usedMemoryMB": 157,
+      "totalMemoryMB": 432,
+      "maxMemoryMB": 12288,
+      "freeMemoryMB": 274,
       "threshold": 90,
-      "checkTimestamp": 1674567890123
+      "checkTimestamp": 1749849775637
     }
   }
   ```
@@ -100,10 +132,20 @@ Successfully implemented comprehensive health monitoring system for the Kafka SS
 ### **5. SslCertificateHealthIndicator** ✅
 - **Purpose**: Validates SSL/TLS certificate health and accessibility
 - **Component Name**: `sslCertificate`
+- **🔐 SSL Certificate Warning Timeline**:
+  
+  | Days Before Expiry | Alert Level | Action Required | Kubernetes Behavior |
+  |-------------------|-------------|-----------------|-------------------|
+  | **30+ days** | 🟢 **HEALTHY** | No action needed | Pod remains in service |
+  | **30 days** | 🟡 **WARNING** | Plan certificate renewal | Pod remains in service |
+  | **15 days** | 🟠 **CRITICAL** | Execute certificate renewal | Pod remains in service |
+  | **7 days** | 🔴 **URGENT** | Emergency renewal procedures | Pod remains in service |
+  | **0 days (expired)** | ❌ **FAILED** | Manual certificate renewal | **Pod removed from service** |
+
 - **Checks Performed**:
   - SSL enabled/disabled detection
   - Keystore and truststore accessibility
-  - Certificate expiration date validation (warning at 30 days)
+  - Certificate expiration date validation with **proactive warning timeline**
   - SSL connection health via `AdminClient.describeCluster()`
   - Support for both classpath and filesystem certificate locations
 - **Endpoint Inclusion**: Main health and Readiness probe
@@ -114,7 +156,7 @@ Successfully implemented comprehensive health monitoring system for the Kafka SS
 - **Response Details** (SSL Enabled):
   ```json
   {
-    "status": "UP|DOWN",
+    "status": "UP",
     "details": {
       "sslEnabled": true,
       "sslConnectionHealthy": true,
@@ -124,9 +166,52 @@ Successfully implemented comprehensive health monitoring system for the Kafka SS
       "truststoreExpired": false,
       "keystoreExpiringSoon": false,
       "truststoreExpiringSoon": false,
-      "keystoreDaysUntilExpiry": 365,
-      "truststoreDaysUntilExpiry": 365,
-      "checkTimestamp": 1674567890123
+      "keystoreDaysUntilExpiry": 364,
+      "truststoreDaysUntilExpiry": 364,
+      "minimumDaysUntilExpiry": 364,
+      "checkTimestamp": 1749849775680
+    }
+  }
+  ```
+
+### **6. EnhancedSslCertificateHealthIndicator** ✅
+- **Purpose**: Advanced SSL certificate monitoring with CloudWatch integration readiness
+- **Component Name**: `enhancedSslCertificate`
+- **Advanced Features**:
+  - Certificate health scoring (0-100)
+  - Kubernetes event generation for certificate state changes
+  - CloudWatch metrics export preparation
+  - Timeline-based alerting stages
+- **Response Details**:
+  ```json
+  {
+    "status": "UP",
+    "details": {
+      "readinessOptimized": true,
+      "cloudWatchMetrics": {
+        "certificateHealthScore": 100.0,
+        "kubernetesEventData": {
+          "reason": "SSLCertificateStatus",
+          "message": "SSL certificates are healthy",
+          "eventType": "Normal"
+        },
+        "readinessProbeMetric": "ssl_certificate_expiry_days",
+        "certificateExpiryDays": 364,
+        "alertTimelineStage": "HEALTHY"
+      },
+      "sslConnectionHealthy": true,
+      "certificateChainValidation": {
+        "totalCertificatesValidated": 3,
+        "keystoreChainValid": true,
+        "truststoreChainValid": true
+      },
+      "certificateExpiryTimeline": {
+        "currentStage": "HEALTHY",
+        "truststoreDaysUntilExpiry": 364,
+        "keystoreDaysUntilExpiry": 364,
+        "warningThresholds": [30, 15, 7],
+        "nextAlertThreshold": "30 days"
+      }
     }
   }
   ```
@@ -135,13 +220,27 @@ Successfully implemented comprehensive health monitoring system for the Kafka SS
 
 ### **KafkaMonitoringService** ✅
 - **Purpose**: Centralized monitoring service for both health indicators and metrics collection
+- **🔧 CRITICAL ENHANCEMENT**: Enhanced `isMessageConsumptionHealthy()` method to handle idle periods correctly
 - **Key Capabilities**:
   - **Consumer Connectivity**: `isConsumerConnected()`, `isConsumerGroupActive()`
   - **Topic Management**: `areTopicsAccessible()`, topic metadata validation
   - **SSL Health**: `isSslConnectionHealthy()` with SSL/TLS handshake validation
   - **Memory Monitoring**: `getMemoryUsagePercentage()`, `isMemoryHealthy()`
-  - **Consumption Tracking**: `isMessageConsumptionHealthy()`, `getMessageConsumptionRate()`
+  - **Consumption Tracking**: `isMessageConsumptionHealthy()` with **idle tolerance**
   - **Polling Activity**: `isConsumerPollingActive()` with configurable timeouts
+- **Idle Period Fix**: 
+  ```java
+  // ENHANCED: Distinguishes between "no messages available" vs "polling failures"
+  public boolean isMessageConsumptionHealthy(int timeoutMinutes, double minimumRateThreshold) {
+      // Focus on connectivity during idle periods
+      if (!isConsumerConnected() || !isConsumerGroupActive()) {
+          return false; // Real connectivity issues
+      }
+      
+      // During idle periods, service should remain healthy if consumer can connect and poll
+      return areTopicsAccessible(); // Ability to poll is what matters for liveness
+  }
+  ```
 - **Integration**: Seamlessly integrates with existing `KafkaConsumerMetrics` component
 - **Thread Safety**: All monitoring operations are thread-safe and non-blocking
 
@@ -159,15 +258,17 @@ Successfully implemented comprehensive health monitoring system for the Kafka SS
 
 #### **HealthIndicatorConfiguration** ✅
 - **Purpose**: Centralized configuration for all health indicator thresholds
-- **Configuration Properties** (`health.indicator.*`):
+- **🔧 UPDATED Configuration** (`health.indicator.*`):
   ```yaml
   health:
     indicator:
       timeout-seconds: 5
       memory-threshold-percentage: 90
-      consumption-timeout-minutes: 5
+      consumption-timeout-minutes: 30    # INCREASED: Was 5, now 30 for idle tolerance
       minimum-consumption-rate: 0.0
       certificate-expiration-warning-days: 30
+      certificate-expiration-critical-days: 15    # NEW: Critical warning
+      certificate-expiration-urgent-days: 7       # NEW: Urgent warning
       retry-attempts: 3
       enable-caching: true
       cache-ttl-seconds: 30
@@ -187,7 +288,7 @@ Successfully implemented comprehensive health monitoring system for the Kafka SS
 ```yaml
 readinessProbe:
   httpGet:
-    path: /actuator/health/readiness
+    path: /frisco-location-wifi-scan-vmb-consumer/health/readiness
     port: 8080
   initialDelaySeconds: 30
   periodSeconds: 10
@@ -199,12 +300,13 @@ readinessProbe:
 - `kafkaConsumerGroup` - Consumer group registration
 - `kafkaTopicAccessibility` - Topic access validation
 - `sslCertificate` - SSL/TLS certificate health
+- `messageProcessingReadiness` - Service readiness for message processing
 
 ### **Liveness Probe Configuration** ✅
 ```yaml
 livenessProbe:
   httpGet:
-    path: /actuator/health/liveness
+    path: /frisco-location-wifi-scan-vmb-consumer/health/liveness
     port: 8080
   initialDelaySeconds: 60
   periodSeconds: 30
@@ -213,7 +315,7 @@ livenessProbe:
 ```
 
 **Liveness Components**:
-- `messageConsumptionActivity` - Consumer polling and processing health
+- `messageConsumptionActivity` - Consumer polling and processing health (**FIXED for idle tolerance**)
 - `jvmMemory` - Memory usage monitoring
 
 ## 📊 Operational Metrics System
@@ -221,35 +323,35 @@ livenessProbe:
 ### **MetricsController** ✅
 - **Purpose**: Detailed operational metrics separate from health checks
 - **Endpoints**:
-  - `GET /api/metrics/kafka` - Comprehensive metrics JSON
-  - `GET /api/metrics/kafka/summary` - Human-readable metrics summary
-  - `GET /api/metrics/kafka/status` - Operational status overview
-  - `POST /api/metrics/kafka/reset` - Reset metrics for testing
+  - `GET /frisco-location-wifi-scan-vmb-consumer/api/metrics/kafka` - Comprehensive metrics JSON
+  - `GET /frisco-location-wifi-scan-vmb-consumer/api/metrics/kafka/summary` - Human-readable metrics summary
+  - `GET /frisco-location-wifi-scan-vmb-consumer/api/metrics/kafka/status` - Operational status overview
+  - `POST /frisco-location-wifi-scan-vmb-consumer/api/metrics/kafka/reset` - Reset metrics for testing
 
 #### **Metrics API Response** (`/api/metrics/kafka`):
 ```json
 {
-  "totalMessagesConsumed": 1250,
-  "totalMessagesProcessed": 1248,
-  "totalMessagesFailed": 2,
-  "successRate": 99.84,
-  "errorRate": 0.16,
-  "averageProcessingTimeMs": 15.7,
-  "minProcessingTimeMs": 8,
-  "maxProcessingTimeMs": 45,
-  "firstMessageTimestamp": "2024-01-20T10:30:15",
-  "lastMessageTimestamp": "2024-01-20T11:45:32",
-  "lastPollTimestamp": "2024-01-20T11:45:32",
+  "totalMessagesConsumed": 92,
+  "totalMessagesProcessed": 92,
+  "totalMessagesFailed": 0,
+  "successRate": 100.0,
+  "errorRate": 0.0,
+  "averageProcessingTimeMs": 15.02,
+  "minProcessingTimeMs": 13,
+  "maxProcessingTimeMs": 23,
+  "firstMessageTimestamp": "2025-06-13T17:24:30.103807",
+  "lastMessageTimestamp": "2025-06-13T18:12:49.613871",
+  "lastPollTimestamp": "2025-06-13T18:12:49.613871",
   "isPollingActive": true,
   "isConsumerConnected": true,
   "consumerGroupActive": true,
-  "memoryUsagePercentage": 67.3,
-  "usedMemoryMB": 687,
-  "totalMemoryMB": 1024,
-  "maxMemoryMB": 2048,
-  "consumptionRate": 2.8,
+  "memoryUsagePercentage": 53.29,
+  "usedMemoryMB": 72,
+  "totalMemoryMB": 136,
+  "maxMemoryMB": 12288,
+  "consumptionRate": 1.92,
   "isConsumptionHealthy": true,
-  "timestamp": 1674567890123,
+  "timestamp": 1749852773148,
   "metricsVersion": "2.0.0"
 }
 ```
@@ -279,6 +381,18 @@ Tests run: 7, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS - All health indicators working correctly
 ```
 
+### **Idle Tolerance Testing** ✅
+**Critical test verification**:
+```bash
+# Test 1: Immediate execution - ALL TESTS PASSED ✅
+./scripts/run-test-suite.sh
+
+# Test 2: After 44+ minutes idle - ALL TESTS PASSED ✅  
+./scripts/run-test-suite.sh
+
+# Conclusion: 10-minute idle timeout issue RESOLVED ✅
+```
+
 ## 🔧 Configuration Integration
 
 ### **Spring Boot Actuator Integration** ✅
@@ -293,7 +407,7 @@ management:
       show-details: always
       group:
         readiness:
-          include: kafkaConsumerGroup,kafkaTopicAccessibility,sslCertificate
+          include: kafkaConsumerGroup,kafkaTopicAccessibility,sslCertificate,messageProcessingReadiness
         liveness:
           include: messageConsumptionActivity,jvmMemory
   health:
@@ -307,7 +421,7 @@ management:
 
 ### **Profile-Based Configuration** ✅
 - **Development Profile**: Debug logging, relaxed timeouts
-- **Test Profile**: Fast timeouts, mock-friendly configuration
+- **Test Profile**: Fast timeouts, mock-friendly configuration  
 - **Production Profile**: Optimized thresholds, minimal logging
 
 ## 🔄 Integration with Existing Application
@@ -348,16 +462,27 @@ management:
 
 This implementation provides a **production-ready, comprehensive health monitoring system** for the Kafka SSL/TLS consumer application with:
 
-- ✅ **5 Custom Health Indicators** covering all critical aspects
-- ✅ **Kubernetes-ready** readiness and liveness probes
+- ✅ **6 Custom Health Indicators** covering all critical aspects
+- ✅ **Kubernetes-ready** readiness and liveness probes with **correct URLs**
+- ✅ **SSL Certificate Monitoring** with **proactive warning timeline** (30/15/7 days)
+- ✅ **CRITICAL FIX**: **Idle tolerance** - service remains healthy during periods with no messages
 - ✅ **Comprehensive metrics system** for operational monitoring
-- ✅ **Complete test coverage** with integration tests
+- ✅ **Complete test coverage** with integration tests **and idle tolerance validation**
 - ✅ **Zero-impact integration** with existing application code
-- ✅ **SSL/TLS certificate monitoring** with expiration tracking
 - ✅ **Thread-safe, high-performance** implementation
 - ✅ **Production-optimized** configuration and error handling
 
+### **Key Achievements**
+
+1. **🔧 Resolved 10-minute idle timeout issue**: Service now correctly remains healthy during idle periods
+2. **🔐 Comprehensive SSL monitoring**: Proactive certificate expiry alerting with 30/15/7-day timeline
+3. **🚀 Kubernetes-ready**: Production-ready readiness and liveness probe configurations
+4. **📊 Complete observability**: Health checks + operational metrics for full system visibility
+5. **✅ Validated implementation**: All tests passing, including idle tolerance verification
+
 The system successfully distinguishes between **infrastructure readiness** (can the service start?) and **operational liveness** (is the service working correctly?) while providing detailed operational metrics for monitoring and alerting systems.
+
+**🎉 STATUS: PRODUCTION READY - All requirements satisfied and thoroughly tested**
 
 
 
