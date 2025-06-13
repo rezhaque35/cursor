@@ -46,6 +46,9 @@ class HealthIndicatorIntegrationTest {
     private MessageConsumptionActivityHealthIndicator messageConsumptionActivityHealthIndicator;
 
     @Autowired
+    private MessageProcessingReadinessHealthIndicator messageProcessingReadinessHealthIndicator;
+
+    @Autowired
     private MemoryHealthIndicator memoryHealthIndicator;
 
     @Autowired
@@ -61,6 +64,7 @@ class HealthIndicatorIntegrationTest {
         assertThat(kafkaConsumerGroupHealthIndicator).isNotNull();
         assertThat(topicAccessibilityHealthIndicator).isNotNull();
         assertThat(messageConsumptionActivityHealthIndicator).isNotNull();
+        assertThat(messageProcessingReadinessHealthIndicator).isNotNull();
         assertThat(memoryHealthIndicator).isNotNull();
         assertThat(sslCertificateHealthIndicator).isNotNull();
     }
@@ -92,6 +96,7 @@ class HealthIndicatorIntegrationTest {
         assertThat(response.getBody()).contains("kafkaConsumerGroup");
         assertThat(response.getBody()).contains("kafkaTopicAccessibility");
         assertThat(response.getBody()).contains("sslCertificate");
+        assertThat(response.getBody()).contains("messageProcessingReadiness");
     }
 
     @Test
@@ -131,16 +136,36 @@ class HealthIndicatorIntegrationTest {
     }
 
     @Test
-    void should_ReportPollingActive_When_ConsumerIsRunning() {
-        // When: Checking message consumption activity health indicator
+    void should_ReportLivenessUp_When_ConsumerIsConnected() {
+        // When: Checking message consumption activity health indicator (liveness)
         Health health = messageConsumptionActivityHealthIndicator.health();
         
-        // Then: Consumer should be polling (with embedded Kafka, it may take a moment to establish connection)
+        // Then: Liveness should focus on connectivity, not active consumption
         assertThat(health.getStatus()).isIn(Status.UP, Status.DOWN); // Allow either status during test startup
-        assertThat(health.getDetails()).containsKey("pollingActive");
-        assertThat(health.getDetails()).containsKey("consumptionHealthy");
+        assertThat(health.getDetails()).containsKey("consumerConnected");
+        assertThat(health.getDetails()).containsKey("consumerGroupActive");
+        assertThat(health.getDetails()).containsKey("consumptionRate");
         assertThat(health.getDetails()).containsKey("totalMessagesConsumed");
         assertThat(health.getDetails()).containsKey("successRate");
+        assertThat(health.getDetails()).containsKey("livenessNote");
+        assertThat(health.getDetails().get("livenessNote")).isEqualTo("This probe indicates application liveness, not active consumption");
+    }
+
+    @Test
+    void should_ReportReadinessUp_When_ServiceIsReadyForTraffic() {
+        // When: Checking message processing readiness health indicator
+        Health health = messageProcessingReadinessHealthIndicator.health();
+        
+        // Then: Readiness should check comprehensive service readiness
+        assertThat(health.getStatus()).isIn(Status.UP, Status.DOWN); // Allow either status during test startup
+        assertThat(health.getDetails()).containsKey("consumerConnected");
+        assertThat(health.getDetails()).containsKey("consumerGroupActive");
+        assertThat(health.getDetails()).containsKey("topicsAccessible");
+        assertThat(health.getDetails()).containsKey("consumptionHealthy");
+        assertThat(health.getDetails()).containsKey("consumptionRate");
+        assertThat(health.getDetails()).containsKey("successRate");
+        assertThat(health.getDetails()).containsKey("readinessNote");
+        assertThat(health.getDetails().get("readinessNote")).isEqualTo("This probe indicates service readiness for traffic");
     }
 
     @Test
@@ -166,5 +191,23 @@ class HealthIndicatorIntegrationTest {
         assertThat(health.getDetails()).containsKey("topicsAccessible");
         assertThat(health.getDetails()).containsKey("checkTimestamp");
         assertThat(health.getDetails().get("topicsAccessible")).isEqualTo(true);
+    }
+
+    @Test
+    void should_TolerateIdlePeriods_When_NoMessagesAvailable() {
+        // When: Checking liveness during idle period (no message consumption)
+        Health livenessHealth = messageConsumptionActivityHealthIndicator.health();
+        Health readinessHealth = messageProcessingReadinessHealthIndicator.health();
+        
+        // Then: Liveness should remain UP even when no messages are being consumed
+        // (This is the key fix - liveness should not fail due to lack of messages)
+        if (livenessHealth.getDetails().get("consumerConnected").equals(true) && 
+            livenessHealth.getDetails().get("consumerGroupActive").equals(true)) {
+            assertThat(livenessHealth.getStatus()).isEqualTo(Status.UP);
+        }
+        
+        // Readiness can be more strict but should still be tolerant of idle periods
+        assertThat(readinessHealth.getStatus()).isIn(Status.UP, Status.DOWN);
+        assertThat(readinessHealth.getDetails()).containsKey("reason");
     }
 } 

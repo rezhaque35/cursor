@@ -1,0 +1,53 @@
+# src/main/resources/application.yml
+# Main application configuration for WiFi Scan Queue Consumer
+
+spring:
+  application:
+    name: wifi-scan-queue-consumer
+  profiles:
+    active: development
+
+server:
+  servlet:
+    context-path: /frisco-location-wifi-scan-vmb-consumer
+
+management:
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: health,info,metrics,env,kafka
+  endpoint:
+    health:
+      show-details: always
+      # Custom HTTP status code mapping for health states
+      status:
+        http-mapping:
+          DOWN: 503          # Service Unavailable
+          OUT_OF_SERVICE: 503 # Service Unavailable  
+          UP: 200            # OK
+          UNKNOWN: 200       # OK (default behavior)
+      group:
+        readiness:
+          include: kafkaConsumerGroup,kafkaTopicAccessibility,sslCertificate,messageProcessingReadiness
+          # Custom status mapping for readiness probe
+          status:
+            http-mapping:
+              DOWN: 503      # Critical for Kubernetes - removes pod from service
+              OUT_OF_SERVICE: 503
+              UP: 200
+        liveness:
+          include: messageConsumptionActivity,jvmMemory
+          # Custom status mapping for liveness probe  
+          status:
+            http-mapping:
+              DOWN: 503      # Critical for Kubernetes - restarts pod
+              OUT_OF_SERVICE: 503
+              UP: 200
+  health:
+    kafka:
+      enabled: true
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true 

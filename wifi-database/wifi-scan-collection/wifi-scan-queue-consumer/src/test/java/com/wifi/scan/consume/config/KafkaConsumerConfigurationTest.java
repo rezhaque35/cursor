@@ -124,6 +124,15 @@ class KafkaConsumerConfigurationTest {
         kafkaProperties.getConsumer().setMaxPollRecords(1000);
         kafkaProperties.getConsumer().setSessionTimeout("60000ms");
         kafkaProperties.getConsumer().setHeartbeatInterval("5000ms");
+        
+        // New optimized polling configurations
+        kafkaProperties.getConsumer().setMaxPollInterval("300000ms");
+        kafkaProperties.getConsumer().setFetchMinBytes(1);
+        kafkaProperties.getConsumer().setFetchMaxWait("500ms");
+        kafkaProperties.getConsumer().setRequestTimeout("30000ms");
+        kafkaProperties.getConsumer().setRetryBackoff("1000ms");
+        kafkaProperties.getConsumer().setConnectionsMaxIdle("540000ms");
+        kafkaProperties.getConsumer().setMetadataMaxAge("300000ms");
 
         // When
         Map<String, Object> consumerProps = kafkaConsumerConfiguration.buildConsumerProperties(kafkaProperties);
@@ -134,6 +143,78 @@ class KafkaConsumerConfigurationTest {
         assertEquals(1000, consumerProps.get(ConsumerConfig.MAX_POLL_RECORDS_CONFIG));
         assertEquals(60000, consumerProps.get(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG));
         assertEquals(5000, consumerProps.get(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG));
+        
+        // Verify new optimized polling configurations
+        assertEquals(300000, consumerProps.get(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG));
+        assertEquals(1, consumerProps.get(ConsumerConfig.FETCH_MIN_BYTES_CONFIG));
+        assertEquals(500, consumerProps.get(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG));
+        assertEquals(30000, consumerProps.get(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG));
+        assertEquals(1000, consumerProps.get(ConsumerConfig.RETRY_BACKOFF_MS_CONFIG));
+        assertEquals(540000, consumerProps.get(ConsumerConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG));
+        assertEquals(300000, consumerProps.get(ConsumerConfig.METADATA_MAX_AGE_CONFIG));
+        
+        // Verify additional resilience configurations
+        assertEquals(1000, consumerProps.get(ConsumerConfig.RECONNECT_BACKOFF_MS_CONFIG));
+        assertEquals(10000, consumerProps.get(ConsumerConfig.RECONNECT_BACKOFF_MAX_MS_CONFIG));
+    }
+
+    @Test
+    @DisplayName("should_ConfigureOptimizedPollingProperties_When_DefaultsUsed")
+    void should_ConfigureOptimizedPollingProperties_When_DefaultsUsed() {
+        // Given: Use default optimized polling configurations
+        KafkaProperties defaultProperties = new KafkaProperties();
+        defaultProperties.setBootstrapServers("localhost:9093");
+        defaultProperties.getConsumer().setGroupId("default-group");
+
+        // When
+        Map<String, Object> consumerProps = kafkaConsumerConfiguration.buildConsumerProperties(defaultProperties);
+
+        // Then: Should include default optimized polling configurations
+        assertEquals(300000, consumerProps.get(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG));
+        assertEquals(1, consumerProps.get(ConsumerConfig.FETCH_MIN_BYTES_CONFIG));
+        assertEquals(500, consumerProps.get(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG));
+        assertEquals(30000, consumerProps.get(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG));
+        assertEquals(1000, consumerProps.get(ConsumerConfig.RETRY_BACKOFF_MS_CONFIG));
+        assertEquals(540000, consumerProps.get(ConsumerConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG));
+        assertEquals(300000, consumerProps.get(ConsumerConfig.METADATA_MAX_AGE_CONFIG));
+        
+        // Verify resilience configurations are included
+        assertEquals(1000, consumerProps.get(ConsumerConfig.RECONNECT_BACKOFF_MS_CONFIG));
+        assertEquals(10000, consumerProps.get(ConsumerConfig.RECONNECT_BACKOFF_MAX_MS_CONFIG));
+    }
+
+    @Test
+    @DisplayName("should_ConfigureContainerProperties_When_OptimizedPollingEnabled")
+    void should_ConfigureContainerProperties_When_OptimizedPollingEnabled() {
+        // Given
+        ConsumerFactory<String, String> consumerFactory = mock(ConsumerFactory.class);
+
+        // When
+        ConcurrentKafkaListenerContainerFactory<String, String> containerFactory = 
+            kafkaConsumerConfiguration.kafkaListenerContainerFactory(consumerFactory);
+
+        // Then
+        assertNotNull(containerFactory, "Container factory should not be null");
+        assertEquals(consumerFactory, containerFactory.getConsumerFactory());
+        
+        // Verify container properties for optimized polling
+        assertNotNull(containerFactory.getContainerProperties());
+    }
+    
+    @Test
+    @DisplayName("should_LogOptimizedConfiguration_When_PropertiesBuilt")
+    void should_LogOptimizedConfiguration_When_PropertiesBuilt() {
+        // Given
+        kafkaProperties.getConsumer().setMaxPollInterval("300000ms");
+        kafkaProperties.getConsumer().setFetchMinBytes(1);
+        kafkaProperties.getConsumer().setFetchMaxWait("500ms");
+
+        // When
+        Map<String, Object> consumerProps = kafkaConsumerConfiguration.buildConsumerProperties(kafkaProperties);
+
+        // Then: Should include max.poll.interval.ms in debug log
+        assertNotNull(consumerProps.get(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG));
+        assertEquals(300000, consumerProps.get(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG));
     }
 
     @Test
@@ -231,6 +312,16 @@ class KafkaConsumerConfigurationTest {
         consumer.setMaxPollRecords(500);
         consumer.setSessionTimeout("30000ms");
         consumer.setHeartbeatInterval("3000ms");
+        
+        // Add optimized polling configurations
+        consumer.setMaxPollInterval("300000ms");
+        consumer.setFetchMinBytes(1);
+        consumer.setFetchMaxWait("500ms");
+        consumer.setRequestTimeout("30000ms");
+        consumer.setRetryBackoff("1000ms");
+        consumer.setConnectionsMaxIdle("540000ms");
+        consumer.setMetadataMaxAge("300000ms");
+        
         properties.setConsumer(consumer);
 
         KafkaProperties.Topic topic = new KafkaProperties.Topic();

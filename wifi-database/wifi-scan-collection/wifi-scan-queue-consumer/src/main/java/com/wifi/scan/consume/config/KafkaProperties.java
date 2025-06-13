@@ -29,6 +29,15 @@ public class KafkaProperties {
         private int maxPollRecords = 500;
         private String sessionTimeout = "30000ms";
         private String heartbeatInterval = "3000ms";
+        
+        // Optimized polling configurations for continuous operation
+        private String maxPollInterval = "300000ms";        // 5 minutes
+        private int fetchMinBytes = 1;                       // 1 byte for immediate response
+        private String fetchMaxWait = "500ms";              // Maximum wait time for fetch
+        private String requestTimeout = "30000ms";          // Request timeout
+        private String retryBackoff = "1000ms";             // Retry backoff time
+        private String connectionsMaxIdle = "540000ms";     // 9 minutes
+        private String metadataMaxAge = "300000ms";         // 5 minutes
     }
 
     @Data

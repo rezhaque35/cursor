@@ -62,7 +62,7 @@ management:
       show-details: always
       group:
         readiness:
-          include: kafkaConsumerGroup,kafkaTopicAccessibility,sslCertificate
+          include: kafkaConsumerGroup,kafkaTopicAccessibility,sslCertificate,messageProcessingReadiness
         liveness:
           include: messageConsumptionActivity,jvmMemory
   health:

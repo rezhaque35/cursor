@@ -11,8 +11,15 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 
 /**
- * Health indicator for message consumption activity.
- * Monitors message processing rates, polling activity, and consumption trends.
+ * Health indicator for message consumption activity suitable for liveness probes.
+ * 
+ * Liveness focuses on whether the application is alive and responsive, not on active consumption.
+ * This indicator checks:
+ * - Consumer connectivity (can connect to Kafka)
+ * - Consumer group membership (properly registered)
+ * - Application responsiveness (not deadlocked)
+ * 
+ * It does NOT fail when there are no messages to consume, as this is a normal operational state.
  */
 @Slf4j
 @Component("messageConsumptionActivity")
@@ -31,40 +38,48 @@ public class MessageConsumptionActivityHealthIndicator implements HealthIndicato
     @Override
     public Health health() {
         try {
-            log.debug("Checking message consumption activity");
+            log.debug("Checking consumer liveness (connectivity and responsiveness)");
             
-            boolean isConsumptionHealthy = kafkaMonitoringService.isMessageConsumptionHealthy(
-                    config.getConsumptionTimeoutMinutes(), 
-                    config.getMinimumConsumptionRate());
+            // For liveness, we only care if the consumer is connected and responsive
+            // We don't fail if there are no messages to consume
+            boolean isConsumerConnected = kafkaMonitoringService.isConsumerConnected();
+            boolean isConsumerGroupActive = kafkaMonitoringService.isConsumerGroupActive();
             
-            boolean isPollingActive = kafkaMonitoringService.isConsumerPollingActive(
-                    config.getConsumptionTimeoutMinutes());
-            
+            // Calculate metrics for monitoring purposes (but don't fail on them)
             double consumptionRate = kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10));
+            long totalConsumed = kafkaMonitoringService.getMetrics().getTotalMessagesConsumed().get();
+            long totalProcessed = kafkaMonitoringService.getMetrics().getTotalMessagesProcessed().get();
             
-            Health.Builder healthBuilder = isConsumptionHealthy && isPollingActive ? 
+            // Liveness is UP if consumer can connect and participate in the consumer group
+            // This means the application is alive and capable of consuming messages when they arrive
+            Health.Builder healthBuilder = (isConsumerConnected && isConsumerGroupActive) ? 
                     Health.up() : Health.down();
             
-            if (!isPollingActive) {
-                healthBuilder.withDetail("reason", "Consumer is not actively polling");
-            } else if (!isConsumptionHealthy) {
-                healthBuilder.withDetail("reason", "Message consumption is unhealthy");
+            // Provide detailed reason only for actual connectivity issues
+            if (!isConsumerConnected) {
+                healthBuilder.withDetail("reason", "Consumer cannot connect to Kafka cluster");
+            } else if (!isConsumerGroupActive) {
+                healthBuilder.withDetail("reason", "Consumer is not active in consumer group");
+            } else {
+                healthBuilder.withDetail("reason", "Consumer is alive and ready to process messages");
             }
             
             return healthBuilder
-                    .withDetail("consumptionHealthy", isConsumptionHealthy)
-                    .withDetail("pollingActive", isPollingActive)
+                    .withDetail("consumerConnected", isConsumerConnected)
+                    .withDetail("consumerGroupActive", isConsumerGroupActive)
                     .withDetail("consumptionRate", consumptionRate)
-                    .withDetail("totalMessagesConsumed", kafkaMonitoringService.getMetrics().getTotalMessagesConsumed().get())
-                    .withDetail("totalMessagesProcessed", kafkaMonitoringService.getMetrics().getTotalMessagesProcessed().get())
+                    .withDetail("totalMessagesConsumed", totalConsumed)
+                    .withDetail("totalMessagesProcessed", totalProcessed)
                     .withDetail("successRate", kafkaMonitoringService.getMetrics().getSuccessRate())
+                    .withDetail("livenessNote", "This probe indicates application liveness, not active consumption")
                     .withDetail("checkTimestamp", System.currentTimeMillis())
                     .build();
             
         } catch (Exception e) {
-            log.error("Error checking message consumption activity", e);
+            log.error("Error checking consumer liveness", e);
             return Health.down()
                     .withDetail("error", e.getMessage())
+                    .withDetail("reason", "Health check failed due to exception")
                     .withDetail("checkTimestamp", System.currentTimeMillis())
                     .build();
         }

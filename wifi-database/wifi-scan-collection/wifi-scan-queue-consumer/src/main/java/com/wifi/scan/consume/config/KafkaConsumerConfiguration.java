@@ -74,12 +74,20 @@ public class KafkaConsumerConfiguration {
         ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
         
-        // Configure container properties
+        // Configure container properties for optimized polling
         ContainerProperties containerProps = factory.getContainerProperties();
         containerProps.setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         containerProps.setSyncCommits(true);
         
-        log.info("Kafka listener container factory created successfully");
+        // Optimized polling configurations
+        containerProps.setPollTimeout(1000);  // 1 second poll timeout for responsive polling
+        containerProps.setIdleEventInterval(30000L);  // 30 seconds - emit idle events for monitoring
+        containerProps.setIdleBetweenPolls(0);  // No delay between polls for continuous operation
+        
+        // Error handling and recovery
+        containerProps.setMissingTopicsFatal(false);  // Don't fail if topic doesn't exist initially
+        
+        log.info("Kafka listener container factory created with optimized polling configuration");
         return factory;
     }
 
@@ -123,10 +131,42 @@ public class KafkaConsumerConfiguration {
         // Performance configurations
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, kafkaProperties.getConsumer().getMaxPollRecords());
         
-        log.debug("Consumer properties built: bootstrap.servers={}, group.id={}, auto.offset.reset={}", 
+        // Optimized polling configurations for continuous operation
+        if (kafkaProperties.getConsumer().getMaxPollInterval() != null) {
+            props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, parseTimeoutMilliseconds(kafkaProperties.getConsumer().getMaxPollInterval()));
+        }
+        
+        props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, kafkaProperties.getConsumer().getFetchMinBytes());
+        
+        if (kafkaProperties.getConsumer().getFetchMaxWait() != null) {
+            props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, parseTimeoutMilliseconds(kafkaProperties.getConsumer().getFetchMaxWait()));
+        }
+        
+        if (kafkaProperties.getConsumer().getRequestTimeout() != null) {
+            props.put(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, parseTimeoutMilliseconds(kafkaProperties.getConsumer().getRequestTimeout()));
+        }
+        
+        if (kafkaProperties.getConsumer().getRetryBackoff() != null) {
+            props.put(ConsumerConfig.RETRY_BACKOFF_MS_CONFIG, parseTimeoutMilliseconds(kafkaProperties.getConsumer().getRetryBackoff()));
+        }
+        
+        if (kafkaProperties.getConsumer().getConnectionsMaxIdle() != null) {
+            props.put(ConsumerConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG, parseTimeoutMilliseconds(kafkaProperties.getConsumer().getConnectionsMaxIdle()));
+        }
+        
+        if (kafkaProperties.getConsumer().getMetadataMaxAge() != null) {
+            props.put(ConsumerConfig.METADATA_MAX_AGE_CONFIG, parseTimeoutMilliseconds(kafkaProperties.getConsumer().getMetadataMaxAge()));
+        }
+        
+        // Additional resilience configurations
+        props.put(ConsumerConfig.RECONNECT_BACKOFF_MS_CONFIG, 1000);
+        props.put(ConsumerConfig.RECONNECT_BACKOFF_MAX_MS_CONFIG, 10000);
+        
+        log.debug("Consumer properties built: bootstrap.servers={}, group.id={}, auto.offset.reset={}, max.poll.interval.ms={}", 
                 kafkaProperties.getBootstrapServers(), 
                 kafkaProperties.getConsumer().getGroupId(),
-                kafkaProperties.getConsumer().getAutoOffsetReset());
+                kafkaProperties.getConsumer().getAutoOffsetReset(),
+                props.get(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG));
         
         return props;
     }
