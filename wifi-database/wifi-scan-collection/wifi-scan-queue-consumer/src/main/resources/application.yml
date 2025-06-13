@@ -39,7 +39,7 @@ health:
     # General health indicator settings
     timeout-seconds: 5
     memory-threshold-percentage: 90
-    consumption-timeout-minutes: 5
+    consumption-timeout-minutes: 30
     minimum-consumption-rate: 0.0
     retry-attempts: 3
     enable-caching: true

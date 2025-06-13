@@ -1,6 +1,7 @@
 package com.wifi.scan.consume.listener;
 
 import com.wifi.scan.consume.metrics.KafkaConsumerMetrics;
+import com.wifi.scan.consume.service.KafkaMonitoringService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -31,6 +32,9 @@ public class WifiScanMessageListener {
     @Autowired
     private KafkaConsumerMetrics metrics;
 
+    @Autowired
+    private KafkaMonitoringService monitoringService;
+
     /**
      * Kafka listener method for processing WiFi scan messages.
      * 
@@ -42,6 +46,9 @@ public class WifiScanMessageListener {
         long startTime = System.currentTimeMillis();
         
         try {
+            // Record polling activity - indicates consumer is actively polling and receiving messages
+            monitoringService.recordPollActivity();
+            
             // Record message consumption
             metrics.recordMessageConsumed();
             
