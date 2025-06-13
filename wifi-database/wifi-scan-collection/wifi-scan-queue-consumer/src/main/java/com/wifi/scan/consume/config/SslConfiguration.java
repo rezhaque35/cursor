@@ -1,10 +1,12 @@
 package com.wifi.scan.consume.config;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -302,32 +304,136 @@ public class SslConfiguration {
     }
 
     private String resolveKeystoreLocation(String location) {
-        if (location.startsWith("classpath:")) {
-            // For classpath resources, return the absolute path for Kafka client
-            String resourcePath = location.substring("classpath:".length());
-            ClassPathResource resource = new ClassPathResource(resourcePath);
-            try {
-                return resource.getFile().getAbsolutePath();
-            } catch (IOException e) {
-                log.warn("Cannot resolve classpath resource to file path, using location as-is: {}", location);
-                return location;
-            }
-        }
-        return location;
+        return resolveResourceLocation(location, "keystore");
     }
 
     private String resolveTruststoreLocation(String location) {
-        if (location.startsWith("classpath:")) {
-            // For classpath resources, return the absolute path for Kafka client
-            String resourcePath = location.substring("classpath:".length());
-            ClassPathResource resource = new ClassPathResource(resourcePath);
-            try {
-                return resource.getFile().getAbsolutePath();
-            } catch (IOException e) {
-                log.warn("Cannot resolve classpath resource to file path, using location as-is: {}", location);
-                return location;
+        return resolveResourceLocation(location, "truststore");
+    }
+
+    /**
+     * Resolves a resource location using Spring's ResourceLoader abstraction.
+     * This method is agnostic to whether the location is a classpath resource, file system path, or URL.
+     * 
+     * Supported prefixes:
+     * - classpath: for classpath resources
+     * - file: for file system resources  
+     * - http:/https: for URL resources
+     * - No prefix: treated as file system path (relative to working directory)
+     */
+    private String resolveResourceLocation(String location, String resourceType) {
+        try {
+            log.debug("Resolving {} location: {}", resourceType, location);
+            
+            Resource resource;
+            if (resourceLoader != null) {
+                // Use injected ResourceLoader when available
+                resource = resourceLoader.getResource(normalizeResourceLocation(location));
+            } else {
+                // Fallback: create appropriate resource based on location prefix
+                if (location.startsWith("classpath:")) {
+                    resource = new ClassPathResource(location.substring("classpath:".length()));
+                } else {
+                    // For file paths, use DefaultResourceLoader with proper file: prefix
+                    String normalizedLocation = normalizeResourceLocation(location);
+                    resource = new org.springframework.core.io.DefaultResourceLoader().getResource(normalizedLocation);
+                }
             }
+            
+            if (!resource.exists()) {
+                throw new RuntimeException(String.format("%s resource not found: %s", 
+                    resourceType, location));
+            }
+            
+            // Try to get the file directly first (works for file system and exploded classpath)
+            try {
+                File file = resource.getFile();
+                String absolutePath = file.getAbsolutePath();
+                log.debug("Using {} file directly: {}", resourceType, absolutePath);
+                return absolutePath;
+            } catch (IOException e) {
+                // Resource is not a file (e.g., inside JAR), extract to temporary file
+                log.debug("Resource {} is not accessible as file, extracting to temporary location", location);
+                return extractResourceToTempFile(resource, resourceType).toString();
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to resolve {} location: {}", resourceType, location, e);
+            throw new RuntimeException(String.format("Failed to resolve %s location: %s", resourceType, location), e);
         }
-        return location;
+    }
+
+    /**
+     * Normalizes a resource location to ensure proper Spring Resource prefixes.
+     * This ensures that file system paths have the 'file:' prefix for proper resolution.
+     */
+    private String normalizeResourceLocation(String location) {
+        if (location.startsWith("classpath:") || 
+            location.startsWith("file:") || 
+            location.startsWith("http:") || 
+            location.startsWith("https:")) {
+            // Already has a proper prefix
+            return location;
+        }
+        
+        // Assume it's a file system path and add file: prefix
+        return "file:" + location;
+    }
+
+    /**
+     * Extracts a Spring Resource to a temporary file.
+     * This handles resources that cannot be accessed as direct files (e.g., inside JARs).
+     */
+    private Path extractResourceToTempFile(Resource resource, String prefix) {
+        try {
+            // Create temporary file
+            Path tempFile = Files.createTempFile(prefix, ".p12");
+            
+            // Copy resource content to temporary file
+            try (InputStream inputStream = resource.getInputStream()) {
+                Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+            }
+            
+            // Delete temp file on JVM exit
+            tempFile.toFile().deleteOnExit();
+            
+            log.debug("Extracted resource {} to temporary file: {}", resource.getDescription(), tempFile);
+            return tempFile;
+            
+        } catch (IOException e) {
+            log.error("Failed to extract resource to temporary file: {}", resource.getDescription(), e);
+            throw new RuntimeException("Failed to extract resource: " + resource.getDescription(), e);
+        }
+    }
+
+    /**
+     * Legacy method for backward compatibility.
+     * @deprecated Use {@link #extractResourceToTempFile(Resource, String)} instead
+     */
+    @Deprecated
+    private Path extractResourceToTempFile(ClassPathResource resource, String prefix, String suffix) {
+        try {
+            if (!resource.exists()) {
+                throw new RuntimeException("Resource not found in classpath: " + resource.getPath());
+            }
+            
+            // Create temporary file
+            Path tempFile = Files.createTempFile(prefix, suffix);
+            
+            // Copy resource content to temporary file
+            try (InputStream inputStream = resource.getInputStream()) {
+                Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+            }
+            
+            // Delete temp file on JVM exit
+            tempFile.toFile().deleteOnExit();
+            
+            log.debug("Extracted classpath resource {} to temporary file: {}", resource.getPath(), tempFile);
+            return tempFile;
+            
+        } catch (IOException e) {
+            log.error("Failed to extract classpath resource to temporary file: {}", resource.getPath(), e);
+            throw new RuntimeException("Failed to extract classpath resource: " + resource.getPath(), e);
+        }
     }
 } 

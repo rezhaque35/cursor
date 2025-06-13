@@ -246,7 +246,7 @@ show_next_steps() {
     echo "3. Create custom topic: ./create-test-topic.sh my-topic"
     echo ""
     echo "Spring Boot Configuration:"
-    echo "- Use certificates in: src/main/resources/secrets/"
+    echo "- Use certificates in: scripts/kafka/secrets/"
     echo "- Bootstrap servers: localhost:$KAFKA_SSL_PORT"
     echo "- Security protocol: SSL"
     echo ""

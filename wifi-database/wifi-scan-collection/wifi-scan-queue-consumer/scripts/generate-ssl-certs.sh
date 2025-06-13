@@ -43,13 +43,11 @@ CA_KEY="ca-key"
 
 # Directory paths
 SECRETS_DIR="kafka/secrets"
-SPRING_SECRETS_DIR="../src/main/resources/secrets"
 
 # Function to create directories
 create_directories() {
     print_status "Creating certificate directories..."
     mkdir -p "${SECRETS_DIR}"
-    mkdir -p "${SPRING_SECRETS_DIR}"
     print_success "Directories created!"
 }
 
@@ -183,17 +181,6 @@ create_credential_files() {
     cd - > /dev/null
 }
 
-# Function to copy certificates to Spring Boot resources
-copy_to_spring_resources() {
-    print_status "Copying certificates to Spring Boot resources..."
-    
-    # Copy keystore and truststore to Spring Boot resources
-    cp "${SECRETS_DIR}/${KEYSTORE_FILE}" "${SPRING_SECRETS_DIR}/"
-    cp "${SECRETS_DIR}/${TRUSTSTORE_FILE}" "${SPRING_SECRETS_DIR}/"
-    
-    print_success "Certificates copied to Spring Boot resources!"
-}
-
 # Function to validate generated certificates
 validate_certificates() {
     print_status "Validating generated certificates..."
@@ -239,7 +226,6 @@ main() {
     import_certificates_to_keystore
     create_truststore
     create_credential_files
-    copy_to_spring_resources
     validate_certificates
     cleanup_temp_files
     
@@ -248,8 +234,10 @@ main() {
     echo "Generated files:"
     echo "- ${SECRETS_DIR}/${KEYSTORE_FILE}"
     echo "- ${SECRETS_DIR}/${TRUSTSTORE_FILE}"
-    echo "- ${SPRING_SECRETS_DIR}/${KEYSTORE_FILE}"
-    echo "- ${SPRING_SECRETS_DIR}/${TRUSTSTORE_FILE}"
+    echo ""
+    echo "Certificate locations for application:"
+    echo "- Keystore: scripts/kafka/secrets/${KEYSTORE_FILE}"
+    echo "- Truststore: scripts/kafka/secrets/${TRUSTSTORE_FILE}"
     echo ""
     echo "Passwords (for local development only):"
     echo "- Keystore password: ${KEYSTORE_PASSWORD}"

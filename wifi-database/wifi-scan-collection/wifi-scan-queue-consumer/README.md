@@ -178,13 +178,13 @@ kafka:
   ssl:
     enabled: true
     keystore:
-      location: classpath:secrets/kafka.keystore.p12
-      password: ${KAFKA_KEYSTORE_PASSWORD}
+      location: ${KAFKA_SSL_KEYSTORE_LOCATION:scripts/kafka/secrets/kafka.keystore.p12}
+      password: ${KAFKA_KEYSTORE_PASSWORD:kafka123}
       type: PKCS12
     truststore:
-      location: classpath:secrets/kafka.truststore.jks
-      password: ${KAFKA_TRUSTSTORE_PASSWORD}
-      type: JKS
+      location: ${KAFKA_SSL_TRUSTSTORE_LOCATION:scripts/kafka/secrets/kafka.truststore.p12}
+      password: ${KAFKA_TRUSTSTORE_PASSWORD:kafka123}
+      type: PKCS12
 ```
 
 ## 💻 Development
@@ -203,10 +203,11 @@ wifi-scan-queue-consumer/
 │   │   │   ├── metrics/             # Metrics collection
 │   │   │   └── service/             # Business services
 │   │   └── resources/
-│   │       ├── application.yml      # Configuration
-│   │       └── secrets/             # SSL certificates
+│   │       └── application.yml      # Configuration
 │   └── test/                        # Test classes
 ├── scripts/                         # Development scripts
+│   └── kafka/
+│       └── secrets/                 # SSL certificates (local dev)
 ├── documents/                       # Documentation
 ├── target/                          # Build output
 └── pom.xml                         # Maven configuration

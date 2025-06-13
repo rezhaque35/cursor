@@ -75,9 +75,6 @@ create_directories() {
     # Create kafka secrets directory
     mkdir -p kafka/secrets
     
-    # Create Spring Boot resources directory
-    mkdir -p ../src/main/resources/secrets
-    
     print_success "Directory structure created!"
 }
 

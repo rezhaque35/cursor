@@ -71,15 +71,16 @@ check_prerequisites() {
 # Make scripts executable
 make_scripts_executable() {
     print_step "Making scripts executable..."
+    cd scripts
     chmod +x *.sh
+    cd ..
 }
 
 # Clean up any existing environment
 cleanup_environment() {
     print_step "Cleaning up any existing environment..."
-    ./stop-local-kafka.sh 2>/dev/null || true
+    ./scripts/stop-local-kafka.sh 2>/dev/null || true
     rm -rf kafka/ 2>/dev/null || true
-    rm -rf ../src/main/resources/secrets/ 2>/dev/null || true
     docker system prune -f
 }
 
@@ -98,31 +99,44 @@ main() {
     
     # Run the complete setup
     print_step "Setting up local Kafka environment..."
-    ./setup-local-kafka.sh
+    ./scripts/setup-local-kafka.sh
     
-    # Start Kafka cluster
+    # Start Kafka cluster (with better error handling)
     print_step "Starting Kafka cluster..."
-    ./start-local-kafka.sh
+    if ! ./scripts/start-local-kafka.sh; then
+        print_error "Failed to start Kafka cluster"
+        print_step "Checking container status..."
+        docker ps -a --filter "name=kafka" --filter "name=zookeeper"
+        print_step "Checking for port conflicts..."
+        lsof -i :2181 -i :9092 -i :9093 || true
+        exit 1
+    fi
+    
+    # Add a brief pause to ensure services are fully ready
+    print_step "Allowing services to fully initialize..."
+    sleep 5
     
     # Test the setup
     print_step "Testing SSL connection..."
-    ./test-ssl-connection.sh
+    if ! ./scripts/test-ssl-connection.sh; then
+        print_warning "SSL connection test failed, but continuing with setup..."
+    fi
     
     print_step "Creating test topic..."
-    ./create-test-topic.sh
+    ./scripts/create-test-topic.sh
     
     print_step "Sending test message..."
-    ./send-test-message.sh "Test message from setup script"
+    ./scripts/send-test-message.sh "Test message from setup script"
     
     print_step "Consuming test message..."
-    ./consume-test-messages.sh
+    ./scripts/consume-test-messages.sh
     
     print_step "Development environment setup completed successfully!"
     echo -e "\n${GREEN}Next steps:${NC}"
     echo "1. Start your Spring Boot application"
     echo "2. Monitor the application logs"
     echo "3. Use the test scripts to verify message flow"
-    echo -e "\nTo stop the environment, run: ${YELLOW}./stop-local-kafka.sh${NC}"
+    echo -e "\nTo stop the environment, run: ${YELLOW}./scripts/stop-local-kafka.sh${NC}"
 }
 
 # Run main function

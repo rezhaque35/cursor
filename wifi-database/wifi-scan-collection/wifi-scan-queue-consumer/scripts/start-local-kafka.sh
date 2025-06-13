@@ -95,16 +95,31 @@ wait_for_services() {
     print_status "Waiting for Zookeeper to be ready..."
     local zk_ready=false
     for i in {1..30}; do
-        if docker exec zookeeper zkServer.sh status &> /dev/null; then
+        # Primary check: Use the whitelisted 'srvr' command to check zookeeper status
+        if docker exec zookeeper bash -c "echo 'srvr' | nc localhost 2181" 2>/dev/null | grep -q "Zookeeper version"; then
             zk_ready=true
             break
         fi
+        
+        # Fallback check: Try to connect to zookeeper port from host
+        if timeout 3 bash -c "echo > /dev/tcp/localhost/2181" 2>/dev/null; then
+            # Double-check with srvr command after successful connection
+            if docker exec zookeeper bash -c "echo 'srvr' | nc localhost 2181" 2>/dev/null | grep -q "Mode:"; then
+                zk_ready=true
+                break
+            fi
+        fi
+        
         echo -n "."
         sleep 2
     done
     
     if [ "$zk_ready" = false ]; then
         print_error "Zookeeper failed to start within 60 seconds"
+        print_status "Checking Zookeeper logs..."
+        docker logs zookeeper --tail 20
+        print_status "Checking container status..."
+        docker ps --filter "name=zookeeper" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
         exit 1
     fi
     print_success "Zookeeper is ready!"
@@ -208,4 +223,5 @@ main() {
 }
 
 # Run main function
+main "$@" 
 main "$@" 
