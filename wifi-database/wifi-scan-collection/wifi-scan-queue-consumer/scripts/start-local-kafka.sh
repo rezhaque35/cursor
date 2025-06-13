@@ -69,7 +69,7 @@ check_existing_services() {
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             print_status "Stopping existing containers..."
-            ./stop-local-kafka.sh
+            ./scripts/stop-local-kafka.sh
         else
             print_warning "Keeping existing containers running."
             exit 0
@@ -213,7 +213,7 @@ main() {
     echo "1. Test SSL connection: ./test-ssl-connection.sh"
     echo "2. Send test message: ./send-test-message.sh 'Hello Kafka!'"
     echo "3. Consume messages: ./consume-test-messages.sh"
-    echo "4. Stop cluster: ./stop-local-kafka.sh"
+    echo "4. Stop cluster: ./scripts/stop-local-kafka.sh"
     echo ""
     echo "Useful commands:"
     echo "- View logs: docker logs kafka -f"
@@ -223,5 +223,4 @@ main() {
 }
 
 # Run main function
-main "$@" 
 main "$@" 

@@ -51,6 +51,23 @@ create_directories() {
     print_success "Directories created!"
 }
 
+# Function to cleanup existing certificates
+cleanup_existing_certificates() {
+    print_status "Cleaning up existing certificates..."
+    
+    if [ -d "${SECRETS_DIR}" ]; then
+        rm -f "${SECRETS_DIR}"/*.p12
+        rm -f "${SECRETS_DIR}"/ca-cert
+        rm -f "${SECRETS_DIR}"/ca-key
+        rm -f "${SECRETS_DIR}"/*_creds
+        rm -f "${SECRETS_DIR}"/cert-*
+        rm -f "${SECRETS_DIR}"/*.srl
+        print_success "Existing certificates cleaned up!"
+    else
+        print_status "No existing certificates found."
+    fi
+}
+
 # Function to generate CA certificate
 generate_ca_certificate() {
     print_status "Generating Certificate Authority (CA)..."
@@ -219,6 +236,7 @@ main() {
     echo "========================================"
     
     create_directories
+    cleanup_existing_certificates
     generate_ca_certificate
     generate_kafka_keystore
     generate_csr

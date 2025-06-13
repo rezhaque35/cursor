@@ -80,7 +80,6 @@ make_scripts_executable() {
 cleanup_environment() {
     print_step "Cleaning up any existing environment..."
     ./scripts/stop-local-kafka.sh 2>/dev/null || true
-    rm -rf kafka/ 2>/dev/null || true
     docker system prune -f
 }
 

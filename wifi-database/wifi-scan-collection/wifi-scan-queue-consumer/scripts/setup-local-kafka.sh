@@ -152,7 +152,7 @@ main() {
     
     # Generate SSL certificates
     print_status "Generating SSL certificates..."
-    ./generate-ssl-certs.sh
+    ./scripts/generate-ssl-certs.sh
     
     print_success "Local Kafka SSL environment setup completed!"
     echo ""
