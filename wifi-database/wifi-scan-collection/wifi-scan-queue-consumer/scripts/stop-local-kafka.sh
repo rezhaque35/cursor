@@ -48,14 +48,15 @@ check_running_services() {
 
 # Function to gracefully stop services
 stop_services() {
-    print_status "Stopping Kafka and Zookeeper containers gracefully..."
-    
-    if [ -f "docker-compose.yml" ]; then
-        # Use docker-compose to stop services gracefully
-        docker-compose down --timeout 30
+    # Stop services using docker-compose if available
+    if [ -f "scripts/docker-compose.yml" ]; then
+        print_status "Stopping Kafka and Zookeeper containers gracefully..."
+        cd scripts
+        docker-compose down
+        cd ..
         print_success "Services stopped using docker-compose!"
     else
-        print_warning "docker-compose.yml not found. Stopping containers manually..."
+        print_warning "scripts/docker-compose.yml not found. Stopping containers manually..."
         
         # Stop containers manually
         if docker ps --format "{{.Names}}" | grep -q "kafka"; then

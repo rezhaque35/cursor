@@ -82,7 +82,7 @@ create_directories() {
 create_docker_compose() {
     print_status "Creating Docker Compose configuration..."
     
-    cat > docker-compose.yml << 'EOF'
+    cat > scripts/docker-compose.yml << 'EOF'
 version: '3.8'
 
 services:
@@ -108,7 +108,7 @@ services:
       - "9092:9092"
       - "9093:9093"
     volumes:
-      - ./scripts/kafka/secrets:/etc/kafka/secrets
+      - ./kafka/secrets:/etc/kafka/secrets
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'

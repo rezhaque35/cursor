@@ -42,8 +42,8 @@ check_prerequisites() {
     fi
     
     # Check if docker-compose.yml exists
-    if [ ! -f "docker-compose.yml" ]; then
-        print_error "docker-compose.yml not found. Please run ./setup-local-kafka.sh first."
+    if [ ! -f "scripts/docker-compose.yml" ]; then
+        print_error "scripts/docker-compose.yml not found. Please run ./setup-local-kafka.sh first."
         exit 1
     fi
     
@@ -82,7 +82,9 @@ start_services() {
     print_status "Starting Kafka and Zookeeper containers..."
     
     # Start services in detached mode
+    cd scripts
     docker-compose up -d
+    cd ..
     
     print_success "Containers started successfully!"
 }

@@ -150,4 +150,11 @@ development/
 pids
 *.pid
 *.seed
-*.pid.lock 
+*.pid.lock
+
+# Generated Docker Compose files
+scripts/docker-compose.yml
+
+# SSL certificates and secrets (local development only)
+scripts/kafka/secrets/
+secrets/ 
