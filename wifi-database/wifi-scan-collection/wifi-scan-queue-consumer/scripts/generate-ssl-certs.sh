@@ -42,7 +42,7 @@ CA_CERT="ca-cert"
 CA_KEY="ca-key"
 
 # Directory paths
-SECRETS_DIR="kafka/secrets"
+SECRETS_DIR="scripts/kafka/secrets"
 
 # Function to create directories
 create_directories() {

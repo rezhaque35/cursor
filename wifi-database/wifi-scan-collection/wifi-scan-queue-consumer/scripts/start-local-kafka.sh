@@ -47,8 +47,8 @@ check_prerequisites() {
         exit 1
     fi
     
-    # Check if certificates exist
-    if [ ! -f "kafka/secrets/kafka.keystore.p12" ] || [ ! -f "kafka/secrets/kafka.truststore.p12" ]; then
+    # Check if SSL certificates exist
+    if [ ! -f "scripts/kafka/secrets/kafka.keystore.p12" ] || [ ! -f "scripts/kafka/secrets/kafka.truststore.p12" ]; then
         print_error "SSL certificates not found. Please run ./setup-local-kafka.sh first."
         exit 1
     fi

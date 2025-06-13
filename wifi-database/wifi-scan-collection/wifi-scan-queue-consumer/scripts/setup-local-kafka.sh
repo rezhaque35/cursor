@@ -73,7 +73,7 @@ create_directories() {
     print_status "Creating directory structure..."
     
     # Create kafka secrets directory
-    mkdir -p kafka/secrets
+    mkdir -p scripts/kafka/secrets
     
     print_success "Directory structure created!"
 }
@@ -108,7 +108,7 @@ services:
       - "9092:9092"
       - "9093:9093"
     volumes:
-      - ./kafka/secrets:/etc/kafka/secrets
+      - ./scripts/kafka/secrets:/etc/kafka/secrets
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'

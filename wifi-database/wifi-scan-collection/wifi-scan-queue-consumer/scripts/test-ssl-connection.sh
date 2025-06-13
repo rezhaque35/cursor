@@ -35,8 +35,8 @@ print_error() {
 KAFKA_SSL_PORT=9093
 KAFKA_PLAIN_PORT=9092
 ZOOKEEPER_PORT=2181
-KEYSTORE_FILE="kafka/secrets/kafka.keystore.p12"
-TRUSTSTORE_FILE="kafka/secrets/kafka.truststore.p12"
+KEYSTORE_FILE="scripts/kafka/secrets/kafka.keystore.p12"
+TRUSTSTORE_FILE="scripts/kafka/secrets/kafka.truststore.p12"
 KEYSTORE_PASSWORD="kafka123"
 TRUSTSTORE_PASSWORD="kafka123"
 
