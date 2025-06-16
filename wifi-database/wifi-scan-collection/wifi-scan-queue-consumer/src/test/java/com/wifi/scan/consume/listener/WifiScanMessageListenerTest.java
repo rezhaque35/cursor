@@ -1,6 +1,7 @@
 package com.wifi.scan.consume.listener;
 
 import com.wifi.scan.consume.metrics.KafkaConsumerMetrics;
+import com.wifi.scan.consume.service.KafkaMonitoringService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,6 +37,9 @@ class WifiScanMessageListenerTest {
     @Mock
     private KafkaConsumerMetrics mockMetrics;
 
+    @Mock
+    private KafkaMonitoringService mockMonitoringService;
+
     @Captor
     private ArgumentCaptor<String> logMessageCaptor;
 
@@ -48,6 +52,8 @@ class WifiScanMessageListenerTest {
         wifiScanMessageListener.setLogger(mockLogger);
         // Inject mock metrics using ReflectionTestUtils
         ReflectionTestUtils.setField(wifiScanMessageListener, "metrics", mockMetrics);
+        // Inject mock monitoring service using ReflectionTestUtils
+        ReflectionTestUtils.setField(wifiScanMessageListener, "monitoringService", mockMonitoringService);
     }
 
     @Test
