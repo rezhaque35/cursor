@@ -32,7 +32,7 @@ management:
     readinessstate:
       enabled: true
     message-consumption:
-      message-timeout-threshold: 300000  # 5 minutes - fails liveness if no messages received  
+      message-timeout-threshold: 5  # 5 minutes - fails liveness if no messages received  
       consumption-rate-threshold: 0.1
 
 # Enhanced Health Indicator Configuration with SSL Readiness Monitoring

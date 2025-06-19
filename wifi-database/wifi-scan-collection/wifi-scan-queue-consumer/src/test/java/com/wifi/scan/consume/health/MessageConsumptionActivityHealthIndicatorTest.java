@@ -34,7 +34,7 @@ class MessageConsumptionActivityHealthIndicatorTest {
 
     private MessageConsumptionActivityHealthIndicator healthIndicator;
     
-    private static final long POLL_TIMEOUT_THRESHOLD = 300000; // 5 minutes
+    private static final long POLL_TIMEOUT_THRESHOLD = 5; // 5 minutes
     private static final double CONSUMPTION_RATE_THRESHOLD = 0.1;
 
     @BeforeEach
@@ -150,7 +150,7 @@ class MessageConsumptionActivityHealthIndicatorTest {
         // Given - only setup what's needed for this test path  
         when(kafkaMonitoringService.isConsumerConnected()).thenReturn(true);
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(true);
-        when(kafkaMonitoringService.getTimeSinceLastPoll()).thenReturn(400000L); // 400 seconds > 300 second threshold
+        when(kafkaMonitoringService.getTimeSinceLastPoll()).thenReturn(400000L); // 400 seconds > 5 minute (300 second) threshold
 
         // When
         Health health = healthIndicator.health();

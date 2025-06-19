@@ -26,8 +26,8 @@ public class MessageConsumptionActivityHealthIndicator implements HealthIndicato
     private final KafkaMonitoringService kafkaMonitoringService;
     
     // Configuration properties with defaults
-    @Value("${management.health.message-consumption.message-timeout-threshold:300000}") // 5 minutes default
-    private long messageTimeoutThreshold;
+    @Value("${management.health.message-consumption.message-timeout-threshold:5}") // 5 minutes default
+    private long messageTimeoutThresholdMinutes;
     
     @Value("${management.health.message-consumption.consumption-rate-threshold:0.1}")
     private double consumptionRateThreshold;
@@ -40,11 +40,18 @@ public class MessageConsumptionActivityHealthIndicator implements HealthIndicato
     // Constructor for testing with dependency injection
     public MessageConsumptionActivityHealthIndicator(
             KafkaMonitoringService kafkaMonitoringService, 
-            long messageTimeoutThreshold, 
+            long messageTimeoutThresholdMinutes, 
             double consumptionRateThreshold) {
         this.kafkaMonitoringService = kafkaMonitoringService;
-        this.messageTimeoutThreshold = messageTimeoutThreshold;
+        this.messageTimeoutThresholdMinutes = messageTimeoutThresholdMinutes;
         this.consumptionRateThreshold = consumptionRateThreshold;
+    }
+    
+    /**
+     * Convert minutes to milliseconds for internal calculations
+     */
+    private long getMessageTimeoutThresholdMs() {
+        return messageTimeoutThresholdMinutes * 60 * 1000;
     }
 
     @Override
@@ -72,10 +79,11 @@ public class MessageConsumptionActivityHealthIndicator implements HealthIndicato
             boolean consumerStuck = kafkaMonitoringService.isConsumerStuck();
             
             // Check if consumer hasn't received messages recently (may indicate inactive consumer or no available messages)
-            if (timeSinceLastPoll > messageTimeoutThreshold) {
+            long timeoutThresholdMs = getMessageTimeoutThresholdMs();
+            if (timeSinceLastPoll > timeoutThresholdMs) {
                 return buildDownHealth(
                     String.format("Consumer hasn't received messages in %d ms (threshold: %d ms) - may indicate inactive consumer or no available messages", 
-                                 timeSinceLastPoll, messageTimeoutThreshold), 
+                                 timeSinceLastPoll, timeoutThresholdMs), 
                     checkTimestamp);
             }
             
@@ -93,7 +101,7 @@ public class MessageConsumptionActivityHealthIndicator implements HealthIndicato
             
             // Check consumption rate only if we have meaningful data and recent activity
             // Avoid false alarms during idle periods or startup
-            if (totalMessagesConsumed >= 10 && timeSinceLastPoll <= (messageTimeoutThreshold / 2)) {
+            if (totalMessagesConsumed >= 10 && timeSinceLastPoll <= (timeoutThresholdMs / 2)) {
                 // Only check rate if we have enough message history and recent activity
                 if (consumptionRate > 0 && consumptionRate < consumptionRateThreshold) {
                     log.warn("Low consumption rate detected: {} msgs/min (threshold: {} msgs/min)", 
@@ -105,7 +113,7 @@ public class MessageConsumptionActivityHealthIndicator implements HealthIndicato
             
             // Determine if consumption is healthy (consumer is working properly)
             boolean healthyConsumption = consumerConnected && consumerGroupActive && 
-                                       timeSinceLastPoll <= messageTimeoutThreshold && !consumerStuck;
+                                       timeSinceLastPoll <= timeoutThresholdMs && !consumerStuck;
             
             return healthBuilder
                 .withDetail("consumerConnected", consumerConnected)
@@ -115,7 +123,7 @@ public class MessageConsumptionActivityHealthIndicator implements HealthIndicato
                 .withDetail("totalMessagesProcessed", totalMessagesProcessed)
                 .withDetail("successRate", successRate)
                 .withDetail("timeSinceLastMessageReceivedMs", timeSinceLastPoll)
-                .withDetail("messageTimeoutThresholdMs", messageTimeoutThreshold)
+                .withDetail("messageTimeoutThresholdMs", timeoutThresholdMs)
                 .withDetail("consumerStuck", consumerStuck)
                 .withDetail("healthyConsumption", healthyConsumption)
                 .withDetail("reason", "Consumer is healthy - actively polling for messages")

@@ -73,5 +73,5 @@ management:
     readinessstate:
       enabled: true
     message-consumption:
-      poll-timeout-threshold: 300000  # 5 minutes for tests
+      message-timeout-threshold: 5  # 5 minutes for tests
       consumption-rate-threshold: 0.1 
