@@ -29,6 +29,9 @@ import java.util.Enumeration;
 @Component("sslCertificate")
 public class SslCertificateHealthIndicator implements HealthIndicator {
 
+    private static final String CHECK_TIMESTAMP_KEY = "checkTimestamp";
+    private static final String REASON_KEY = "reason";
+    
     private final KafkaMonitoringService kafkaMonitoringService;
     private final HealthIndicatorConfiguration config;
     private final KafkaProperties kafkaProperties;
@@ -47,8 +50,8 @@ public class SslCertificateHealthIndicator implements HealthIndicator {
         if (!kafkaProperties.getSsl().isEnabled()) {
             return Health.up()
                     .withDetail("sslEnabled", false)
-                    .withDetail("reason", "SSL is not enabled")
-                    .withDetail("checkTimestamp", System.currentTimeMillis())
+                    .withDetail(REASON_KEY, "SSL is not enabled")
+                    .withDetail(CHECK_TIMESTAMP_KEY, System.currentTimeMillis())
                     .build();
         }
 
@@ -82,10 +85,10 @@ public class SslCertificateHealthIndicator implements HealthIndicator {
             
             if (!isSslHealthy) {
                 healthBuilder = Health.down()
-                        .withDetail("reason", "SSL connection is not healthy");
+                        .withDetail(REASON_KEY, "SSL connection is not healthy");
             } else if (hasExpired) {
                 healthBuilder = Health.down()
-                        .withDetail("reason", "SSL certificates have expired");
+                        .withDetail(REASON_KEY, "SSL certificates have expired");
             } else if (hasExpiringSoon) {
                 healthBuilder = Health.up();
                 if (warningLevel != null) {
@@ -112,14 +115,14 @@ public class SslCertificateHealthIndicator implements HealthIndicator {
             }
 
             return healthBuilder
-                    .withDetail("checkTimestamp", System.currentTimeMillis())
+                    .withDetail(CHECK_TIMESTAMP_KEY, System.currentTimeMillis())
                     .build();
             
         } catch (Exception e) {
             log.error("Error checking SSL certificate health", e);
             return Health.down()
                     .withDetail("error", e.getMessage())
-                    .withDetail("checkTimestamp", System.currentTimeMillis())
+                    .withDetail(CHECK_TIMESTAMP_KEY, System.currentTimeMillis())
                     .build();
         }
     }
@@ -147,8 +150,7 @@ public class SslCertificateHealthIndicator implements HealthIndicator {
                 String alias = aliases.nextElement();
                 Certificate cert = keyStore.getCertificate(alias);
                 
-                if (cert instanceof X509Certificate) {
-                    X509Certificate x509Cert = (X509Certificate) cert;
+                if (cert instanceof X509Certificate x509Cert) {
                     LocalDateTime expiry = x509Cert.getNotAfter().toInstant()
                             .atZone(ZoneId.systemDefault())
                             .toLocalDateTime();

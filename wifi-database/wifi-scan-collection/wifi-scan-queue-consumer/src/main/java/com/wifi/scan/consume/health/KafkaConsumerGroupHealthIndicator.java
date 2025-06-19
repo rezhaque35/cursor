@@ -1,6 +1,5 @@
 package com.wifi.scan.consume.health;
 
-import com.wifi.scan.consume.config.HealthIndicatorConfiguration;
 import com.wifi.scan.consume.service.KafkaMonitoringService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,13 +16,10 @@ import org.springframework.stereotype.Component;
 public class KafkaConsumerGroupHealthIndicator implements HealthIndicator {
 
     private final KafkaMonitoringService kafkaMonitoringService;
-    private final HealthIndicatorConfiguration config;
 
     @Autowired
-    public KafkaConsumerGroupHealthIndicator(KafkaMonitoringService kafkaMonitoringService,
-                                           HealthIndicatorConfiguration config) {
+    public KafkaConsumerGroupHealthIndicator(KafkaMonitoringService kafkaMonitoringService) {
         this.kafkaMonitoringService = kafkaMonitoringService;
-        this.config = config;
     }
 
     @Override

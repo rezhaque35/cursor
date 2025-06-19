@@ -223,18 +223,18 @@ public class KafkaConsumerMetrics {
      * @return metrics summary
      */
     public String getMetricsSummary() {
-        return String.format(
-                "Kafka Consumer Metrics Summary:\n" +
-                "  Total Messages Consumed: %d\n" +
-                "  Total Messages Processed: %d\n" +
-                "  Total Messages Failed: %d\n" +
-                "  Success Rate: %.2f%%\n" +
-                "  Error Rate: %.2f%%\n" +
-                "  Average Processing Time: %.2f ms\n" +
-                "  Min Processing Time: %d ms\n" +
-                "  Max Processing Time: %d ms\n" +
-                "  First Message: %s\n" +
-                "  Last Message: %s",
+        return """
+                Kafka Consumer Metrics Summary:
+                  Total Messages Consumed: %d
+                  Total Messages Processed: %d
+                  Total Messages Failed: %d
+                  Success Rate: %.2f%%
+                  Error Rate: %.2f%%
+                  Average Processing Time: %.2f ms
+                  Min Processing Time: %d ms
+                  Max Processing Time: %d ms
+                  First Message: %s
+                  Last Message: %s""".formatted(
                 totalMessagesConsumed.get(),
                 totalMessagesProcessed.get(),
                 totalMessagesFailed.get(),

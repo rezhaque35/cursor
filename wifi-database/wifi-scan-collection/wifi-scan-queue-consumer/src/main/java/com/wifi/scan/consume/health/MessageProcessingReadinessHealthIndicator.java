@@ -8,7 +8,7 @@ import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
+
 
 /**
  * Health indicator for message processing readiness.
@@ -27,6 +27,8 @@ import java.time.Duration;
 @Component("messageProcessingReadiness")
 public class MessageProcessingReadinessHealthIndicator implements HealthIndicator {
 
+    private static final String REASON_KEY = "reason";
+    
     private final KafkaMonitoringService kafkaMonitoringService;
     private final HealthIndicatorConfiguration config;
 
@@ -53,7 +55,7 @@ public class MessageProcessingReadinessHealthIndicator implements HealthIndicato
                     config.getMinimumConsumptionRate());
             
             // Get metrics for detailed reporting
-            double consumptionRate = kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10));
+            double consumptionRate = kafkaMonitoringService.getMessageConsumptionRate();
             double successRate = kafkaMonitoringService.getMetrics().getSuccessRate();
             long totalConsumed = kafkaMonitoringService.getMetrics().getTotalMessagesConsumed().get();
             long totalProcessed = kafkaMonitoringService.getMetrics().getTotalMessagesProcessed().get();
@@ -69,15 +71,15 @@ public class MessageProcessingReadinessHealthIndicator implements HealthIndicato
             
             // Provide detailed reason for failures
             if (!isConsumerConnected) {
-                healthBuilder.withDetail("reason", "Consumer cannot connect to Kafka cluster");
+                healthBuilder.withDetail(REASON_KEY, "Consumer cannot connect to Kafka cluster");
             } else if (!isConsumerGroupActive) {
-                healthBuilder.withDetail("reason", "Consumer is not active in consumer group");
+                healthBuilder.withDetail(REASON_KEY, "Consumer is not active in consumer group");
             } else if (!areTopicsAccessible) {
-                healthBuilder.withDetail("reason", "Configured topics are not accessible");
+                healthBuilder.withDetail(REASON_KEY, "Configured topics are not accessible");
             } else if (!isConsumptionHealthy && totalConsumed > 0) {
-                healthBuilder.withDetail("reason", "Message processing is degraded");
+                healthBuilder.withDetail(REASON_KEY, "Message processing is degraded");
             } else {
-                healthBuilder.withDetail("reason", "Service is ready to process messages");
+                healthBuilder.withDetail(REASON_KEY, "Service is ready to process messages");
             }
             
             return healthBuilder
@@ -97,7 +99,7 @@ public class MessageProcessingReadinessHealthIndicator implements HealthIndicato
             log.error("Error checking message processing readiness", e);
             return Health.down()
                     .withDetail("error", e.getMessage())
-                    .withDetail("reason", "Readiness check failed due to exception")
+                    .withDetail(REASON_KEY, "Readiness check failed due to exception")
                     .withDetail("checkTimestamp", System.currentTimeMillis())
                     .build();
         }

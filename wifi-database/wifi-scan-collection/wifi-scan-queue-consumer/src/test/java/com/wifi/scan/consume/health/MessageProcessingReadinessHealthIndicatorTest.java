@@ -12,7 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.Status;
 
-import java.time.Duration;
+
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -53,7 +53,7 @@ class MessageProcessingReadinessHealthIndicatorTest {
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(true);
         when(kafkaMonitoringService.areTopicsAccessible()).thenReturn(true);
         when(kafkaMonitoringService.isMessageConsumptionHealthy(10, 0.0)).thenReturn(true);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(5.0);
+        when(kafkaMonitoringService.getMessageConsumptionRate()).thenReturn(5.0);
         when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
         when(metrics.getSuccessRate()).thenReturn(98.0);
         when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(100));
@@ -82,7 +82,7 @@ class MessageProcessingReadinessHealthIndicatorTest {
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(true);
         when(kafkaMonitoringService.areTopicsAccessible()).thenReturn(true);
         when(kafkaMonitoringService.isMessageConsumptionHealthy(10, 0.0)).thenReturn(false);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(0.0);
+        when(kafkaMonitoringService.getMessageConsumptionRate()).thenReturn(0.0);
         when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
         when(metrics.getSuccessRate()).thenReturn(0.0);
         when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(0));
@@ -107,7 +107,7 @@ class MessageProcessingReadinessHealthIndicatorTest {
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(false);
         when(kafkaMonitoringService.areTopicsAccessible()).thenReturn(true);
         when(kafkaMonitoringService.isMessageConsumptionHealthy(10, 0.0)).thenReturn(false);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(0.0);
+        when(kafkaMonitoringService.getMessageConsumptionRate()).thenReturn(0.0);
         when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
         when(metrics.getSuccessRate()).thenReturn(0.0);
         when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(0));
@@ -132,7 +132,7 @@ class MessageProcessingReadinessHealthIndicatorTest {
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(true);
         when(kafkaMonitoringService.areTopicsAccessible()).thenReturn(false);
         when(kafkaMonitoringService.isMessageConsumptionHealthy(10, 0.0)).thenReturn(true);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(0.0);
+        when(kafkaMonitoringService.getMessageConsumptionRate()).thenReturn(0.0);
         when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
         when(metrics.getSuccessRate()).thenReturn(0.0);
         when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(0));
@@ -157,7 +157,7 @@ class MessageProcessingReadinessHealthIndicatorTest {
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(true);
         when(kafkaMonitoringService.areTopicsAccessible()).thenReturn(true);
         when(kafkaMonitoringService.isMessageConsumptionHealthy(10, 0.0)).thenReturn(false);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(1.0);
+        when(kafkaMonitoringService.getMessageConsumptionRate()).thenReturn(1.0);
         when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
         when(metrics.getSuccessRate()).thenReturn(50.0);
         when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(100));
@@ -183,7 +183,7 @@ class MessageProcessingReadinessHealthIndicatorTest {
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(false);
         when(kafkaMonitoringService.areTopicsAccessible()).thenReturn(true);
         when(kafkaMonitoringService.isMessageConsumptionHealthy(10, 0.0)).thenReturn(true);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(0.0);
+        when(kafkaMonitoringService.getMessageConsumptionRate()).thenReturn(0.0);
         when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
         when(metrics.getSuccessRate()).thenReturn(0.0);
         when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(0));
@@ -223,7 +223,7 @@ class MessageProcessingReadinessHealthIndicatorTest {
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(true);
         when(kafkaMonitoringService.areTopicsAccessible()).thenReturn(true);
         when(kafkaMonitoringService.isMessageConsumptionHealthy(10, 0.0)).thenReturn(true);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(3.5);
+        when(kafkaMonitoringService.getMessageConsumptionRate()).thenReturn(3.5);
         when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
         when(metrics.getSuccessRate()).thenReturn(95.0);
         when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(75));
@@ -258,7 +258,7 @@ class MessageProcessingReadinessHealthIndicatorTest {
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(true);
         when(kafkaMonitoringService.areTopicsAccessible()).thenReturn(true);
         when(kafkaMonitoringService.isMessageConsumptionHealthy(10, 0.0)).thenReturn(true);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(50.0);
+        when(kafkaMonitoringService.getMessageConsumptionRate()).thenReturn(50.0);
         when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
         when(metrics.getSuccessRate()).thenReturn(99.5);
         when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(10000));

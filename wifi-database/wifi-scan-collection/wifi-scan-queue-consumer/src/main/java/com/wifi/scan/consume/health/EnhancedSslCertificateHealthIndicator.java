@@ -63,7 +63,6 @@ public class EnhancedSslCertificateHealthIndicator implements HealthIndicator {
     public Health health() {
         log.debug("Performing enhanced SSL certificate readiness health check");
         
-        Health.Builder healthBuilder = Health.up();
         Map<String, Object> details = new HashMap<>();
         
         // Always include readiness optimization flag

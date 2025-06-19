@@ -47,7 +47,6 @@ public class WifiScanQueueConsumerApplication {
         log.info("WiFi Scan Queue Consumer Started Successfully");
         log.info("=========================================");
         log.info("Application Name: {}", env.getProperty("spring.application.name"));
-        log.info("Active Profiles: {}", Arrays.toString(env.getActiveProfiles()));
         log.info("Server Port: {}", env.getProperty("server.port", "8080"));
         log.info("Kafka Bootstrap Servers: {}", env.getProperty("kafka.bootstrap-servers"));
         log.info("Kafka Consumer Group: {}", env.getProperty("kafka.consumer.group-id"));

@@ -3,13 +3,12 @@
 
 spring:
   application:
-    name: wifi-scan-queue-consumer
-  profiles:
-    active: development
+    name: frisco-location-wifi-scan-vmb-consumer
 
 server:
   servlet:
     context-path: /frisco-location-wifi-scan-vmb-consumer
+  host: localhost
 
 management:
   endpoints:
@@ -32,6 +31,9 @@ management:
       enabled: true
     readinessstate:
       enabled: true
+    message-consumption:
+      message-timeout-threshold: 300000  # 5 minutes - fails liveness if no messages received  
+      consumption-rate-threshold: 0.1
 
 # Enhanced Health Indicator Configuration with SSL Readiness Monitoring
 health:
@@ -65,6 +67,10 @@ health:
     enable-certificate-health-score: true
     readiness-probe-frequency-seconds: 10
 
+request:
+ logging:
+  ignore: "/swagger-ui.html,/v3/api-docs,/swagger-ui/**,/v3/api-docs/**,/info,/health,/metrics,/env,/kafka,health/**"
+  
 logging:
   level:
     com.wifidata.consumer: INFO
@@ -77,16 +83,6 @@ logging:
     org.apache.kafka.clients.admin.AdminClientConfig: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-
----
-# Development Profile
-spring:
-  config:
-    activate:
-      on-profile: development
-
-server:
-  host: localhost
 
 kafka:
   bootstrap-servers: localhost:9093
@@ -116,98 +112,3 @@ kafka:
       type: ${KAFKA_SSL_TRUSTSTORE_TYPE:PKCS12}
     key-password: ${KAFKA_SSL_KEY_PASSWORD:kafka123}
 
-logging:
-  level:
-    com.wifidata.consumer: DEBUG
-    org.springframework.kafka: INFO
-    org.springframework.kafka.listener.KafkaMessageListenerContainer: WARN
-    org.apache.kafka: INFO
-    # Suppress sensitive configuration logging
-    org.apache.kafka.clients.consumer.ConsumerConfig: WARN
-    org.apache.kafka.clients.producer.ProducerConfig: WARN
-    org.apache.kafka.clients.admin.AdminClientConfig: WARN
-
----
-# Production Profile
-spring:
-  config:
-    activate:
-      on-profile: production
-
-server:
-  host: ${SERVER_HOST:0.0.0.0}
-
-kafka:
-  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9093}
-  consumer:
-    group-id: ${KAFKA_CONSUMER_GROUP_ID:wifi-scan-consumer-prod}
-    auto-offset-reset: ${KAFKA_AUTO_OFFSET_RESET:earliest}
-    key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    enable-auto-commit: ${KAFKA_ENABLE_AUTO_COMMIT:false}
-    # auto-commit-interval: ${KAFKA_AUTO_COMMIT_INTERVAL:5000ms}  # Not needed with manual acknowledgment
-    max-poll-records: ${KAFKA_MAX_POLL_RECORDS:1000}
-    session-timeout: ${KAFKA_SESSION_TIMEOUT:30000ms}
-    heartbeat-interval: ${KAFKA_HEARTBEAT_INTERVAL:10000ms}
-  topic:
-    name: ${KAFKA_TOPIC_NAME:wifi-scan-data}
-    partitions: ${KAFKA_TOPIC_PARTITIONS:6}
-    replication-factor: ${KAFKA_TOPIC_REPLICATION_FACTOR:3}
-  ssl:
-    enabled: ${KAFKA_SSL_ENABLED:true}
-    protocol: ${KAFKA_SSL_PROTOCOL:SSL}
-    keystore:
-      location: ${KAFKA_SSL_KEYSTORE_LOCATION:/etc/ssl/kafka/kafka.keystore.p12}
-      password: ${KAFKA_SSL_KEYSTORE_PASSWORD}
-      type: ${KAFKA_SSL_KEYSTORE_TYPE:PKCS12}
-    truststore:
-      location: ${KAFKA_SSL_TRUSTSTORE_LOCATION:/etc/ssl/kafka/kafka.truststore.p12}
-      password: ${KAFKA_SSL_TRUSTSTORE_PASSWORD}
-      type: ${KAFKA_SSL_TRUSTSTORE_TYPE:PKCS12}
-    key-password: ${KAFKA_SSL_KEY_PASSWORD}
-
-logging:
-  level:
-    com.wifidata.consumer: INFO
-    org.springframework.kafka: WARN
-    org.apache.kafka: WARN
-    # Suppress sensitive configuration logging
-    org.apache.kafka.clients.consumer.ConsumerConfig: ERROR
-    org.apache.kafka.clients.producer.ProducerConfig: ERROR
-    org.apache.kafka.clients.admin.AdminClientConfig: ERROR
-
----
-# Test Profile
-spring:
-  config:
-    activate:
-      on-profile: test
-
-server:
-  host: localhost
-
-kafka:
-  bootstrap-servers: localhost:9092
-  consumer:
-    group-id: wifi-scan-consumer-test
-    auto-offset-reset: earliest
-    key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    enable-auto-commit: false
-    max-poll-records: 100
-  topic:
-    name: test-topic
-    partitions: 1
-    replication-factor: 1
-  ssl:
-    enabled: false
-
-logging:
-  level:
-    com.wifidata.consumer: DEBUG
-    org.springframework.kafka: DEBUG
-    org.apache.kafka: INFO
-    # Suppress sensitive configuration logging even in test
-    org.apache.kafka.clients.consumer.ConsumerConfig: WARN
-    org.apache.kafka.clients.producer.ProducerConfig: WARN
-    org.apache.kafka.clients.admin.AdminClientConfig: WARN 

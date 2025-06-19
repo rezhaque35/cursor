@@ -1,6 +1,5 @@
 package com.wifi.scan.consume.health;
 
-import com.wifi.scan.consume.config.HealthIndicatorConfiguration;
 import com.wifi.scan.consume.metrics.KafkaConsumerMetrics;
 import com.wifi.scan.consume.service.KafkaMonitoringService;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,35 +11,40 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.Status;
 
-import java.time.Duration;
+
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for MessageConsumptionActivityHealthIndicator (Liveness).
- * Tests the liveness-focused behavior that checks connectivity and responsiveness,
- * not active message consumption.
+ * Tests the liveness behavior that checks connectivity, responsiveness, and consumption activity.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Message Consumption Activity Health Indicator Tests (Liveness)")
 class MessageConsumptionActivityHealthIndicatorTest {
 
-    @Mock
+    @Mock(lenient = true)
     private KafkaMonitoringService kafkaMonitoringService;
 
-    @Mock
-    private HealthIndicatorConfiguration config;
-
-    @Mock
+    @Mock(lenient = true)
     private KafkaConsumerMetrics metrics;
 
     private MessageConsumptionActivityHealthIndicator healthIndicator;
+    
+    private static final long POLL_TIMEOUT_THRESHOLD = 300000; // 5 minutes
+    private static final double CONSUMPTION_RATE_THRESHOLD = 0.1;
 
     @BeforeEach
     void setUp() {
-        healthIndicator = new MessageConsumptionActivityHealthIndicator(kafkaMonitoringService, config);
+        // Use constructor with dependency injection for proper testing
+        healthIndicator = new MessageConsumptionActivityHealthIndicator(
+            kafkaMonitoringService, 
+            POLL_TIMEOUT_THRESHOLD, 
+            CONSUMPTION_RATE_THRESHOLD
+        );
     }
 
     @Test
@@ -49,11 +53,13 @@ class MessageConsumptionActivityHealthIndicatorTest {
         // Given
         when(kafkaMonitoringService.isConsumerConnected()).thenReturn(true);
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(true);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(0.0);
+        when(kafkaMonitoringService.getMessageConsumptionRate()).thenReturn(1.5);
         when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
-        when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(0));
-        when(metrics.getTotalMessagesProcessed()).thenReturn(new AtomicLong(0));
+        when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(10));
+        when(metrics.getTotalMessagesProcessed()).thenReturn(new AtomicLong(10));
         when(metrics.getSuccessRate()).thenReturn(100.0);
+        when(kafkaMonitoringService.getTimeSinceLastPoll()).thenReturn(100L); // Recent poll
+        when(kafkaMonitoringService.isConsumerStuck()).thenReturn(false);
 
         // When
         Health health = healthIndicator.health();
@@ -62,8 +68,7 @@ class MessageConsumptionActivityHealthIndicatorTest {
         assertThat(health.getStatus()).isEqualTo(Status.UP);
         assertThat(health.getDetails().get("consumerConnected")).isEqualTo(true);
         assertThat(health.getDetails().get("consumerGroupActive")).isEqualTo(true);
-        assertThat(health.getDetails().get("reason")).isEqualTo("Consumer is alive and ready to process messages");
-        assertThat(health.getDetails().get("livenessNote")).isEqualTo("This probe indicates application liveness, not active consumption");
+        assertThat(health.getDetails().get("reason")).isEqualTo("Consumer is healthy - actively polling for messages");
     }
 
     @Test
@@ -72,33 +77,29 @@ class MessageConsumptionActivityHealthIndicatorTest {
         // Given: Consumer is connected but no messages have been processed
         when(kafkaMonitoringService.isConsumerConnected()).thenReturn(true);
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(true);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(0.0);
+        when(kafkaMonitoringService.getMessageConsumptionRate()).thenReturn(0.0);
         when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
         when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(0));
         when(metrics.getTotalMessagesProcessed()).thenReturn(new AtomicLong(0));
         when(metrics.getSuccessRate()).thenReturn(0.0);
+        when(kafkaMonitoringService.getTimeSinceLastPoll()).thenReturn(100L); // Recent poll
+        when(kafkaMonitoringService.isConsumerStuck()).thenReturn(false);
 
         // When
         Health health = healthIndicator.health();
 
-        // Then: Should still be UP because liveness only cares about connectivity
+        // Then: Should still be UP because consumer is connected and not stuck
         assertThat(health.getStatus()).isEqualTo(Status.UP);
         assertThat(health.getDetails().get("consumptionRate")).isEqualTo(0.0);
         assertThat(health.getDetails().get("totalMessagesConsumed")).isEqualTo(0L);
-        assertThat(health.getDetails().get("reason")).isEqualTo("Consumer is alive and ready to process messages");
+        assertThat(health.getDetails().get("reason")).isEqualTo("Consumer is healthy - actively polling for messages");
     }
 
     @Test
     @DisplayName("should_ReturnDown_When_ConsumerNotConnected")
     void should_ReturnDown_When_ConsumerNotConnected() {
-        // Given
+        // Given - only setup what's actually needed for this test path
         when(kafkaMonitoringService.isConsumerConnected()).thenReturn(false);
-        when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(false);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(0.0);
-        when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
-        when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(0));
-        when(metrics.getTotalMessagesProcessed()).thenReturn(new AtomicLong(0));
-        when(metrics.getSuccessRate()).thenReturn(0.0);
 
         // When
         Health health = healthIndicator.health();
@@ -112,14 +113,9 @@ class MessageConsumptionActivityHealthIndicatorTest {
     @Test
     @DisplayName("should_ReturnDown_When_ConsumerGroupNotActive")
     void should_ReturnDown_When_ConsumerGroupNotActive() {
-        // Given
+        // Given - only setup what's actually needed for this test path
         when(kafkaMonitoringService.isConsumerConnected()).thenReturn(true);
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(false);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(0.0);
-        when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
-        when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(0));
-        when(metrics.getTotalMessagesProcessed()).thenReturn(new AtomicLong(0));
-        when(metrics.getSuccessRate()).thenReturn(0.0);
 
         // When
         Health health = healthIndicator.health();
@@ -132,16 +128,51 @@ class MessageConsumptionActivityHealthIndicatorTest {
     }
 
     @Test
+    @DisplayName("should_ReturnDown_When_ConsumerStuck")
+    void should_ReturnDown_When_ConsumerStuck() {
+        // Given - only setup what's needed for this test path
+        when(kafkaMonitoringService.isConsumerConnected()).thenReturn(true);
+        when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(true);
+        when(kafkaMonitoringService.getTimeSinceLastPoll()).thenReturn(100L); // Within threshold
+        when(kafkaMonitoringService.isConsumerStuck()).thenReturn(true);
+
+        // When
+        Health health = healthIndicator.health();
+
+        // Then
+        assertThat(health.getStatus()).isEqualTo(Status.DOWN);
+        assertThat(health.getDetails().get("reason")).isEqualTo("Consumer is stuck - polling but not advancing position");
+    }
+
+    @Test
+    @DisplayName("should_ReturnDown_When_PollTimeoutExceeded")
+    void should_ReturnDown_When_PollTimeoutExceeded() {
+        // Given - only setup what's needed for this test path  
+        when(kafkaMonitoringService.isConsumerConnected()).thenReturn(true);
+        when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(true);
+        when(kafkaMonitoringService.getTimeSinceLastPoll()).thenReturn(400000L); // 400 seconds > 300 second threshold
+
+        // When
+        Health health = healthIndicator.health();
+
+        // Then
+        assertThat(health.getStatus()).isEqualTo(Status.DOWN);
+        assertThat(health.getDetails().get("reason").toString()).contains("Consumer hasn't received messages in");
+    }
+
+    @Test
     @DisplayName("should_ReturnUp_When_ConsumerConnectedAndProcessingMessages")
     void should_ReturnUp_When_ConsumerConnectedAndProcessingMessages() {
         // Given: Consumer is connected and has processed messages
         when(kafkaMonitoringService.isConsumerConnected()).thenReturn(true);
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(true);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(5.5);
+        when(kafkaMonitoringService.getMessageConsumptionRate()).thenReturn(5.5);
         when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
         when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(100));
         when(metrics.getTotalMessagesProcessed()).thenReturn(new AtomicLong(98));
         when(metrics.getSuccessRate()).thenReturn(98.0);
+        when(kafkaMonitoringService.getTimeSinceLastPoll()).thenReturn(100L); // Recent poll
+        when(kafkaMonitoringService.isConsumerStuck()).thenReturn(false);
 
         // When
         Health health = healthIndicator.health();
@@ -175,11 +206,13 @@ class MessageConsumptionActivityHealthIndicatorTest {
         // Given
         when(kafkaMonitoringService.isConsumerConnected()).thenReturn(true);
         when(kafkaMonitoringService.isConsumerGroupActive()).thenReturn(true);
-        when(kafkaMonitoringService.getMessageConsumptionRate(Duration.ofMinutes(10))).thenReturn(2.5);
+        when(kafkaMonitoringService.getMessageConsumptionRate()).thenReturn(2.5);
         when(kafkaMonitoringService.getMetrics()).thenReturn(metrics);
         when(metrics.getTotalMessagesConsumed()).thenReturn(new AtomicLong(50));
         when(metrics.getTotalMessagesProcessed()).thenReturn(new AtomicLong(48));
         when(metrics.getSuccessRate()).thenReturn(96.0);
+        when(kafkaMonitoringService.getTimeSinceLastPoll()).thenReturn(0L);
+        when(kafkaMonitoringService.isConsumerStuck()).thenReturn(false);
 
         // When
         Health health = healthIndicator.health();
@@ -192,7 +225,10 @@ class MessageConsumptionActivityHealthIndicatorTest {
             "totalMessagesConsumed",
             "totalMessagesProcessed",
             "successRate",
-            "livenessNote",
+            "timeSinceLastMessageReceivedMs",
+            "messageTimeoutThresholdMs",
+            "consumerStuck",
+            "healthyConsumption",
             "reason",
             "checkTimestamp"
         );

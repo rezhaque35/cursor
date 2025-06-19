@@ -1,6 +1,5 @@
 package com.wifi.scan.consume.health;
 
-import com.wifi.scan.consume.config.HealthIndicatorConfiguration;
 import com.wifi.scan.consume.service.KafkaMonitoringService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,14 +15,13 @@ import org.springframework.stereotype.Component;
 @Component("kafkaTopicAccessibility")
 public class TopicAccessibilityHealthIndicator implements HealthIndicator {
 
+    private static final String CHECK_TIMESTAMP_KEY = "checkTimestamp";
+    
     private final KafkaMonitoringService kafkaMonitoringService;
-    private final HealthIndicatorConfiguration config;
 
     @Autowired
-    public TopicAccessibilityHealthIndicator(KafkaMonitoringService kafkaMonitoringService,
-                                           HealthIndicatorConfiguration config) {
+    public TopicAccessibilityHealthIndicator(KafkaMonitoringService kafkaMonitoringService) {
         this.kafkaMonitoringService = kafkaMonitoringService;
-        this.config = config;
     }
 
     @Override
@@ -36,13 +34,13 @@ public class TopicAccessibilityHealthIndicator implements HealthIndicator {
             if (areTopicsAccessible) {
                 return Health.up()
                         .withDetail("topicsAccessible", true)
-                        .withDetail("checkTimestamp", System.currentTimeMillis())
+                        .withDetail(CHECK_TIMESTAMP_KEY, System.currentTimeMillis())
                         .build();
             } else {
                 return Health.down()
                         .withDetail("reason", "Configured topics are not accessible")
                         .withDetail("topicsAccessible", false)
-                        .withDetail("checkTimestamp", System.currentTimeMillis())
+                        .withDetail(CHECK_TIMESTAMP_KEY, System.currentTimeMillis())
                         .build();
             }
             
@@ -50,7 +48,7 @@ public class TopicAccessibilityHealthIndicator implements HealthIndicator {
             log.error("Error checking topic accessibility", e);
             return Health.down()
                     .withDetail("error", e.getMessage())
-                    .withDetail("checkTimestamp", System.currentTimeMillis())
+                    .withDetail(CHECK_TIMESTAMP_KEY, System.currentTimeMillis())
                     .build();
         }
     }

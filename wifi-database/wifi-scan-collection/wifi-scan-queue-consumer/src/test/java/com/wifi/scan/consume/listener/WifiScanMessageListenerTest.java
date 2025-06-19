@@ -1,7 +1,8 @@
 package com.wifi.scan.consume.listener;
 
-import com.wifi.scan.consume.metrics.KafkaConsumerMetrics;
-import com.wifi.scan.consume.service.KafkaMonitoringService;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -11,25 +12,18 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.slf4j.Logger;
 import org.springframework.kafka.support.Acknowledgment;
-import org.springframework.kafka.support.KafkaHeaders;
-import org.springframework.test.util.ReflectionTestUtils;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
-import static org.mockito.ArgumentMatchers.isNull;
+import com.wifi.scan.consume.metrics.KafkaConsumerMetrics;
+import com.wifi.scan.consume.service.KafkaMonitoringService;
 
 /**
- * Unit tests for WiFi scan message listener functionality.
- * Tests message consumption and processing using TDD approach.
+ * Unit tests for WifiScanMessageListener.
+ * Tests message processing, validation, and error handling.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("WiFi Scan Message Listener Tests")
 class WifiScanMessageListenerTest {
-
-    @Mock
-    private Logger mockLogger;
 
     @Mock
     private Acknowledgment acknowledgment;
@@ -47,13 +41,7 @@ class WifiScanMessageListenerTest {
 
     @BeforeEach
     void setUp() {
-        wifiScanMessageListener = new WifiScanMessageListener();
-        // Inject mock logger for testing
-        wifiScanMessageListener.setLogger(mockLogger);
-        // Inject mock metrics using ReflectionTestUtils
-        ReflectionTestUtils.setField(wifiScanMessageListener, "metrics", mockMetrics);
-        // Inject mock monitoring service using ReflectionTestUtils
-        ReflectionTestUtils.setField(wifiScanMessageListener, "monitoringService", mockMonitoringService);
+        wifiScanMessageListener = new WifiScanMessageListener(mockMetrics, mockMonitoringService);
     }
 
     @Test
@@ -74,12 +62,9 @@ class WifiScanMessageListenerTest {
         wifiScanMessageListener.listen(record, acknowledgment);
 
         // Then
-        verify(mockLogger, times(1)).info(contains("Received WiFi scan message"));
-        verify(mockLogger, times(1)).info(eq("Topic: {}"), eq(topic));
-        verify(mockLogger, times(1)).info(eq("Partition: {}"), eq(partition));
-        verify(mockLogger, times(1)).info(eq("Offset: {}"), eq(offset));
-        verify(mockLogger, times(1)).info(eq("Key: {}"), eq(messageKey));
-        verify(mockLogger, times(1)).info(eq("Value: {}"), eq(messageValue));
+        verify(mockMetrics, times(1)).recordMessageConsumed();
+        verify(mockMetrics, times(1)).recordMessageProcessed(anyLong());
+        verify(mockMonitoringService, times(1)).recordPollActivity();
         verify(acknowledgment, times(1)).acknowledge();
     }
 
@@ -96,7 +81,8 @@ class WifiScanMessageListenerTest {
         wifiScanMessageListener.listen(record, acknowledgment);
 
         // Then
-        verify(mockLogger, times(1)).info(eq("Key: {}"), isNull(String.class));
+        verify(mockMetrics, times(1)).recordMessageConsumed();
+        verify(mockMetrics, times(1)).recordMessageProcessed(anyLong());
         verify(acknowledgment, times(1)).acknowledge();
     }
 
@@ -114,7 +100,8 @@ class WifiScanMessageListenerTest {
         wifiScanMessageListener.listen(record, acknowledgment);
 
         // Then
-        verify(mockLogger, times(1)).info(eq("Value: {}"), eq(""));
+        verify(mockMetrics, times(1)).recordMessageConsumed();
+        verify(mockMetrics, times(1)).recordMessageProcessed(anyLong());
         verify(acknowledgment, times(1)).acknowledge();
     }
 
@@ -136,8 +123,8 @@ class WifiScanMessageListenerTest {
             wifiScanMessageListener.listen(record, acknowledgment);
         }, "Listener should handle exceptions gracefully");
 
-        verify(mockLogger, times(1)).error(eq("Error processing WiFi scan message from topic: {}, partition: {}, offset: {}"), 
-            eq("wifi-scan-data"), eq(0), eq(12345L), any(RuntimeException.class));
+        verify(mockMetrics, times(1)).recordMessageConsumed();
+        verify(mockMetrics, times(1)).recordMessageFailed();
     }
 
     @Test
@@ -154,8 +141,8 @@ class WifiScanMessageListenerTest {
         wifiScanMessageListener.listen(record, acknowledgment);
 
         // Then
-        verify(mockLogger, times(1)).info(eq("Message processed successfully"));
-        verify(mockLogger, times(1)).debug(eq("Processing time: {} ms"), anyLong());
+        verify(mockMetrics, times(1)).recordMessageConsumed();
+        verify(mockMetrics, times(1)).recordMessageProcessed(anyLong());
     }
 
     @Test
@@ -222,7 +209,7 @@ class WifiScanMessageListenerTest {
         wifiScanMessageListener.listen(record2, acknowledgment);
 
         // Then
-        long messageCount = wifiScanMessageListener.getProcessedMessageCount();
+        long messageCount = wifiScanMessageListener.getProcessedMessageCount().get();
         assertEquals(2L, messageCount, "Message counter should increment for each processed message");
     }
 
@@ -265,8 +252,9 @@ class WifiScanMessageListenerTest {
         // When & Then
         assertDoesNotThrow(() -> {
             wifiScanMessageListener.listen(record, null);
-        }, "Should handle null acknowledgment gracefully");
+        }, "Listener should handle null acknowledgment gracefully");
 
-        verify(mockLogger, times(1)).warn(contains("Acknowledgment is null"));
+        verify(mockMetrics, times(1)).recordMessageConsumed();
+        verify(mockMetrics, times(1)).recordMessageProcessed(anyLong());
     }
 } 
